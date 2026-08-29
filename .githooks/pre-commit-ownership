@@ -1,0 +1,46 @@
+#!/bin/sh
+# .githooks/pre-commit-ownership — file-ownership gate (node G5, owner L1).
+#
+# Implements conventions.ownership_rule via tools/check-ownership.mjs, which is
+# the ONE implementation of that rule (G0). Zero model calls.
+#
+# SEAT RESOLUTION. A seat is identified by its branch: seat/<SEAT>-<NODE>. On any
+# other branch — main included — this hook exits 0 and says so, because L1 merges
+# on main and L1's own writes are gated by the merge protocol, not by this hook.
+#
+# WHY A COMMITTED DIFF AND NOT AN AMBIENT ONE: erp/charters/L1.md requires two
+# FIXTURE invocations, never `git diff` with no argument, and G5's accept asserts
+# exactly that. Here the file list is the STAGED set, which is the diff this
+# commit is actually about; `git diff` with no arguments would grade the working
+# tree, which is not what is being committed.
+
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+case "$branch" in
+  seat/*)
+    seat=$(printf '%s' "$branch" | sed -e 's|^seat/||' -e 's|-.*$||')
+    ;;
+  *)
+    echo "pre-commit-ownership: branch '$branch' is not a seat branch — skipped." >&2
+    exit 0
+    ;;
+esac
+
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$files" ]; then
+  exit 0
+fi
+
+printf '%s\n' "$files" | node tools/check-ownership.mjs --seat "$seat" --files-from -
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit-ownership: seat $seat may not write one or more staged paths — commit blocked." >&2
+  echo "conventions.ownership_rule: (a) a node you own lists the path in outputs, or" >&2
+  echo "(b) the longest-matching file_ownership glob names you. (a) beats (b)." >&2
+  echo "If the rule itself is wrong, that is a PM deviation ticket, not an edit." >&2
+  exit 1
+fi
+
+exit 0
