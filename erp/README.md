@@ -78,10 +78,13 @@ predicates are quoted byte-for-byte in `PLAN.md` §6.3 "Gate Day-0"; run them fr
 `graph.json`, never from a third copy. `L0`'s seven gates run **in the printed order** — that order
 is the fix for three separate defects — and gate (6) is the first `git push` any node performs.
 
-**Settle ruling D-17 before dispatching any seat.** `L0` gate (1) is that ruling's home *and* its
-gate. At **2.5 human-hours/day** the graph does not fit (15.875 h required against 13.75 available)
-and **27 of the 62 horizon-A nodes are deleted**, named by id in `capacity.human_budget_sensitivity`;
-at **3.0 h/day** nothing is cut. The gate fails unless `erp/DECISIONS.md` carries the row and
+**Ruling D-17 is SETTLED: 3.0 human-hours/day** (ruled by the user 2026-08-28, before any seat was
+dispatched). 16.5 h available against 15.875 h required — **the full graph fits with 0.625 h of
+spare and nothing is cut.** `L0` gate (1) is still that ruling's home *and* its gate: it must find
+`human_hours_per_day = 3.0` in `erp/DECISIONS.md` and prove it equals
+`capacity.human_hours_available / 5.5`. The 2.5 h/day branch — 13.75 available, short by 2.125, and
+**27 of the 62 horizon-A nodes deleted**, named by id in `capacity.human_budget_sensitivity` — is
+retained as the contingency if the budget slips in practice. The gate fails unless `erp/DECISIONS.md` carries the row and
 `capacity.human_hours_available` equals the ruled figure × 5.5.
 
 **On the sign-off's hard stop.** `reviews/2026-08-28-signoff.md` records exactly one: defect #1,
@@ -101,10 +104,10 @@ landed: move the probe's path, never weaken the `sha256sum -c` clause.
 | structure | 68 nodes (ids unique), 121 edges, `inputs`↔`edges` bijective 121/121, acyclic, roots `{G1, L0}` |
 | cut invariant, hard + same-horizon | **0 violations over 102 qualifying edges** (110 hard / 11 soft) |
 | critical path, recomputed from `hours` | **29.5 h**, `L0 → V5 → S10 → S1 → S3 → S4 → T2 → H3 → H6 → D4 → D5 → D6` |
-| capacity | 118.0 A-hours, 107.5 non-gated, 5.375 overhead, **15.875 required vs 13.75 available**; fits at ranks 1–3 with 0.275 spare |
+| capacity | 118.0 A-hours, 107.5 non-gated, 5.375 overhead, **15.875 required vs 16.5 available at the ruled 3.0 h/day**; fits whole, 0.625 h spare, nothing cut |
 | `schedule_A` | 62/62 scheduled once, 0 backwards orderings on hard *and* soft edges, peak agent seat-day exactly **6.0** |
 | PLAN.md vs `graph.json` | **35/35 gate blocks byte-identical** (exactly the 35 cut-0 A-nodes); day table 62/62 equal |
-| GRAPH.md lane tables | 68/68 rows; **67 equal on id/title/owner/inputs/hours/cut, 1 title drift** (§6) |
+| GRAPH.md lane tables | 68/68 rows, **all equal on id/title/owner/inputs/hours/cut** (the S5 title drift is closed — `graph.json` adopted the fuller title) |
 | `PATHS.md` owner columns | **166 rows / 150 comparable / 57 disagreeing** — reproduces the published figure exactly |
 | banned-list generator | emits exactly **32** rows, BW-01..BW-32 |
 | environment | Chrome 152.0.7977.64, node v22.23.1, codex-cli 0.144.6, `gh` authed as Caleb0796 with `repo` scope |

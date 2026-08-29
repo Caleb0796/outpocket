@@ -938,18 +938,22 @@ Per **R-10**, here is the whole arithmetic, copied from `graph.json.capacity`:
   118.0 horizon-A total) = **5.375 h**. The human does not review their own gated
   hours at 5%.
 - **Required: 15.875 h.**
-- **Available at 2.5 h/day × 5.5 days = 13.75 h.** Short by **2.125 h**.
+- **RULED 2026-08-28 (D-17, by the user): 3.0 h/day × 5.5 days = 16.5 h available.
+  The full graph FITS with 0.625 h of spare and NOTHING IS CUT.**
+- *Contingency only:* at 2.5 h/day it would be 13.75 h, short by **2.125 h**, and ranks 1–3
+  would fire. The table below is retained for that case. It is **not** the plan of record —
+  the ladder stays defined and the triggers stay armed, but no rank fires on Day 0.
 
 Copied from `graph.json.capacity.reachable_thresholds`, checked by
 `node tools/ready.mjs --check-tables`:
 
-| After cutting (§7.2's rows, in order, cumulatively) | Human hours required | Fits at 2.5 h/day? |
-| --- | --- | --- |
-| nothing | 15.875 | no — short 2.125 |
-| `V0 G5 G6 T4 D2 D3 F6 E5` | 15.275 | no — short 1.525 |
-| + `T3 T5 F3 F5 E1 E2 E3 E4 E6 E7 E8 E9 E10` | 14.050 | no — short 0.300 |
-| **+ `V2 V3 V4 S7 S8 F2`** | **13.475** | **yes — 0.275 h spare** |
-| + `X1 X2 X3 X4 X5 X6` (lane X) | 13.475 | unchanged; lane X frees zero horizon-A hours |
+| After cutting (§7.2's rows, in order, cumulatively) | Human hours required | Fits at 2.5 h/day? | Fits at the ruled 3.0 h/day? |
+| --- | --- | --- | --- |
+| **nothing — THE PLAN OF RECORD** | **15.875** | no — short 2.125 | **yes — 0.625 h spare** |
+| `V0 G5 G6 T4 D2 D3 F6 E5` | 15.275 | no — short 1.525 | yes — 1.225 h spare |
+| + `T3 T5 F3 F5 E1 E2 E3 E4 E6 E7 E8 E9 E10` | 14.050 | no — short 0.300 | yes — 2.450 h spare |
+| + `V2 V3 V4 S7 S8 F2` | 13.475 | yes — 0.275 h spare | yes — 3.025 h spare |
+| + `X1 X2 X3 X4 X5 X6` (lane X) | 13.475 | unchanged; lane X frees zero horizon-A hours | unchanged |
 
 **At 3.0 h/day the available budget is 16.5 h and nothing needs cutting: the full
 graph fits with 0.625 h of spare.** The entire ladder hangs on a difference of half
@@ -1118,7 +1122,8 @@ appearing in no hour total.
 **Structural risk SR-1: a dead resident session needs a human.** An agent can wake an
 idle session or shell out to a headless `claude -p`, but it cannot open a new
 terminal window. A genuinely dead seat is a human-in-the-loop recovery, and against a
-human budget of 2.5 h/day (§7.2) this is a real single point of failure.
+human budget of 3.0 h/day (D-17, ruled) this is a real single point of failure — the ruling
+added 0.625 h of spare, which is not one restart cycle.
 *Mitigation:* W's stall detection reports silence per seat; PM keeps a one-line
 restart command per seat in `PLAN.md`; no `cut: 0` node is owned by a seat with no
 named backup. *(Renamed from "R-1" so it cannot be confused with ruling **R-1**, the

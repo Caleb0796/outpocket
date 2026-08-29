@@ -181,7 +181,8 @@ seats are never addressed directly, in either direction.**
 The arithmetic, taken from `graph.json.capacity` and not recomputed here:
 
 - Sprint A is 5.5 days ≈ **132 hours** of wall clock (`capacity.wall_clock_hours`).
-- Human bandwidth is **2.5 h/day → 13.75 h** (`capacity.human_hours_available`). The user's
+- Human bandwidth is **3.0 h/day → 16.5 h**, ruled by the user 2026-08-28 as D-17
+  (`capacity.human_hours_available`). At this figure nothing is cut. The user's
   stated budget is 2–3 h/day; **the agreed team design says 2.5, and 2.5 is what this plan
   assumes.** §9.7 states what that costs, with the arithmetic, and what changes at 3.0.
 - Human throughput is **30–50 prompts/day** → **165–275 prompts** total.
@@ -593,8 +594,8 @@ exists), and at freeze `ls kb/pits/*.md | wc -l` equals the number of nodes mark
                                                                                IRREDUCIBLE]
    review overhead = 0.05 x 107.5 non-gated agent-hours          =  5.375 h
                                                           required = 15.875 h
-   available at 2.5 h/day x 5.5 days                              = 13.750 h   short by 2.125
-   available at 3.0 h/day x 5.5 days                              = 16.500 h   spare  0.625
+   available at 2.5 h/day x 5.5 days   [contingency]              = 13.750 h   short by 2.125
+   available at 3.0 h/day x 5.5 days   [RULED — plan of record]    = 16.500 h   spare  0.625
    ```
 
    **At 2.5 h/day the full graph does not fit.** The first rank that fits is **ranks 1–3

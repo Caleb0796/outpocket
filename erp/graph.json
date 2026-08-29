@@ -178,8 +178,8 @@
     "agent_capacity_assumption": "12 active node-owning seats x 6 productive agent-hours/day x 5.5 days = 396. OUR-ESTIMATE. MEASURED off this file: TWELVE seats own horizon-A nodes — I1 12, I3 11, UX 8, I4 7, C4 7, I2 5, L1 4, QA 4, C1 1, C2 is horizon-B only, C3 1, L2 1, PM 1 — and the figure published here said TEN, which made the sentence false and the arithmetic that produced 330 wrong with it. Correcting it only increases the headroom and nothing downstream moves: agent hours are NOT the binding resource at any cut rank, 118.0 of 396, and the binding resource is capacity.human_hours_available. The 6 h/seat/day term is the one that binds, through capacity.seat_day_hours_cap, not through this total.",
     "seat_day_hours_cap": 6.0,
     "seat_day_hours_cap_note": "The 6 h/seat/day figure in agent_capacity_assumption is now BINDING on capacity.schedule_A, not merely a divisor in a total, and `node tools/ready.mjs --check-schedule` enforces it. It counts AGENT hours only: the five human-gated nodes (G1, V1, D4, D5, D6) are drawn from the human's daily budget, not from the owning seat's six agent-hours, because the seat is waiting on a person rather than working. The previous day table broke the assumption three times — I3 at 8.0 h on Day 2, I1 at 6.5 h on Day 2 and 7.0 h on Day 3 — while quoting the same 6 h/seat figure to justify its 330-hour capacity. FIXED ON THE SCHEDULE SIDE, not the assumption side: S5 moved to Day 3, S9 to Day 2, S2 to Day 4, S7 to Day 5, V5 to Day 0 and H2 stayed on Day 1, and the peak seat-day is now exactly 6.0 (I1 Day 2, I1 Day 3, I3 Day 3, I3 Day 4, UX Day 4).",
-    "human_hours_available": 13.75,
-    "human_hours_assumption": "2.5 h/day x 5.5 days = 13.75. Source: the user's own stated budget of 2-3 h/day and 30-50 prompts (PUBLISHED — stated directly by the user, not measured). This single figure decides whether the cut ladder is needed at all; see human_budget_sensitivity. PM settles 2.5 vs 3.0 on Day 0, before any seat is dispatched, as ruling D-17 in erp/DECISIONS.md; L0 accept gate (1) is its gate and fails if this figure and the ruled per-day figure x 5.5 disagree.",
+    "human_hours_available": 16.5,
+    "human_hours_assumption": "3.0 h/day x 5.5 days = 16.5. RULED by the user 2026-08-28 as D-17, before any seat was dispatched. Source: the user's own stated budget of 2-3 h/day and 30-50 prompts, settled at the top of that range (PUBLISHED — stated directly by the user). At this figure NOTHING IS CUT: 15.875 required against 16.5 available, 0.625 h of spare. The 2.5 h/day branch and its 27-node amputation set are retained in human_budget_sensitivity as the contingency if the budget turns out lower in practice; they are NOT the plan of record. L0 accept gate (1) proves this figure equals the ruled per-day figure x 5.5.",
     "human_gated_hours": 10.5,
     "human_gated_breakdown": "G1 0.5 + V1 2.0 + D4 4.0 + D5 2.0 + D6 2.0 = 10.5. All five are cut rank 0, so this figure is IRREDUCIBLE: no rank of the ladder frees a single human-gated hour.",
     "review_overhead_rule": "0.05 x (agent_hours_total_A - human_gated_hours). The human does not review their own gated hours at 5%. The previous revision applied 0.05 to the full total and double-counted; that error is corrected here.",
@@ -193,7 +193,9 @@
         "human_hours_required": 15.875,
         "fits_at_2.5": false,
         "short_by": 2.125,
-        "graph_depth_hours": 29.5
+        "graph_depth_hours": 29.5,
+        "fits_at_3.0": true,
+        "spare_at_3.0": 0.625
       },
       {
         "after_firing": "rank 1",
@@ -202,7 +204,9 @@
         "human_hours_required": 15.275,
         "fits_at_2.5": false,
         "short_by": 1.525,
-        "graph_depth_hours": 29.5
+        "graph_depth_hours": 29.5,
+        "fits_at_3.0": true,
+        "spare_at_3.0": 1.225
       },
       {
         "after_firing": "ranks 1-2",
@@ -211,7 +215,9 @@
         "human_hours_required": 14.05,
         "fits_at_2.5": false,
         "short_by": 0.3,
-        "graph_depth_hours": 29.5
+        "graph_depth_hours": 29.5,
+        "fits_at_3.0": true,
+        "spare_at_3.0": 2.45
       },
       {
         "after_firing": "ranks 1-3",
@@ -220,7 +226,9 @@
         "human_hours_required": 13.475,
         "fits_at_2.5": true,
         "spare": 0.275,
-        "graph_depth_hours": 29.5
+        "graph_depth_hours": 29.5,
+        "fits_at_3.0": true,
+        "spare_at_3.0": 3.025
       },
       {
         "after_firing": "ranks 1-4",
@@ -230,14 +238,16 @@
         "fits_at_2.5": true,
         "spare": 0.275,
         "graph_depth_hours": 29.5,
-        "note": "Rank 4 is lane X, horizon B. It frees ZERO horizon-A hours. It exists only so the invariant check has a terminal rank."
+        "note": "Rank 4 is lane X, horizon B. It frees ZERO horizon-A hours. It exists only so the invariant check has a terminal rank.",
+        "fits_at_3.0": true,
+        "spare_at_3.0": 3.025
       }
     ],
     "ladder_does_not_shorten_the_schedule": "Every one of the twelve nodes on the critical path is cut rank 0. The graph depth is therefore 29.5 h after firing rank 1, after firing rank 2, after firing rank 3 and after firing rank 4 — the ladder shortens the critical path by EXACTLY ZERO at every rank, and frees EXACTLY ZERO human-gated hours. It is a pure review-overhead instrument: its only effect on the human budget is to shrink the 0.05 x agent-hours term. Any document that claims a rank 'reroutes the path' or 'drops the depth' is wrong; the previous revision's '19.5 h to ~19.0 h via an H-lane reroute' was fabricated and is retracted.",
     "human_budget_sensitivity": {
       "at_2.5_h_per_day": "13.75 available vs 15.875 required. The full graph does NOT fit. The first rank that fits is rank 3, at 13.475 required with 0.275 h of spare — which is less than one video re-shoot.",
       "at_3.0_h_per_day": "16.5 available vs 15.875 required. NOTHING NEEDS CUTTING. The full graph fits with 0.625 h of spare.",
-      "the_decision": "The entire cut ladder hangs on a difference of half an hour per day. This is a PM decision on Day 0, logged as D-17 in erp/DECISIONS.md — a file L0 CREATES on Day 0 for exactly this purpose, gated by L0 accept gate (1), which also proves capacity.human_hours_available equals the ruled figure times 5.5. It is taken BEFORE any seat is dispatched — not discovered on Day 4, and no longer due into a file that would not exist until V6 produced it on Day 2.",
+      "the_decision": "RULED 2026-08-28 by the user: 3.0 h/day. Recorded as D-17. The full graph fits with 0.625 h of spare and no rank of the ladder fires. PM's Day-0 job is to RECORD this in erp/DECISIONS.md — a file L0 CREATES on Day 0 for exactly this purpose, gated by L0 accept gate (1), which also proves capacity.human_hours_available equals the ruled figure times 5.5. The at_2.5_h_per_day branch and amputation_set below are the retained CONTINGENCY if the budget slips in practice; they are not the plan of record.",
       "amputation_set_if_2.5_holds": [
         "V0",
         "G5",
@@ -268,9 +278,10 @@
         "F2"
       ],
       "amputation_set_size": 27,
-      "amputation_set_meaning": "Firing ranks 1-3 deletes 27 of the 62 horizon-A nodes: the whole eval lane and three of the four rulers' instruments, the absence register, the surface inspector, per-field provenance, the hash chain, three of five unknowns, and the demo skin. What survives is the server kernel, the tool-surface flips, the harness, the deploy and the video. State this to the user as the price of 2.5 h/day; do not hide it behind a verdict word."
+      "amputation_set_meaning": "Firing ranks 1-3 deletes 27 of the 62 horizon-A nodes: the whole eval lane and three of the four rulers' instruments, the absence register, the surface inspector, per-field provenance, the hash chain, three of five unknowns, and the demo skin. What survives is the server kernel, the tool-surface flips, the harness, the deploy and the video. State this to the user as the price of 2.5 h/day; do not hide it behind a verdict word.",
+      "ruled": "3.0 h/day"
     },
-    "verdict": "At 2.5 h/day the full graph misses by 2.125 human-hours and ranks 1-3 must fire. At 3.0 h/day it fits with 0.625 h spare and nothing is cut. The binding resource is human hours; agent hours are not binding at any rank. The ladder cannot help the schedule — graph depth is 29.5 h regardless — so if the deadline is the problem, cutting is the wrong instrument and scope must come out of D4/D5/D6 or the deadline moves.",
+    "verdict": "D-17 IS RULED AT 3.0 h/day (2026-08-28, by the user): 16.5 available against 15.875 required, so the full graph FITS with 0.625 h of spare and NOTHING IS CUT. The 2.5 h/day branch — short by 2.125 h, ranks 1-3 firing, 27 of 62 horizon-A nodes deleted — is retained as the contingency, not the plan. The binding resource is still human hours; agent hours are not binding at any rank. The ladder still cannot help the schedule — graph depth is 29.5 h regardless — so if the DEADLINE becomes the problem, cutting is the wrong instrument and scope must come out of D4/D5/D6.",
     "human_hours_are_budgeted_in_total_not_per_day": "STATED PLAINLY BECAUSE THE SCHEDULE MAKES IT VISIBLE: the 2.5 h/day figure is a TOTAL budget spread over 5.5 days, not a per-day cap the schedule respects. schedule_A concentrates human-gated work on three days — Day 1 carries 2.5 h (G1 0.5 + V1 2.0), Day 5 carries 4.0 h (D4) and Day 6 carries 4.0 h (D5 2.0 + D6 2.0) — so those three days each need more of the user's attention than an average day, and Day 5 and Day 6 need well over it. There is no rank of the ladder that changes this: all five human-gated nodes are cut 0. If the user cannot give roughly half a day to the video on Day 5 and half a day to submission on Day 6, the answer is to shorten D4's scope, not to fire a rank.",
     "schedule_A": {
       "authority": "This block is the ONLY schedule. PLAN.md's day table is a RESTATEMENT and is checked against it by `node tools/ready.mjs --check-tables`; on disagreement this block wins and PLAN's table is regenerated. Every horizon-A node appears exactly once. Lane X (horizon B) is not scheduled.",
@@ -363,6 +374,14 @@
       },
       "changes_from_the_previous_day_table": "V5 Day 1 -> Day 0 (so the probe origin is up before V1 needs it, and so I1's Day 1 fits the 6 h cap). V0 Day 3 -> Day 1 and H5 Day 0 -> Day 2 (R-19: both of V0's consumers used to precede it, so V6 could only ever have recorded V0 as UNVERIFIED — it was dead work as scheduled). V1 Day 2 -> Day 1 (the graph, RISK.md and PLAN.md disagreed about this node's day, and RISK's Day-1 23:59 trigger fired by construction against the plan's own schedule). T4 Day 1 -> Day 3 and F6 Day 1 -> Day 4 (NEW-8: both asserted properties of a built page that did not exist on Day 1). S9 Day 3 -> Day 2, S5 Day 2 -> Day 3, S2 Day 3 -> Day 4, S7 Day 4 -> Day 5 (the 6 h/seat/day cap; I3 was carrying 8.5 h on Day 2 once S5 grew to 4.0). Everything else keeps its day.",
       "verified": "62/62 horizon-A nodes scheduled exactly once; every hard edge u->v has day(u) <= day(v), 0 backwards orderings; no seat exceeds 6.0 agent-hours on any day, peak 6.0 at I1 Day 2, I1 Day 3, I3 Day 3, I3 Day 4 and UX Day 4. Recomputed by script over this file, 2026-08-28."
+    },
+    "d17_ruling": {
+      "ruled": "3.0 h/day",
+      "ruled_on": "2026-08-28",
+      "ruled_by": "the user, directly",
+      "human_hours_available": 16.5,
+      "consequence": "The full graph fits with 0.625 h of spare. No rank of the cut ladder fires. All 62 horizon-A nodes stay in scope.",
+      "still_true": "The ladder remains defined and the trigger table remains armed — this ruling removes the PRE-EMPTIVE cut, not the contingency. If the budget slips in practice, ranks 1-3 are still the instrument and the 27-node set is still the price."
     }
   },
   "critical_path_A": {

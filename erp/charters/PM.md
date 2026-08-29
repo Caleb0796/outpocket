@@ -66,8 +66,11 @@ fallback; a row with no named fallback is malformed and the node does not pass.
 
 1. **D-17, the human budget — the TOTAL.** `graph.json.capacity` computes
    **15.875** human-hours required (10.5 irreducible human-gated + **5.375**
-   review overhead at 0.05 × **107.5** non-gated agent-hours). At **2.5 h/day**
-   you have 13.75 and are short by **2.125** — the first rank that fits is
+   review overhead at 0.05 × **107.5** non-gated agent-hours).
+   **D-17 IS ALREADY RULED: 3.0 h/day, by the user, 2026-08-28. You have 16.5,
+   nothing is cut, 0.625 h spare. Your job on Day 0 is to RECORD it in
+   `erp/DECISIONS.md`, not to decide it.** For the contingency: at **2.5 h/day**
+   you would have 13.75 and be short by **2.125** — the first rank that fits is
    **ranks 1–3**, which deletes 27 of the 62 horizon-A nodes, the entire eval
    lane, and two of the four rulers. At **3.0 h/day** you have 16.5 and **nothing
    is cut**, with **0.625 h** spare. Settle it on Day 0 and log it in

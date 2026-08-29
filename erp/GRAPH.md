@@ -808,9 +808,11 @@ is waiting on a person rather than working.
 
 **Model C — human capacity. This is the binding one.**
 
-The human budget is **2.5 h/day × 5.5 days = 13.75 h available**. Source, quoted from
-`graph.json`: "the user's own stated budget of 2–3 h/day and 30–50 prompts (PUBLISHED — stated
-directly by the user, not measured)."
+The human budget is **3.0 h/day × 5.5 days = 16.5 h available** — ruled by the user on
+2026-08-28 as **D-17**, at the top of their stated 2–3 h/day range, before any seat was
+dispatched. Source, quoted from `graph.json`: "the user's own stated budget of 2–3 h/day and
+30–50 prompts (PUBLISHED — stated directly by the user, not measured)." At the ruled figure
+nothing is cut and 0.625 h is spare.
 
 Required, and the arithmetic is shown rather than asserted:
 
@@ -842,7 +844,11 @@ frees a single human-gated hour.**
 
 ### 4.3 The sensitivity, stated in the open
 
-**At 2.5 h/day: 13.75 available against 15.875 required. The full graph does not fit — short by
+**RULED 2026-08-28 (D-17): 3.0 h/day. 16.5 available against 15.875 required — the full graph
+fits with 0.625 h of spare and no rank of the ladder fires.** The 2.5 h/day branch below is the
+retained contingency, not the plan of record.
+
+**At 2.5 h/day: 13.75 available against 15.875 required. The full graph would not fit — short by
 2.125 h.** The first rank that fits is **rank 3**, at 13.475 required with **0.275 h of spare**,
 which is less than one video re-shoot. Ranks 1 and 2 do not get there — 15.275 and 14.05 against
 13.75 — and rank 4 frees zero horizon-A hours.
