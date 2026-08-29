@@ -1178,7 +1178,7 @@ acceptance predicate per item, so "basically done" is not expressible.
    acceptance predicate**. If you cannot write the check, the node is not a node.
 2. An edge is **a frozen artifact, not a feeling**. If you cannot name the file
    that crosses the edge, the edge is fake and the two nodes are actually one node.
-   All 120 edges carry a `kind` and a `contract`. Two were added in v2.3.0:
+   All 121 edges carry a `kind` and a `contract`. Two were added in v2.3.0:
    **`V5 → S10`** and **`V5 → G6`** — `V5` writes the ninth contract file into the
    directory `S10` freezes and `G6` validates, and only the schedule ordered them,
    which `--check-schedule` cannot prove because it walks hard edges only. Two were

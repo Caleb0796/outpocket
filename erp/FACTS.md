@@ -1408,3 +1408,16 @@ public, which is why the `G1 → G3` edge…"): that edge no longer exists.
 ran for the first time on 2026-08-29 and it is what caught all three of the above,
 plus a `G3.inputs` row and two day-count rows in three sibling documents. This is
 the mode working as designed on its first run, not a defect discovered late.
+
+**Appended 2026-08-29, later the same evening — the edge count moved again, back
+to where it started, and that is a coincidence rather than a reversion.** §17
+above records 120/109/101 after R-42/D-30 deleted the hard, same-horizon
+`G1 → G3` edge. **D-50 then added a hard, same-horizon `H2 → F1` edge** — `F1`'s
+accept invokes a mode of `H2`'s artifact while `F1.inputs` was `[S1]` only, so no
+edge crossed and neither `--check-schedule` nor `--check-accept-paths` could see
+the dependency. **Re-MEASURED by `node tools/ready.mjs --check-cuts`: 121 edges,
+110 hard, 102 qualifying, 8 cross-horizon exempt, 0 violations; `inputs`↔`edges`
+bijective 121/121.** Those are the same three totals this corpus published before
+D-30. **Two different edges, one net.** §17's correction is not undone, and a
+reader who finds 121 here and 120 there is looking at two true measurements of
+two different graphs, not at a document that drifted.
