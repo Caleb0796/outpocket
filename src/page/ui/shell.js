@@ -20,6 +20,8 @@
 // so "Switch persona" does not call one. It reopens the picker, and signing in
 // again issues a fresh sid that replaces the old cookie.
 
+import { readEnv, renderBanner } from "../env-banner.js";
+
 const LOGIN_URL = "/api/login";
 const ME_URL = "/api/me";
 
@@ -197,6 +199,35 @@ document.addEventListener("click", (event) => {
 });
 
 /**
+ * Mount the environment banner into the slot index.html reserves for it.
+ *
+ * src/page/env-banner.js (node H5, seat I1) is a PURE module — it exports
+ * readEnv/renderBanner and mounts nothing itself; its own doc comment says
+ * "The caller attaches it: container.prepend(renderBanner(document, readEnv(window)))".
+ * #env-banner is the shell's element, so the shell is that caller. Without this,
+ * H5's own tests still pass (they import the functions directly) while the
+ * banner never renders in a browser and the slot reads "not yet checked"
+ * forever — including on camera.
+ *
+ * The placeholder is cleared only on success, so a failure here leaves the
+ * honest "not yet checked" text rather than an empty bar that reads as "fine".
+ * The banner is not decoration: the installed Chromium major is below 153, so
+ * this is the element that puts a real platform gap on screen for the whole
+ * demo instead of leaving it mysterious.
+ */
+function mountEnvBanner({ simulated = false } = {}) {
+  const container = document.getElementById("env-banner");
+  if (!container) return;
+  try {
+    const banner = renderBanner(document, readEnv({ navigator, document, simulated }));
+    container.textContent = "";
+    container.appendChild(banner);
+  } catch (err) {
+    console.error("shell: environment banner failed to render", err);
+  }
+}
+
+/**
  * The shell's interface to the nodes that mount into its regions (F2, F3, F4,
  * F5, and I1's banners). Deliberately small: read the session, hear about
  * changes, find your slot. Nothing here registers a tool — that is I2's
@@ -211,8 +242,19 @@ export const shell = {
   },
   region: (name) => document.querySelector(`[data-region="${name}"]`),
   refreshSession,
+
+  /**
+   * Re-render the environment banner. H3's in-page fallback agent (I1) calls
+   * this with `{ simulated: true }` when it starts driving, so the banner says
+   * so in plain words. An unlabelled self-driving demo is dishonest, and the
+   * banner is where that label belongs — the shell cannot know at load time
+   * whether the fallback agent will take over, so it exposes the seam rather
+   * than guessing.
+   */
+  refreshEnvBanner: mountEnvBanner,
 };
 
 globalThis.outpocketShell = shell;
 
+mountEnvBanner();
 refreshSession();
