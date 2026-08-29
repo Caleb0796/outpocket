@@ -22,12 +22,13 @@
     "H2",
     "S3",
     "S4",
-    "F1"
+    "F1",
+    "H5"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 HEAD OF THE CRITICAL PATH, 3h. Carries DEV-006: T1's top-level-registration clause moved here with --selftest mandatory, where call sites first exist.",
-    "H5": "I1.",
-    "V1 gate": "QA \u2014 status unreported; chase."
+    "T2": "I2 \u2014 HELD, not rejected. Own scope green and DEV-006 vindicated (1 real call site, not 0). span 0 blocked on drive.mjs --assert-flips, which does not exist and no node was told to build. PM ruling pending under D-50.",
+    "V1 gate": "QA, after I1's transcription (merged).",
+    "D5 UI check": "docs-first only \u2014 PM REFUSED the decoy-submission route."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

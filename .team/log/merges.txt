@@ -343,3 +343,44 @@ MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
 #
 # THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
 #   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
+
+MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
+
+# CORRECTION TO THAT MERGE COMMIT, MADE HERE BECAUSE IT IS ALREADY PUSHED.
+#   The message says spans 1 and 2 are "backticked FRAGMENTS, not commands".
+#   THEY ARE NOT FRAGMENTS — THEY DO NOT EXIST. H5.accept contains exactly ONE
+#   backticked span. `--show 1` and `--show 2` both print the runner's usage
+#   line, and the exit 2 I saw was an OUT-OF-RANGE INDEX, not the new
+#   non-command warning. I read a familiar exit code as a familiar cause without
+#   checking which one it was — the same substitution of a plausible story for a
+#   measurement that this log already records three times today, in a smaller
+#   place. The gate itself is unaffected: the one real span exits 0, the suite is
+#   100/100, lint 0, ownership 2/2.
+#
+# H5 — environment banner. Suite 82 -> 100 (18 new), no regressions.
+#   FOUND BY THE CLAUSE-6d SWEEP AND NOT BY A REPORT, the fourth instance today.
+#   D-55: a seat that finishes and goes idle is A PROCESS THAT HAS ENDED, so
+#   push-based reporting fails at exactly the moment the report matters. The
+#   sweep is pull-based and caught H5 and T2 within an hour of becoming 6d.
+#
+# T2 IS HELD, NOT REJECTED, AND ITS OWN SCOPE IS GREEN.
+#   span 1  node tools/check-toplevel.mjs --selftest                 exit 0
+#   span 2  find src/page -name '*.js' | xargs check-toplevel.mjs    exit 0
+#           js/mjs scanned 40 · registerTool call sites 1
+#           OK: 0 of 1 reachable from an iframe or worker entry
+#           selftest: "ok  empty scan is a FAIL, not a pass"
+#   DEV-006 IS VINDICATED: the clause PM moved off T1 now runs against ONE REAL
+#   CALL SITE instead of zero, with the vacuity arm mandatory. W found it, PM
+#   moved it, and it did the job one node later exactly as designed.
+#   span 0 is `node harness/drive.mjs --assert-flips 1,5,12,13` and
+#   `grep -c assert-flips harness/drive.mjs` returns 0. THIRD INSTANCE of the
+#   consumer-specifies-the-producer defect, after --smoke-login (F1 -> H2) and
+#   the S1 static route (T2/D1 -> S1). Escalated to PM under D-50; not sent back
+#   to I2, whose own scope is green, and not invented into drive.mjs by me.
+#
+# THE FOURTH REGISTER, RAISED TO PM AND CURRENTLY UNMEASURED: my instruments
+#   verify that PATHS exist (--check-accept-paths) and that ORDER holds
+#   (--check-schedule). NOTHING VERIFIES THAT A MODE, FLAG OR SUBCOMMAND NAMED IN
+#   A PREDICATE IS PRODUCED BY ANYTHING. Both checkers passed all three of these
+#   happily — drive.mjs resolves as a declared H2 output every time. Three nodes
+#   have paid for it today.
