@@ -1044,9 +1044,14 @@ The arithmetic, from `graph.json.capacity.human_gated_breakdown`
   hours**.
 - `D5` + `D6` alone are **4.0 human-gated hours**, and they are strictly
   sequential (`D5 → D6`). They consume the entire window with zero slack.
-- Day 6's human budget at the **ruled 3.0 h/day** (D-17) is **3.0 h**, and Day 6's actual
-  human-gated load is **4.5 h** (`G1` 0.5 + `D5` 2.0 + `D6` 2.0). `D5`+`D6` alone already
-  overrun it, and `G1` is on top of them.
+- Day 6's human budget is **4.5 h by ruled one-time exemption (D-52, the user, 2026-08-29)**;
+  D-17's 3.0 h/day stands as the norm and Days 5 and 6 are the recorded exception. The BUDGET
+  question is closed. **The WALL-CLOCK question is not, and it is a different question:**
+  `G1 → D5 → D6` is a hard chain, so 0.5 + 2.0 + 2.0 = **4.5 h are strictly sequential**
+  against a 4.0 h window. An exemption grants hours; it cannot grant clock. **The fix is free:
+  the 09:00 freeze is a ceiling on CODE CHANGES, not a start time for submission work — nothing
+  forbids `G1`/`D5`/`D6` running before it, and `G1` touches no code. START DAY 6 AT 08:00 PT:
+  a 5.0 h window for 4.5 h of work, 0.5 h slack, no scope change and no further ruling.**
 
 **Three things follow, and they are binding:**
 
