@@ -475,3 +475,50 @@ MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
 #   Caught by mcp-6d comparing merges.txt against graph.state.json.done.
 #   GAP IN MY LOOP, recorded: 6d watches BRANCHES; a node whose artifacts arrive
 #   inside another node's merge is invisible to it.
+
+# SEVENTH INSTANCE, AND IT IS THE ONE NO INSTRUMENT REACHED.
+#   T2 stayed red WITH the mount in place. Measured against the real served
+#   origin: GET / 200, GET /register.js 200, GET /erp.js 404 — the page's module
+#   graph dies at the first upward import. src/page/register.js:62 imports
+#   ../erp.js; the static route serves src/page/ as root; I3's traversal guard
+#   correctly refuses anything above it. THREE files reach above the root —
+#   register.js -> ../erp.js, tools/compile.js -> ../../erp.js, tools/defs.js ->
+#   ../../policy.js. T1 merged green because its tests import them from Node,
+#   where the paths resolve. THE PAGE TREE HAS BEEN UNSERVABLE SINCE T1 LANDED
+#   AND EVERY GATE PASSED.
+#
+#   AND D-65's ARM AS DRAFTED WOULD HAVE PASSED IT. Walk "reachable through
+#   non-comment imports, transitively" ON DISK and every hop resolves, BECAUSE
+#   THE FILE EXISTS. Green check, 404 browser. The class is not "is this file
+#   referenced" nor "is it page-reachable" — it is DOES THE PAGE'S MODULE GRAPH
+#   RESOLVE UNDER THE SERVING TOPOLOGY. Raised BEFORE the arm was built, which is
+#   the only useful time. D-67 adopts it, and adds that the checker must READ THE
+#   SERVED ROOT FROM THE SERVER'S CONFIG rather than hardcode it — a literal
+#   would encode the shape of the defect and go stale the moment it is fixed.
+#
+#   FIX RULED TO I3 (D-66), 0.25 h: widen the served root src/page/ -> src/,
+#   guard re-anchored, GET / routed to page/index.html. PM ruled out the
+#   alternatives on ARCHITECTURE not cost — src/policy.js and src/erp.js are
+#   imported by server/, tests/, harness/ AND the page, and ONE POLICY ENGINE
+#   SHARED BY SERVER AND CLIENT IS THE POINT OF THIS PROJECT. Re-homing or
+#   duplicating creates a second source of POLICY_VERSION truth. G1 makes the
+#   repo public under MIT, so there is nothing in src/ to conceal; the guard
+#   stops ESCAPE, not disclosure, and server/ is a sibling that must stay
+#   unreachable — to be proven by the guard's own test, not assumed.
+#
+#   THE SHORTCUT I REFUSED, recorded because it was mine and convenient: I did
+#   not move src/erp.js or src/policy.js — MY OWN L0 OUTPUTS — under src/page/ to
+#   make a downstream node pass. It would have worked tonight and it would have
+#   been the seventh time the fix for this class was to reach into another node.
+#
+# UX MOUNTED BOTH ORPHANS AND FOUND THE SECOND ONE ITSELF, before PM's D-64
+#   reached it. It measured module EVALUATION ORDER with a deliberately
+#   adversarial fixture — a second script 1370x larger than the first, so fetch
+#   order and evaluation order would disagree if they ever could — rather than
+#   citing the spec, and verified the document actually FETCHES register.js via
+#   PerformanceResourceTiming rather than trusting that a tag exists. Its own
+#   line is the summary of the night: A GREEN NODE IS NOT EVIDENCE THAT ITS
+#   OUTPUT RUNS; IT IS EVIDENCE THAT ITS OUTPUT WORKS IF RUN.
+#
+# THE PAIRED GATE IS NOW A TRIO: I3's root widening + UX's mount + T2. None of
+#   the three is valid alone. Merged locally to test, reset, NOT pushed.

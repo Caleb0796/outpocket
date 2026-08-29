@@ -28,9 +28,10 @@
     "V1"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 HELD on drive.mjs --assert-flips (D-58). Own scope green, DEV-006 vindicated.",
-    "drive.mjs modes": "I1 \u2014 THREE modes: --smoke-login shipped, --assert-flips (D-58), --fallback (D-61). 1.5 h. Unblocks T2 and H3.",
-    "V1 gate": "QA \u2014 re-dispatched; the first read never happened."
+    "T2": "I2 \u2014 HELD. Own scope green, DEV-006 vindicated. Blocked on the served root.",
+    "F1 mount": "UX \u2014 DONE on seat/UX-F1, two commits: register.js mount + the env-banner orphan it found itself.",
+    "served root": "I3 \u2014 D-66, 0.25 h. src/page/ -> src/, guard re-anchored, GET / -> page/index.html.",
+    "_gate": "ALL THREE MERGE AS ONE GATE. None is valid alone."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
