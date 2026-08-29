@@ -1,0 +1,14 @@
+{
+  "name": "webmcp-eval-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic WebMCP evaluation harness",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "webmcp-eval": "bin/eval.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/no-net.mjs"
+  }
+}

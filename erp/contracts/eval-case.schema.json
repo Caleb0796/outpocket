@@ -560,16 +560,15 @@
       "schema": "outpocket.eval_case/1",
       "id": "neg-respond-without-click",
       "suite": "negative_control",
-      "title": "KNOWN-OPEN: the caller answers the sign request itself and commits, with no dialog ever rendered",
+      "title": "ENFORCED: the caller answers its own sign request with no dialog rendered, and is refused for lack of confirm_token",
       "driver": "static",
       "pairsWith": [
         "S2-emp-draft-clean",
         "neg-commit-without-human"
       ],
       "provingNode": "S5",
-      "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond - which is the state the build is in TODAY, and is why this case is known-open rather than enforced",
-      "controlStatus": "known-open",
-      "observedToday": "IT COMMITS - ON TODAY'S BUILD, BEFORE THE confirm_token SHIPS (S5, Day 3), and that qualifier is part of the claim (R-34). HTTP 200, a real confirmation number, a chain entry with source `human` and the session's own name at a genuine server time. Every code in the x-rejectionCodes TABLE - cite the table, never a numeral - was walked by hand and none fires today: the record IS answered and IS signed, because the attacker answered it. A TRUE ATTRIBUTION OF A FALSE EVENT, forever. From Day 3 this body is refused 403 E_NO_CONFIRM_TOKEN: scheduled, not a finding. Report as an open vector.",
+      "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond (or set requireConfirmToken:false in server/sign.mjs's createSignGate) — either reopens this exact vector and flips this case back to known-open",
+      "controlStatus": "enforced",
       "setup": {
         "persona": "chen",
         "state_id": "S2-emp-draft-clean",
@@ -609,8 +608,12 @@
           "expect": [
             {
               "kind": "http_status",
-              "value": 200,
-              "note": "Step 2 IS the whole vector: no dialog, every field copied out of the server's own response, curl plus the session cookie. See x-caseNotes.neg-respond-without-click.step2."
+              "value": 403,
+              "note": "Step 2 is the whole vector: no dialog, every field copied from the server's own response. Refused for lack of confirm_token, which this body never obtained. See x-caseNotes."
+            },
+            {
+              "kind": "error_code",
+              "value": "E_NO_CONFIRM_TOKEN"
             }
           ]
         },
@@ -625,8 +628,12 @@
           "expect": [
             {
               "kind": "http_status",
-              "value": 200,
-              "note": "Step 3. Commits today."
+              "value": 409,
+              "note": "Step 3. Never reached answered+signed at step 2, so commit correctly refuses E_NOT_SIGNED — this step is now unreachable by the attack, not merely refused at the door."
+            },
+            {
+              "kind": "error_code",
+              "value": "E_NOT_SIGNED"
             }
           ]
         }
@@ -637,13 +644,13 @@
           "mode": "server_rejects",
           "http_status": 403,
           "error_code": "E_NO_CONFIRM_TOKEN",
-          "note": "THIS BLOCK DESCRIBES THE REFUSAL WE WANT, NOT THE ONE WE GET. controlStatus is known-open, so the runner asserts observedToday and fails if the behaviour moves in either direction without that record being updated. A silent fix is caught as loudly as a silent regression."
+          "note": "This is now the refusal we get, not merely the one we want: controlStatus is enforced, so the runner asserts this refusal as the required result and fails if it stops happening (DEV-E3-eval-case-known-open)."
         },
         "assertions": [
           {
             "kind": "http_status",
             "value": 403,
-            "note": "Only after the confirm_token ships, and only for a caller that cannot read the dialog's DOM."
+            "note": "For a caller that cannot read the rendered dialog's DOM. confirm_token is defence in depth (R-13(c)), not proof of personhood (R-44) — see x-caseNotes.neg-respond-without-click.whatFlipsIt."
           },
           {
             "kind": "error_code",

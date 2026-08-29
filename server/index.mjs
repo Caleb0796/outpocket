@@ -10,18 +10,37 @@
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { policyHandler } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
+import { createSignGate, SignError } from "./sign.mjs";
+
+// S5's persona display names, read from F1's own file (server/personas.json)
+// rather than retyped — signed_by must resolve the same name F1 shows.
+const personasPath = fileURLToPath(new URL("./personas.json", import.meta.url));
+const PERSONA_NAMES = Object.fromEntries(
+  JSON.parse(readFileSync(personasPath, "utf8")).personas.map((p) => [p.id, p.name]),
+);
 
 // D-50, PM 2026-08-29: S1's accept never specified a static route, but the
 // graph's own edge contracts always assumed one (S1 -> T2 "there is no
 // server to serve the page under test"; F1 -> D1 "something to serve").
 // Default root is src/page/ — F1's output. Parameterized (not hardcoded) so
 // tests can point it at a fixture without depending on F1 having landed.
-const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/page/", import.meta.url));
+//
+// D-66, PM 2026-08-29: widened from src/page/ to src/. Three files under
+// src/page/ import above the page root (register.js -> ../erp.js,
+// tools/compile.js -> ../../erp.js, tools/defs.js -> ../../policy.js) —
+// src/policy.js and src/erp.js are shared by server/, tests/, harness/ AND
+// the page, so re-homing or duplicating them was rejected on architecture,
+// not cost. server/ is a SIBLING of src/, not a descendant, so it stays
+// unreachable through this root at any depth — see the traversal guard
+// below, unchanged, now anchored one level higher. GET / is routed
+// explicitly to page/index.html since there is no src/index.html.
+const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/", import.meta.url));
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -43,13 +62,23 @@ function makeStaticHandler(pageRoot) {
     if (url.pathname.startsWith("/api/")) return false;
 
     let reqPath;
+    let isRootAlias = false;
     try {
-      reqPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+      // D-66: GET / is routed to page/index.html explicitly — there is no
+      // src/index.html now that the root is src/, not src/page/.
+      if (url.pathname === "/") {
+        reqPath = "/page/index.html";
+        isRootAlias = true;
+      } else {
+        reqPath = decodeURIComponent(url.pathname);
+      }
     } catch {
       return false;
     }
     const resolved = normalize(join(root, reqPath));
-    // Traversal guard: the resolved path must stay inside root.
+    // Traversal guard: the resolved path must stay inside root. Anchored at
+    // whatever root is passed in, so widening the root (D-66) re-anchors the
+    // guard for free — server/, a sibling of src/, stays unreachable.
     if (!resolved.startsWith(root)) return false;
 
     let info;
@@ -61,8 +90,24 @@ function makeStaticHandler(pageRoot) {
     if (!info.isFile()) return false;
 
     const contentType = MIME_TYPES[extname(resolved).toLowerCase()] ?? "application/octet-stream";
+    let body = await readFile(resolved);
+    if (isRootAlias && contentType.startsWith("text/html")) {
+      // D-66 regression, found post-merge: this document is served AT "/",
+      // one level above where the file actually lives (page/index.html).
+      // Browsers resolve its relative references — `<script src="./ui/
+      // shell.js">`, `<link href="./skin.css">` — against the DOCUMENT URL,
+      // not the file's location on disk, so without a base they resolve to
+      // /ui/shell.js and 404, shell.js never loads, and no click handler
+      // ever attaches (F1's --smoke-login: element exists, not wired).
+      // Inject <base href="/page/"> into the served BYTES so every relative
+      // reference in the document lands where the files actually live,
+      // without editing src/page/index.html — F1/UX's file, not ours.
+      const html = body.toString("utf8");
+      const withBase = html.replace(/<head[^>]*>/i, (tag) => `${tag}\n<base href="/page/">`);
+      body = Buffer.from(withBase, "utf8");
+    }
     res.writeHead(200, { "Content-Type": contentType });
-    res.end(req.method === "HEAD" ? undefined : await readFile(resolved));
+    res.end(req.method === "HEAD" ? undefined : body);
     return true;
   };
 }
@@ -107,7 +152,7 @@ function sendJson(res, status, body) {
  * Kept as a factory (rather than module-level state) so tests can spin up
  * independent servers with independent sessions in the same process.
  */
-export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
+export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignGate() } = {}) {
   const sessions = new Map(); // sid -> persona id
   const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
   const stateDigestHandler = createStateDigestHandler(() => state);
@@ -117,7 +162,12 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
     const sid = parseCookies(req.headers.cookie).sid;
     if (!sid) return null;
     const personaId = sessions.get(sid);
-    return personaId ? PERSONAS[personaId] : null;
+    return personaId ? { sid, personaId, ...PERSONAS[personaId] } : null;
+  }
+
+  function sendSignError(res, err) {
+    if (err instanceof SignError) return sendJson(res, err.http, { error: err.code, message: err.message });
+    throw err;
   }
 
   return async function handle(req, res) {
@@ -144,9 +194,110 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
     }
 
     if (req.method === "GET" && url.pathname === "/api/me") {
-      const persona = sessionFromRequest(req);
-      if (!persona) return sendJson(res, 401, { error: "E_NO_SESSION" });
-      return sendJson(res, 200, persona);
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      return sendJson(res, 200, { persona: session.persona, role: session.role });
+    }
+
+    // ── S5: the human sign gate ──────────────────────────────────────
+    if (req.method === "POST" && url.pathname === "/api/sign") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      const body = await readJsonBody(req);
+      if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+      try {
+        const { signRequest, ticket } = signGate.open({
+          sessionId: session.sid,
+          personaId: session.personaId,
+          personaName: PERSONA_NAMES[session.personaId] ?? session.persona,
+          reportId: body.report_id,
+          revision: body.revision,
+          policyVersion: body.policy_version,
+          policyDigest: body.policy_digest,
+          report: body.report,
+          verdict: body.verdict,
+          worstCase: body.worst_case,
+          violationHistoryCount: body.violation_history_count,
+        });
+        return sendJson(res, 200, { sign_request: signRequest, ticket });
+      } catch (err) {
+        return sendSignError(res, err);
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/sign/continue") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      const body = await readJsonBody(req);
+      if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+      try {
+        const result = signGate.continueTicket({ ticket: body.ticket, sessionId: session.sid, reportId: body.report_id });
+        return sendJson(res, 200, result);
+      } catch (err) {
+        return sendSignError(res, err);
+      }
+    }
+
+    {
+      const signMatch = url.pathname.match(/^\/api\/sign\/([^/]+)$/);
+      if (signMatch && req.method === "GET") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          return sendJson(res, 200, signGate.get(signMatch[1], { sessionId: session.sid }));
+        } catch (err) {
+          return sendSignError(res, err);
+        }
+      }
+
+      const respondMatch = url.pathname.match(/^\/api\/sign\/([^/]+)\/respond$/);
+      if (respondMatch && req.method === "POST") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        const body = await readJsonBody(req);
+        if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+        if (body.request_id !== respondMatch[1]) return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "request_id in body must match the URL" });
+        try {
+          const result = signGate.respond({
+            requestId: respondMatch[1],
+            sessionId: session.sid,
+            decision: body.decision,
+            reason: body.reason ?? null,
+            method: body.method,
+            acknowledgedDigest: body.acknowledged_digest,
+            acknowledgedRevision: body.acknowledged_revision,
+            confirmToken: body.confirm_token,
+          });
+          return sendJson(res, 200, result);
+        } catch (err) {
+          return sendSignError(res, err);
+        }
+      }
+    }
+
+    {
+      const commitMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/commit$/);
+      if (commitMatch && req.method === "POST") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        const body = await readJsonBody(req);
+        if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+        if (body.report_id !== commitMatch[1]) return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "report_id in body must match the URL" });
+        try {
+          const result = signGate.commit({ requestId: body.request_id, reportId: commitMatch[1], sessionId: session.sid });
+          return sendJson(res, result.http_status, result);
+        } catch (err) {
+          if (!(err instanceof SignError)) throw err;
+          return sendJson(res, err.http, {
+            schema: "outpocket.commit_result/1",
+            status: "rejected",
+            http_status: err.http,
+            confirmation: null,
+            committed_revision: null,
+            error: { code: err.code, message: err.message },
+          });
+        }
+      }
     }
 
     if (policyHandler(req, res, url)) return;
