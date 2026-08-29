@@ -1,0 +1,184 @@
+L0 — Day-0 bootstrap. Gate-by-gate evidence.
+Recorded by L1, 2026-08-29, Day 0.
+Machine: darwin 25.6.0 · node v22.23.1 · npm 10.9.8 · codex-cli 0.144.6
+Every predicate below was executed VERBATIM from erp/graph.json L0.accept via
+  node tools/l0-gate.mjs --run <n>
+which extracts the backticked command from the authority and runs it with sh -c.
+No predicate was retyped, paraphrased, or relaxed.
+
+================================================================================
+GATE (1)  PM RULING D-17, BEFORE ANY SEAT IS DISPATCHED            ***GREEN***
+================================================================================
+  node tools/l0-gate.mjs --run 0   ->  exit 0
+
+erp/DECISIONS.md CREATED on Day 0 (it did not exist; V6 appends to it on Day 2).
+The D-17 row was lifted verbatim out of erp/RUNBOOK.md §2 "The D-17 row,
+literally" by tools/l0-decisions.mjs — not hand-copied.
+
+  | D-17 | 2026-08-28 | human_hours_per_day = 3.0 | ...
+
+The predicate checks three things and all three hold:
+  - regex ^\|\s*D-17\s*\|[^\n]*human_hours_per_day\s*=\s*([0-9.]+)   matched
+  - captured value 3.0 is one of {2.5, 3.0}                           yes
+  - graph.json capacity.human_hours_available == 3.0 x 5.5 == 16.5    yes
+
+This gate is a RECORDING, not a decision. The user ruled 3.0 h/day on
+2026-08-28, directly, before any seat was dispatched. Consequence of record:
+16.5 h available against 15.875 required, 0.625 h spare, NOTHING IS CUT, all 62
+horizon-A nodes stay in scope. The 27-node amputation set survives in
+capacity.human_budget_sensitivity as a contingency, not as the plan.
+
+================================================================================
+GATE (2)  PORT, AND package.json's `scripts` BLOCK                 ***GREEN***
+================================================================================
+scripts block — required to be exactly:
+  "scripts": {"test": "node --test", "start": "node server/index.mjs"}
+Verified by literal fixed-string match against the span in L0.accept:
+  grep -cF '"scripts": {"test": "node --test", "start": "node server/index.mjs"}' package.json
+  ->  1
+
+Port from ~/mcp/countinghouse/, line counts re-verified by wc -l and matching
+erp/FACTS.md §11 exactly:
+  src/tools.js      401      (FACTS §11: 401)
+  src/erp.js        425      (FACTS §11: 425)
+  src/policy.js     250      (FACTS §11: 250)
+  src/scenarios.js  187      (FACTS §11: 187)
+  src/samples.js    133      (FACTS §11: 133)
+  tests/            290      (46 + 135 + 109; FACTS §11: 290)
+  ---------------------
+  src total       1,396      (FACTS §11: 1,396 lines of pure logic, no DOM)
+PORTED, NOT REWRITTEN.
+
+  node tools/l0-gate.mjs --run 11
+  test -f src/tools.js && test -f tests/surface.test.mjs && node --test tests/*.test.mjs
+
+  not ok 18 - auditor surface: read-only by construction
+  # tests 24
+  # pass 23
+  # fail 1
+
+24 tests, EXACTLY 1 failure, and the failure is the named one. This is the
+known RED test. T6 fixes it on Day 1 by removing open_expense_report from the
+auditor surface and replacing it with a side-effect-free get_report(report_id).
+IT WAS NOT FIXED HERE. The predicate asserts the report, not exit 0; the run
+exits 1 by construction and that is the specified outcome.
+
+================================================================================
+GATE (3)  TEAM TREE                                                ***GREEN***
+================================================================================
+  node tools/l0-gate.mjs --run 12  ->  exit 0
+  test -d .team/charters && test -d .team/contracts && test -d .team/log
+    && test -d .team/deviations && test -f .team/lint/banned.txt
+
+  node tools/l0-gate.mjs --run 13  ->  16
+  ls .team/charters | wc -l        ->  16     (required: 16)
+
+.team/charters is a SYMLINK to ../erp/charters, created here and by nothing
+before. This is why L1's first boot — and only its first — reads
+erp/charters/L1.md directly (R-15, TEAM.md §1, FACTS.md §14). Every later boot
+and every other seat uses .team/charters/.
+
+The 16 is the reconciled seat count: 15 agreed seats with four Codex positions,
+the fourth of which (C4, eval engineer) is finally named rather than invented.
+
+================================================================================
+GATE (4)  PROFILES, R-3, existence AND effect                        ***RED***
+================================================================================
+  node tools/l0-gate.mjs --run 15  ->  exit 1
+
+THE ARTIFACT IS CORRECT. THE CHECKER CANNOT PASS.
+
+All four ~/.codex/<name>.config.toml layers were written with FLAT TOP-LEVEL
+KEYS per erp/FACTS.md §14 — no [profiles.*] table, no nesting — and all four
+take effect. MEASURED by tools/l0-profile-evidence.mjs, which is EVIDENCE ONLY
+and is not a substitute gate:
+
+  profile     test -f   tomllib   banner (SGR stripped)      want    gate's grep
+  verifier    PASS      PASS      reasoning effort: low      low     NO MATCH
+  builder     PASS      PASS      reasoning effort: medium   medium  NO MATCH
+  redteam     PASS      PASS      reasoning effort: high     high    NO MATCH
+  evaluator   PASS      PASS      reasoning effort: high     high    NO MATCH
+
+~/.codex/config.toml reads model_reasoning_effort = "ultra", so every one of
+these four banners moved OFF the base config. That is a real effect check, and
+it also confirms §14's layout warning: the [profiles.*] failure mode is not
+what happened here.
+
+ROOT CAUSE: codex-cli 0.144.6 emits ANSI SGR codes in the banner EVEN WHEN
+STDOUT IS A PIPE. The bytes are
+
+  ESC[1mreasoning effort:ESC[0m low
+
+so there is an SGR reset between the colon and the space, and the fixed string
+"reasoning effort: low" cannot match. NO_COLOR=1 does not suppress it
+(MEASURED 2026-08-29).
+
+This falsifies half of a MEASURED claim in erp/FACTS.md §14 — "the banner does
+print to non-TTY stdout, so the grep is a working check". It prints. It is not
+greppable as written.
+
+FILED: .team/deviations/DEV-L0-gate4-banner-grep.md, verdict owner PM.
+erp/graph.json IS UNTOUCHED. Relaxing a predicate to get a merge through is a
+banned behaviour for this seat; the amendment is PM's adopt verdict.
+
+================================================================================
+GATE (5)  DEPENDENCIES, THEN COMMIT                                ***GREEN***
+================================================================================
+  node tools/l0-gate.mjs --run 17  ->  exit 0
+  node -e "...devDependencies; if(!d||!d.ajv) process.exit(1)"
+
+ajv is declared HERE and nowhere else, because S10, G6 and V1 all invoke it on
+Day 1 and no other node declares it. Declared as "ajv": "^8.17.1" — the v8 line
+is the one that ships the 2020-12 build at ajv/dist/2020.
+
+  node tools/l0-gate.mjs --run 18  ->  exit 0
+  npm install && test -f package-lock.json && git add -A
+    && git commit -m 'bootstrap: outpocket sprint A'
+
+  npm install: found 0 vulnerabilities
+  package-lock.json: present, 2452 bytes
+  commit: 25 files changed, 2293 insertions(+)
+
+package-lock.json is the point of this gate. npm ci fails with EUSAGE without
+one, and four documented call sites run npm ci — G3's among them.
+
+  node tools/l0-gate.mjs --run 19  ->  51        (required: > 30)
+  git ls-files erp | wc -l
+
+  node tools/l0-gate.mjs --run 20  ->  bootstrap: outpocket sprint A
+  git log -1 --format=%s                        (required: matches ^bootstrap:)
+
+51, not 50: erp/DECISIONS.md is the file gate (1) created.
+
+================================================================================
+GATE (6)  PUSH                                   ***HELD — NOT RUN***
+GATE (7)  LOCKFILE FROM A CLONE OF THE REMOTE    ***HELD — NOT RUN***
+================================================================================
+One read-only clause of gate (6) WAS executed, because it publishes nothing:
+
+  node tools/l0-gate.mjs --run 21  ->  exit 0
+  git remote get-url origin | grep -q '^https://github.com/Caleb0796/outpocket\(\.git\)\?$'
+
+The remote prints WITH the .git suffix, as the accept says it does, and the
+optional-group regex matches it. The two clauses that follow — `git push -u
+origin HEAD:main` and the rev-parse/ls-remote comparison — WERE NOT RUN.
+Gates (6) and (7) were deliberately NOT run. L0's accept opens "All SEVEN must
+pass, IN THIS ORDER"; gate (4) is red, so L0 is not accepted, and gate (6) is
+the first push — an irreversible, outward-facing act that publishes the head of
+the critical path. L1 does not push work that has not passed its own gate.
+
+Held, not abandoned. The tree is COMMITTED — 8db59a9 on branch
+worktree-L1-L0-bootstrap — and gate (6) runs the moment PM rules on
+DEV-L0-gate4-banner-grep and gate (4) exits 0 against the amended predicate.
+
+Also waiting on that same push: I1 handed off node V5's remaining output on
+branch worktree-i1-v5-probe-verdict-schema (1d75053), adding the NINTH contract
+file erp/contracts/probe-verdict.schema.json. S10 sha256-hashes erp/contracts/
+on Day 1 expecting nine files. L1 will gate and merge V5 as its OWN commit —
+not folded into this one, because two nodes in one sha cannot be reported or
+reverted separately — and carry both commits in the single gate (6) push.
+
+COST OF THE HOLD, STATED PLAINLY: Day 1 carries 15 nodes and G3 (cut 0) clones
+origin/main and runs npm ci. origin/main does not yet carry package.json,
+package-lock.json, src/**, tests/** or .team/**. Every Day-1 node is behind a
+one-line ruling on one predicate.
