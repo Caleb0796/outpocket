@@ -283,3 +283,31 @@ MERGED S3  e3bdd75 pits:kb/pits/S3.md accept:PASS
 #   own defect and it is dispatched back to UX with the dependency evidence
 #   attached so it does not re-derive it. Span 0 exists precisely to separate
 #   "the API works" from "the page uses the API"; only the first was under test.
+
+# F1 IS GREEN ON BOTH SPANS AND IS HELD ON ONE LINE THAT IS NOT UX's.
+#   span 0: node harness/drive.mjs --smoke-login chen,ruiz -> EXIT 0, 2/2, and it
+#   took the `dom` path rather than the `fetch` fallback, so the thing under test
+#   was the SHELL and not the server. span 1: still exactly 2, measured in three
+#   states (signed out, after a BUTTON login, after a CARD login).
+#
+#   MY LEAD WAS THE RIGHT FAMILY AND THE WRONG MECHANISM, and UX measured rather
+#   than accepting it. I guessed the handler matched on event.target instead of
+#   closest(). It already used closest() — and closest() walks UP the tree while
+#   the <button data-login> sits BELOW the click, inside the <li data-persona>.
+#   So [data-login] was structurally unreachable from a click on the card, no
+#   matter how dispatched. Measured on the page: elementFromPoint at the card
+#   centre returns the LI itself (the centre lands on its own padding, so no child
+#   is involved at all), closest('[data-login]') -> null, closest('[data-persona]')
+#   -> "chen". The symptom matched my prediction exactly for a different reason,
+#   which is the most expensive kind of near-miss: a plausible story that produces
+#   a working fix and teaches nothing.
+#   UX also MEASURED the double-fire risk instead of arguing it away — instrumented
+#   window.fetch and counted POSTs: button click 1, card-centre click 1.
+#
+#   HELD ON: tests/acceptance/static.test.mjs test 7, which flips 404 -> 200 now
+#   that F1's index.html exists. That is I3's DELIBERATE TRIPWIRE firing exactly
+#   as designed, and its own comment says so. The file resolves to QA by the
+#   tests/** glob and does NOT invert under clause (a) — no node declares it — so
+#   UX correctly refused to touch it and so did I. Dispatched to QA.
+#   Verified independently: plain origin/main runs that file 7/7; it goes red only
+#   with F1 merged. Cause is F1 landing and nothing else.
