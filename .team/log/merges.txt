@@ -523,7 +523,7 @@ MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
 # THE PAIRED GATE IS NOW A TRIO: I3's root widening + UX's mount + T2. None of
 #   the three is valid alone. Merged locally to test, reset, NOT pushed.
 
-MERGED V2  4b01533 pits:PENDING accept:PASS
+MERGED V2  4b01533 pits:kb/pits/V2.md accept:PASS
 MERGED G2  ab4831b pits:PENDING accept:PASS
 
 # V2 — RECOVERED FROM A DANGLING COMMIT. seat/I1-V2 pointed at main and fe4e495
@@ -601,12 +601,46 @@ MERGED G2  ab4831b pits:PENDING accept:PASS
 #   claim was reasonable and the thing behind it was absent.
 #
 #   VECTOR, per mcp-6d: the seat+I1-V2 worktree was removed while carrying two
-#   uncommitted files, at the moment I absorbed that branch. If those were the
-#   pit drafts they died with the tree and the reflog will not have them — they
-#   were never committed. That is the same `claude rm`/reset family that cost F0
-#   an hour and orphaned V2's commit.
+#   uncommitted files, at the moment I absorbed that branch.
+#   CORRECTION — I NARROWED THAT TO I1's PIT DRAFTS AND I WAS WRONG. I1 states it
+#   never wrote to kb/pits/ at all this session (D-31 says report, do not commit),
+#   that its only repo write all night was evidence/V2.json, and that fe4e495 is
+#   1 file changed — which the tree confirms. So the two lost files are still
+#   unidentified and the search does NOT narrow to I1. I inferred a convenient
+#   explanation from a real observation and stated it as likely; the observation
+#   stands and the attribution does not.
 #
 #   WHY IT WENT UNSEEN: clause 6c says the record of a merge is part of the merge,
 #   and NOTHING CHECKED THE RECORD. The row count matched the done count, so both
 #   registers agreed while both overstated the tree. Two registers agreeing is not
 #   two registers being right.
+
+# TWO CORRECTIONS FROM I1, BOTH ACCEPTED, BOTH MINE.
+#
+# (1) H5 WAS A DIFFERENT SESSION OF THE I1 SEAT and I asked the wrong one for its
+#     pit. Verified: H5's commit 2d2854b carries
+#     Claude-Session: …session_01GZnyPEuYaxqLRGj7m4jN4L; the session I asked is a
+#     different id, dispatched tonight for V2 only. It REFUSED to reconstruct a
+#     pit from a diff, and it is right to: that is the artifact D-31 exists to
+#     prevent, and this project already carries one pit marked "NOT the seat's own
+#     report" (kb/pits/H1.md) which was worse than the node deserved. H5's row
+#     stays pits:PENDING, which is the honest state, and --check-record enforces
+#     that PENDING may not silently become a filename.
+#     Its commit body ends "the five fields are reported to L1" at 11:02 -0700, so
+#     that session believed it had reported. That is the THIRD time today a report
+#     was made and did not arrive — after QA's V1 verdict, durable in its own
+#     transcript, and I4's and I3's. A seat still running cannot be relied on to
+#     have reached me any more than one that has ended.
+#
+# (2) THE observationPair KEY PATH, recorded so the next reader does not repeat my
+#     mis-grade: evidence/V2.json nests the pair under observationPair.before,
+#     .after and .gapMs. V2's accept says "a pair of tool-count observations plus
+#     the wall-clock gap" and names no keys, so a flat probe was a reasonable
+#     guess — the mis-grade was as much the shape's fault as mine, which is I1's
+#     framing and I accept it.
+#
+# OPEN FOR PM, raised by I1 and not L1's to edit: evidence/UNKNOWNS.md line 34
+#   still reads "refreshes (localhost)" and "Not re-run remotely", both stale as
+#   of 4b01533 — V2 was re-run on the REMOTE origin on Chrome 152. The row still
+#   ends MEASURED so tools/check-unknowns.mjs stays green; it is wording, not a
+#   broken gate, and UNKNOWNS.md is a V6 output and PM's.
