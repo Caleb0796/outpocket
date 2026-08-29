@@ -1,0 +1,13 @@
+NODE:      G3
+OWNER:     QA
+INPUTS:    T6, L0
+DO:        Prove a stranger's clean clone of origin/main is green. Clone the GitHub URL, npm ci, npm test, and write evidence/G3-clean-clone.txt. TAKE THE REDIRECT IN THE REPOSITORY ROOT, NOT INSIDE THE CLONE — evidence/G3-clean-clone.txt is your output, and a tee written after cd /tmp/oc lands it in /tmp/oc/evidence/ where nothing reads it. Assert ZERO failures over at least 24 tests, and assert the clone's HEAD equals the local HEAD so you are grading the merge under test and not a stale origin/main.
+ACCEPT:    `rm -rf /tmp/oc && git clone https://github.com/Caleb0796/outpocket /tmp/oc && npm ci --prefix /tmp/oc && (cd /tmp/oc && npm test) > evidence/G3-clean-clone.txt 2>&1` exits 0 — the redirect is taken in the repository root, NOT inside the clone, because evidence/G3-clean-clone.txt is this node's output and a `| tee` written after `cd /tmp/oc` landed it in /tmp/oc/evidence/ where nothing reads it. Then `node -e "const t=require('fs').readFileSync('evidence/G3-clean-clone.txt','utf8'); if(!/^# fail 0$/m.test(t))process.exit(1); const m=t.match(/^# tests ([0-9]+)$/m); if(!m||Number(m[1])<24)process.exit(1)"` exits 0 — ZERO failures over at least 24 tests, the ported count. The `# tests` and `# fail` lines are node --test's TAP summary, which is what it emits when stdout is NOT a TTY (MEASURED, node v22.23.1: the spec reporter is the TTY default and tap the non-TTY default), and this predicate redirects to a file, so TAP is what it reads. AND `test "$(git -C /tmp/oc rev-parse HEAD)" = "$(git rev-parse HEAD)"` exits 0, proving the clone carries the merge under test and not a stale origin/main. R-26(c): zero failures is a property of origin/main ONLY AFTER T6's fix is merged AND L1 has pushed that merge — T6 is a hard input for exactly that reason, and L0 gate (7) deliberately asserts the OPPOSITE of this predicate (exactly one failure, named) about the pre-T6 bootstrap commit. If this node runs against a remote whose HEAD predates T6's merge it fails with exactly one failure, `auditor surface: read-only by construction`, and the correct response is to push the merge, never to edit the test.
+PIT:       kb/pits/G3.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/QA-G3
+DEADLINE:  2026-08-29T23:59-07:00
