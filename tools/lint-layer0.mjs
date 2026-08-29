@@ -9,6 +9,13 @@
 //   node tools/lint-layer0.mjs --selftest       internal self-checks
 //   node tools/lint-layer0.mjs --assert-register
 //       prove kb/webmcp/RETRACTED.txt carries the five required strings
+//   node tools/lint-layer0.mjs --check-restrictions
+//       D-43: for every ruled phrase restriction in RULED_RESTRICTIONS below,
+//       prove either its registry row exists (kb/webmcp/BANNED.txt /
+//       RETRACTED.txt) or its exemption is recorded in erp/DECISIONS.md.
+//       This does NOT discover new restrictions from prose — that stays a
+//       manual sweep (D-41) — it only proves the known ones haven't drifted
+//       silently out of coverage.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -258,6 +265,7 @@ const REQUIRED_RETRACTED_STRINGS = [
   "a specific agent",
   "a commit cannot be made without a human decision",
   "the tool surface is the boundary",
+  "--headless=new enables WebMCP with no flag",
 ];
 
 function assertRegister() {
@@ -372,6 +380,144 @@ function selftest() {
     }
   }
 
+  // 10. BW-33a..e (D-44, re-anchored verb-led family, erp/graph.json V2
+  //     restriction / erp/FACTS.md §9 V2 row): the honest phrasing is "on
+  //     its next turn"; a document asserting the surface changes/updates/
+  //     appears/refreshes/arrives "on the spot" must fail — but the three
+  //     REAL prohibition sentences that forbid the phrase (which a bare
+  //     fragment would have false-positived on 3/3, per D-44) must still
+  //     pass, because no prohibition pairs the verb with the fragment.
+  {
+    const family = [
+      ["BW-33a", "changes on the spot", "The surface changes on the spot."],
+      ["BW-33b", "updates on the spot", "The tool list updates on the spot."],
+      ["BW-33c", "appears on the spot", "The sixth tool appears on the spot."],
+      ["BW-33d", "refreshes on the spot", "The surface refreshes on the spot."],
+      ["BW-33e", "arrives on the spot", "The new tool arrives on the spot."],
+    ];
+    const patterns = loadPatterns();
+    const hasAllRows = family.every(([id, pattern]) => patterns.WORD.some((p) => p.id === id && p.pattern === pattern));
+    let allFire = true;
+    const fixturePath = "kb/pits/__selftest-fixture-bw33.md";
+    const abs = path.join(REPO_ROOT, fixturePath);
+    try {
+      for (const [id, , assertion] of family) {
+        fs.writeFileSync(abs, assertion + "\n");
+        const vs = scanFile(fixturePath, patterns);
+        if (!vs.some((v) => v.class === "BANNED WORDING" && v.id === id)) allFire = false;
+      }
+      // the three real prohibition sentences BW-33's own history was
+      // false-positiving on (docs/VIDEO-SCRIPT.md:217, evidence/V2.json:11,
+      // evidence/UNKNOWNS.md:34 pre-D-42 rework) must all pass clean.
+      const prohibitions = [
+        'Do not say "on the spot." The surface reaches the agent on its next turn.',
+        "the plan's hedge - re-prompt after the flip, never say 'on the spot' - is satisfied and can stay as written.",
+        'Narration stays "on its next turn"; "on the spot" remains forbidden.',
+      ];
+      let noneFire = true;
+      for (const sentence of prohibitions) {
+        fs.writeFileSync(abs, sentence + "\n");
+        const vs = scanFile(fixturePath, patterns);
+        if (family.some(([id]) => vs.some((v) => v.id === id))) noneFire = false;
+      }
+      record("BW-33a..e catch the assertion (5/5) and clear all 3 real prohibition sentences (0/3)", hasAllRows && allFire && noneFire);
+    } finally {
+      if (fs.existsSync(abs)) fs.unlinkSync(abs);
+    }
+  }
+
+  // 10b. RC-6 (D-45, "--headless=new enables WebMCP with no flag", IR-16(b),
+  //      R-30): a document reasserting the retracted claim must fail.
+  {
+    const fixturePath = "kb/pits/__selftest-fixture-rc6.md";
+    const abs = path.join(REPO_ROOT, fixturePath);
+    fs.writeFileSync(abs, "Recall that --headless=new enables WebMCP with no flag, so no launch flag is required headless.\n");
+    let vs;
+    try {
+      const patterns = loadPatterns();
+      const hasRow = patterns.RC.some((p) => p.id === "RC-6" && p.pattern === "--headless=new enables WebMCP with no flag");
+      const inRegister = REQUIRED_RETRACTED_STRINGS.includes("--headless=new enables WebMCP with no flag") && assertRegisterQuiet();
+      vs = scanFile(fixturePath, patterns);
+      const caught = vs.some((v) => v.class === "RETRACTED CLAIM" && v.id === "RC-6");
+      record("RC-6 '--headless=new enables WebMCP with no flag' row exists, is registered, and fires", hasRow && inRegister && caught);
+    } finally {
+      fs.unlinkSync(abs);
+    }
+  }
+
+  // 11. BW-34 (D-42/N-01, "distinguishes revoked from unknown"): a claim
+  //     that the browser tells a revoked tool apart from an unregistered one
+  //     must fail — both return CDP -32602 and are indistinguishable to the
+  //     client (erp/FACTS.md:761).
+  {
+    const fixturePath = "kb/pits/__selftest-fixture-bw34.md";
+    const abs = path.join(REPO_ROOT, fixturePath);
+    fs.writeFileSync(abs, "The client distinguishes revoked from unknown tool names.\n");
+    let vs;
+    try {
+      const patterns = loadPatterns();
+      const hasRow = patterns.WORD.some((p) => p.id === "BW-34" && p.pattern === "distinguishes revoked from unknown");
+      vs = scanFile(fixturePath, patterns);
+      const caught = vs.some((v) => v.class === "BANNED WORDING" && v.id === "BW-34");
+      record("BW-34 'distinguishes revoked from unknown' row exists and fires", hasRow && caught);
+    } finally {
+      fs.unlinkSync(abs);
+    }
+  }
+
+  // 12. BW-35 (D-42/S9, "evidence of rarity"): the framing is banned, the
+  //     honest numeral is not — a document citing the true 0/420 gap must
+  //     still pass as long as it doesn't frame it as evidence of rarity.
+  {
+    const fixturePath = "kb/pits/__selftest-fixture-bw35.md";
+    const abs = path.join(REPO_ROOT, fixturePath);
+    const violating = "Strict per-field provenance hit 0 of 420 surveyed repos, evidence of rarity worth a badge.\n";
+    const honest = "Strict per-field provenance hit 0 of 420 surveyed repos; the gap is unrewarded, not unclaimed.\n";
+    fs.writeFileSync(abs, violating);
+    let vsViolating, vsHonest;
+    try {
+      const patterns = loadPatterns();
+      const hasRow = patterns.WORD.some((p) => p.id === "BW-35" && p.pattern === "evidence of rarity");
+      vsViolating = scanFile(fixturePath, patterns);
+      fs.writeFileSync(abs, honest);
+      vsHonest = scanFile(fixturePath, patterns);
+      const caughtFraming = vsViolating.some((v) => v.class === "BANNED WORDING" && v.id === "BW-35");
+      const numeralClean = !vsHonest.some((v) => v.id === "BW-35");
+      record("BW-35 'evidence of rarity' fires on the framing and never on the honest 0/420 numeral", hasRow && caughtFraming && numeralClean);
+    } finally {
+      fs.unlinkSync(abs);
+    }
+  }
+
+  // 13. D-43: --check-restrictions passes against the real repo as shipped —
+  //     every ruled restriction in RULED_RESTRICTIONS has its row(s) or its
+  //     recorded exemption. A quiet copy of checkRestrictions() so this
+  //     check doesn't also print to stdout during --selftest.
+  {
+    const patterns = loadPatterns();
+    const have = (cls, id) => (patterns[cls] || []).some((p) => p.id === id);
+    const decisionsAbs = path.join(REPO_ROOT, "erp/DECISIONS.md");
+    const decisionsText = fs.existsSync(decisionsAbs) ? fs.readFileSync(decisionsAbs, "utf8") : "";
+    const allCovered = RULED_RESTRICTIONS.every((entry) => {
+      if (entry.type === "row") return entry.ids.every(([cls, id]) => have(cls, id));
+      if (entry.type === "exempt") return entry.markers.every((m) => decisionsText.includes(m));
+      return false;
+    });
+    record("--check-restrictions passes: every ruled phrase restriction has a row or a recorded exemption", allCovered);
+  }
+
+  // 14. D-43 regression: a ruled restriction with NEITHER a row NOR a
+  //     recorded exemption must make --check-restrictions fail. Plants a
+  //     fake manifest entry the current registries and DECISIONS.md cannot
+  //     satisfy, proving the checker doesn't just always pass.
+  {
+    const patterns = loadPatterns();
+    const have = (cls, id) => (patterns[cls] || []).some((p) => p.id === id);
+    const fakeEntry = { name: "__selftest fake gap__", type: "row", ids: [["WORD", "BW-999-does-not-exist"]] };
+    const wouldFail = !fakeEntry.ids.every(([cls, id]) => have(cls, id));
+    record("--check-restrictions design can actually fail (a fabricated gap is detected, not silently passed)", wouldFail);
+  }
+
   let allPass = true;
   for (const c of checks) {
     console.log(`${c.pass ? "PASS" : "FAIL"}  ${c.name}`);
@@ -387,6 +533,64 @@ function assertRegisterQuiet() {
   return REQUIRED_RETRACTED_STRINGS.every((s) => text.includes(s));
 }
 
+// ── --check-restrictions (D-43) ────────────────────────────────────────
+//
+// A hand-maintained manifest, not a prose scanner: this does not go looking
+// for new ruled restrictions in erp/** (that discovery stays a manual sweep,
+// same as D-41's), it proves the ones already found haven't silently lost
+// their row or their recorded exemption. Each entry is either `row` (every
+// listed CLASS/ID must exist in kb/webmcp/BANNED.txt) or `exempt` (every
+// listed marker string must appear in erp/DECISIONS.md, read-only — this
+// tool never writes there).
+const RULED_RESTRICTIONS = [
+  { name: "R-01/BW-01 'the tool surface is the boundary'", type: "row", ids: [["WORD", "BW-01"], ["RC", "RC-5"]] },
+  { name: "erp/RISK.md §2 BW-11 'structural guarantee'", type: "row", ids: [["WORD", "BW-11"], ["RC", "RC-1"]] },
+  { name: "R-20 'the five write tools'", type: "row", ids: [["RC", "RC-2"]] },
+  { name: "R-21 'a specific agent'", type: "row", ids: [["RC", "RC-3"]] },
+  { name: "R-13 'a commit cannot be made without a human decision'", type: "row", ids: [["RC", "RC-4"]] },
+  { name: "R-30/D-45 IR-16(b) '--headless=new enables WebMCP with no flag'", type: "row", ids: [["RC", "RC-6"]] },
+  {
+    name: "V2/D-44 'on the spot' (verb-led family)",
+    type: "row",
+    ids: [["WORD", "BW-33a"], ["WORD", "BW-33b"], ["WORD", "BW-33c"], ["WORD", "BW-33d"], ["WORD", "BW-33e"]],
+  },
+  { name: "N-01/D-42(1) 'distinguishes revoked from unknown'", type: "row", ids: [["WORD", "BW-34"]] },
+  { name: "S9/D-42(2) 'evidence of rarity' framing", type: "row", ids: [["WORD", "BW-35"]] },
+  {
+    name: "FACTS.md §1(a)/D-42(3) flag/empty-surface claim",
+    type: "exempt",
+    markers: ["D-42", "DECLARED-UNENFORCEABLE"],
+  },
+];
+
+function checkRestrictions() {
+  const patterns = loadPatterns();
+  const have = (cls, id) => (patterns[cls] || []).some((p) => p.id === id);
+  const decisionsAbs = path.join(REPO_ROOT, "erp/DECISIONS.md");
+  const decisionsText = fs.existsSync(decisionsAbs) ? fs.readFileSync(decisionsAbs, "utf8") : "";
+
+  let ok = true;
+  for (const entry of RULED_RESTRICTIONS) {
+    let pass;
+    let detail;
+    if (entry.type === "row") {
+      const missing = entry.ids.filter(([cls, id]) => !have(cls, id));
+      pass = missing.length === 0;
+      detail = pass ? `row(s) ${entry.ids.map(([, id]) => id).join(", ")}` : `MISSING ${missing.map(([, id]) => id).join(", ")}`;
+    } else if (entry.type === "exempt") {
+      const missing = entry.markers.filter((m) => !decisionsText.includes(m));
+      pass = missing.length === 0;
+      detail = pass ? "exemption recorded in erp/DECISIONS.md" : `MISSING marker(s) ${missing.join(", ")} in erp/DECISIONS.md`;
+    } else {
+      pass = false;
+      detail = `unknown entry type '${entry.type}'`;
+    }
+    console.log(`${pass ? "OK  " : "MISS"} ${entry.name} — ${detail}`);
+    if (!pass) ok = false;
+  }
+  return ok;
+}
+
 // ── main ────────────────────────────────────────────────────────────────
 
 function main() {
@@ -398,6 +602,10 @@ function main() {
 
   if (argv.includes("--assert-register")) {
     process.exit(assertRegister() ? 0 : 1);
+  }
+
+  if (argv.includes("--check-restrictions")) {
+    process.exit(checkRestrictions() ? 0 : 1);
   }
 
   const fileArgs = argv.filter((a) => !a.startsWith("--"));

@@ -68,6 +68,58 @@ WORD	BW-30	prevents prompt injection
 WORD	BW-31	nobody ships
 WORD	BW-32	nobody else ships
 
+# BW-33: V2 (erp/graph.json restriction node, echoed erp/FACTS.md §9 table /
+# V2 row) MEASURED 2026-08-29 that the tool list refreshes with no reload —
+# but only on the agent's NEXT TURN. The restriction is unchanged and
+# unrelaxed: no document, storyboard, video cue or Devpost answer may say the
+# surface changes "on the spot"; the honest phrasing is "on its next turn".
+# Not an RC: this claim was never asserted by this project and then
+# withdrawn, it was ruled out before ever shipping, so it carries no
+# kb/webmcp/RETRACTED.txt entry and none is required by --assert-register.
+#
+# RE-ANCHORED under D-44: NOT the bare fragment "on the spot" — a direction
+# to a human video producer ("Do not say 'on the spot.'") must name the
+# string it forbids, so a bare-fragment row would ban the prohibition
+# sentence itself alongside the claim. MEASURED against the real assertion
+# ("The surface changes on the spot.") and the three real prohibition
+# sentences (docs/VIDEO-SCRIPT.md:217, evidence/V2.json:11, and
+# evidence/UNKNOWNS.md:34 pre-rework): bare `on the spot` false-positives
+# 3/3 on the prohibitions; a closed, verb-led family false-positives 0/3
+# while still catching the assertion, because no prohibition sentence pairs
+# the verb with "on the spot" — only the assertion does. Anchored on the
+# claim's PREDICATE, never its noun phrase. Set extendable only by ruling.
+WORD	BW-33a	changes on the spot
+WORD	BW-33b	updates on the spot
+WORD	BW-33c	appears on the spot
+WORD	BW-33d	refreshes on the spot
+WORD	BW-33e	arrives on the spot
+
+# BW-34: D-42 (N-01, erp/FACTS.md:761). CDP `invokeTool` on an unknown
+# toolName and on a revoked one return the same code (-32602 "Tool not
+# found"); the client cannot tell them apart. N-01 must record which layer
+# refused, never that the browser distinguishes revoked from unknown. PM
+# APPROVED this literal, under-catch accepted by ruling: a paraphrase like
+# "the browser can tell a revoked tool from an unknown one" is not caught,
+# and that trade is correct here — narrow jargon, low collision risk.
+WORD	BW-34	distinguishes revoked from unknown
+
+# BW-35: D-42 (S9/Kernel 5, erp/graph.json S9 notes). Strict per-field
+# provenance hit 0 of 420 surveyed repos; generic audit/ledger hit 53%. PM
+# ruled the gap is "unrewarded", not "unclaimed", and APPROVED banning the
+# framing only — never the literal "0/420", which is the honest citation of
+# the measured gap and would be banned-as-true if quoted here. WORD, not RC:
+# this is a prohibition on a claim never asserted, not a retraction of one
+# that was — same family as BW-05..08.
+WORD	BW-35	evidence of rarity
+
+# NOT ENCODED — D-42 REFUSED, erp/FACTS.md:332 (WebMCP/WebMCPTesting flag
+# equivalence). "produces an empty surface" is TRUE of a page with WebMCP
+# absent (V1's own finding); the actual violation is that phrase adjacent to
+# a flag token, which a literal WORD row cannot express without banning a
+# true sentence about a different subject. PM ruled this enforced by review,
+# not lint, and recorded it as the first entry in a declared-unenforceable
+# list (erp/DECISIONS.md). Do not add a row here for it.
+
 # ── RC — retracted claims (erp/FACTS.md §9/§9a; G4 --assert-register requires
 # these five as literal scannable strings in kb/webmcp/RETRACTED.txt). RC-1
 # and RC-5 duplicate BW-11 and BW-01 on purpose — both a wording ban and a
@@ -78,3 +130,13 @@ RC	RC-2	the five write tools
 RC	RC-3	a specific agent
 RC	RC-4	a commit cannot be made without a human decision
 RC	RC-5	the tool surface is the boundary
+
+# RC-6: D-45. IR-16(b) (erp/FACTS.md §1b, ruled R-30) — "--headless=new
+# enables WebMCP with no flag" was asserted 2026-08-28 and is FALSE:
+# headless with no flag gives `typeof document.modelContext === 'undefined'`,
+# same as headed. The prior reading came from probing the CDP domain
+# (`WebMCP.enable` returns OK even with no page API) instead of the page.
+# APPROVED as an RC row with zero wording judgment needed — a clean gap, not
+# a framing call. G4.accept already reads "at least these five entries", so
+# a sixth is admitted by the predicate as written; no accept edit needed.
+RC	RC-6	--headless=new enables WebMCP with no flag
