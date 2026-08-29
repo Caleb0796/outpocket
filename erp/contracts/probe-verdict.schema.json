@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/probe-verdict.schema.json",
+  "title": "outpocket probe verdict",
+  "description": "One reading of the WebMCP page surface as seen by an agent-bearing client on one origin, in one sitting. Produced by node V5 (owner I1) on Day 0 as the ninth file in erp/contracts/, and frozen by S10 on Day 1. Consumed mechanically by V1, whose accept ajv-compiles this schema and validates evidence/V1.json against it before any human looks at evidence/V1.png. The five required fields are the whole contract; everything else is a field note. SCOPE, AND IT IS NARROW ON PURPOSE: this schema describes a PROBE VERDICT - what a client with an agent attached saw on a page. It does NOT describe evidence/V0.json or evidence/H2-reachability.json, which are CDP driver records with their own shape declared in V0.accept and H2.accept ({chromeMajor, flag, headless, navigatorAlias, documentPresent, toolCount, cdpDomainEnabled, invokeToolRoundTrip, method:'cdp'}). Two evidence formats, deliberately: one written by a human reading a built-in browser that cannot be driven by CDP, one written by a script driving Chrome over CDP. Do not widen this schema to cover the other; a schema loose enough to pass both would require nothing and prove neither.",
+  "type": "object",
+  "required": ["origin", "chatgptModel", "modelContextPresent", "toolCount", "observedAt"],
+  "additionalProperties": true,
+  "properties": {
+    "origin": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://[^/?#\\s]+$",
+      "description": "The serialized origin the page was loaded from - scheme, host and port only, exactly as `location.origin` renders it, with no trailing slash and no path. The probe page emits this itself so it cannot be misremembered. http is permitted ONLY because localhost and 127.0.0.1 are secure contexts and early probe runs legitimately used them; a localhost reading is not evidence for V1, which requires a plain remote HTTPS origin, and that requirement lives in V1.accept and not here. 192.168.x.x and *.local are NOT secure contexts and yield a silent undefined (HANDOVER rule 12, MEASURED), so a verdict carrying one of those origins with modelContextPresent:true is self-contradicting and a human must reject it.",
+      "examples": ["https://webmcp-probe.onrender.com", "http://localhost:8795"]
+    },
+    "chatgptModel": {
+      "enum": ["Sol", "Terra"],
+      "description": "Which GPT-5.6 model was selected in the ChatGPT client at the moment of the reading. Closed at two members ON PURPOSE: Luna disables WebMCP, so a verdict taken under Luna measures the model picker and not the page, and must not be representable here. The page cannot know this field - the person running the probe fills it in, which is why V1 is human-gated and why the screenshot gate exists alongside the mechanical one."
+    },
+    "modelContextPresent": {
+      "type": "boolean",
+      "description": "`typeof document.modelContext !== 'undefined'` evaluated in the top-level document. Graded ONLY off the page API. Never grade this off whether a CDP domain enables: MEASURED 2026-08-28, `WebMCP.enable` returns OK in a launch with no flag, no tools and no page API at all (FACTS.md IR-16(b)), so a probe that reads the CDP domain reads 'on' when the feature is off. Registration is top-level document only - nothing in an iframe is ever discovered - so a reading taken inside a frame is not a reading of this field."
+    },
+    "toolCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many tools the client actually listed at the moment of the reading. NOT constrained to 5, and that is the point: modelContextPresent:false with toolCount:0 is the negative V1 outcome PM must hear about the same day, and a schema that demanded 5 would make the finding that matters most unrecordable. When the reading comes from page JS this is `(await document.modelContext.getTools()).length` and THE AWAIT IS LOAD-BEARING - getTools() returns a Promise (MEASURED), so an un-awaited `.length` is `undefined`. V5's probe page registers exactly 5 at load, so 5 is the expected value there and 6 after probe_flip."
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,3})?Z$",
+      "description": "When the reading was taken, UTC, `Z`-terminated. Fractional seconds are OPTIONAL: the probe page emits `new Date().toISOString()` and always carries milliseconds, but a human copying a verdict by hand should not fail a node over precision. The `format` keyword is INERT under the ajv construction V1.accept uses - `new Ajv({strict:false})` registers no formats and silently ignores unknown ones - so the `pattern` is what actually validates. Same pairing provenance.schema.json uses, for the same reason."
+    },
+    "verdict": {
+      "enum": ["PRESENT", "ABSENT"],
+      "description": "Optional human label summarizing modelContextPresent for a reader. It is a restatement, never an independent claim: if it disagrees with modelContextPresent the file is wrong and QA fails the node on the second gate."
+    },
+    "agentSawTools": {
+      "type": "boolean",
+      "description": "Optional. Whether the AGENT enumerated the tools, as distinct from the page having registered them. These come apart - the page can register 5 while the client lists 0 - and that gap is the whole reason V1 is human-gated."
+    },
+    "agentListed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional. The tool names the agent read back, verbatim, in the order given. Raw observation; a verdict without one is a hedge."
+    },
+    "navigatorAliasPresent": {
+      "type": "boolean",
+      "description": "Optional. `typeof navigator.modelContext !== 'undefined'`. The alias was removed in Chromium 150; V0 is the node that owns that question, and V0's own evidence file is a CDP record and not a probe verdict."
+    },
+    "chromiumMajor": {
+      "type": ["integer", "null"],
+      "description": "Optional, and READ WITH CARE. In a probe verdict this comes off the user-agent string, which is the only version a page can see, so it is a hint and not the binary's version. Where the version is load-bearing - V0, H2, H5's banner - it must come from the installed binary and never from a UA string."
+    },
+    "isSecureContext": {
+      "type": "boolean",
+      "description": "Optional. `window.isSecureContext`. false alongside modelContextPresent:true is self-contradicting."
+    },
+    "tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional. The names the PAGE registered, which is not necessarily what the agent listed - compare it against agentListed rather than assuming they agree."
+    },
+    "registrationError": {
+      "type": ["string", "null"],
+      "description": "Optional. The message from a failed registerTool call, or null. Present and non-null explains a low toolCount without excusing it."
+    },
+    "note": {
+      "type": "string",
+      "description": "Optional free prose: click path, caveats, what a later run retired."
+    }
+  }
+}
