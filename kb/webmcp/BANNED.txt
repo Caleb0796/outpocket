@@ -1,0 +1,80 @@
+# kb/webmcp/BANNED.txt — pattern registry consumed by tools/lint-layer0.mjs
+# (node G4, owner I4). Authored by G4 directly; does not depend on K1, a seat
+# with no nodes and no hours. K1 may enrich this file later — G4 does not
+# wait on that.
+#
+# This file QUOTES banned identifiers, banned wording and retracted-claim
+# strings IN ORDER TO BAN THEM, so tools/lint-layer0.mjs's own scan of the
+# repo EXCLUDES this exact path (the literal EXCLUDE array lives in the
+# scanner's source, per erp/RISK.md §2 / erp/graph.json G4.accept).
+#
+# Format: one entry per line, tab-separated: CLASS<TAB>ID<TAB>PATTERN
+#   CLASS  IDENT  — a banned legacy identifier. Checked verbatim (case-
+#                    sensitive substring) against files under src/** and
+#                    tests/** only (erp/RISK.md §2, "Companion list": these
+#                    are identifiers checked against code, not prose).
+#   CLASS  WORD   — a banned-wording pattern from erp/RISK.md §2's table.
+#                    Checked case-insensitively, whitespace-normalised,
+#                    against every file the scanner is allowed to read (i.e.
+#                    everything not on the EXCLUDE array). A pattern that
+#                    starts with a word character is anchored with \b by the
+#                    scanner itself (erp/RISK.md §2 rule 5) — store the bare
+#                    pattern here, without a literal \b prefix.
+#   CLASS  RC     — a retracted-claim pattern (same matching rules as WORD).
+#                    These are the literal strings kb/webmcp/RETRACTED.txt
+#                    must also carry, per --assert-register.
+#
+# Lines starting with # and blank lines are ignored.
+
+# ── IDENT — dead WebMCP identifiers (erp/FACTS.md §1, IR-1/IR-2/IR-4/IR-5) ──
+IDENT	IR-1	navigator.modelContext
+IDENT	IR-2a	provideContext
+IDENT	IR-2b	unregisterTool
+IDENT	IR-2c	clearContext
+IDENT	IR-4	outputSchema
+IDENT	IR-5	consequentialHint
+
+# ── WORD — banned wording, erp/RISK.md §2 table, BW-01..BW-32 ──
+WORD	BW-01	tool surface is the boundary
+WORD	BW-02	boundary is the tool surface
+WORD	BW-03	tool surface as a lock
+WORD	BW-04	first deterministic policy
+WORD	BW-05	we invented
+WORD	BW-06	nobody has done
+WORD	BW-07	no one else has
+WORD	BW-08	is our insight
+WORD	BW-09	never resides
+WORD	BW-10	does not reside in the system
+WORD	BW-11	structural guarantee
+WORD	BW-12	approved agent list
+WORD	BW-13	ChatGPT Business
+WORD	BW-14	our differentiator
+WORD	BW-15	WindTunnel
+WORD	BW-16	2508.09171
+WORD	BW-17	Prompt Engineering Fails Quietly
+WORD	BW-18	8-19%
+WORD	BW-19	8–19%
+WORD	BW-20	stable prefix
+WORD	BW-21	saves tokens
+WORD	BW-22	revocation blocks
+WORD	BW-23	revoking cancels
+WORD	BW-24	unregistering cancels
+WORD	BW-25	machine-verified
+WORD	BW-26	impossible without WebMCP
+WORD	BW-27	only WebMCP can
+WORD	BW-28	security gate
+WORD	BW-29	tamper-proof
+WORD	BW-30	prevents prompt injection
+WORD	BW-31	nobody ships
+WORD	BW-32	nobody else ships
+
+# ── RC — retracted claims (erp/FACTS.md §9/§9a; G4 --assert-register requires
+# these five as literal scannable strings in kb/webmcp/RETRACTED.txt). RC-1
+# and RC-5 duplicate BW-11 and BW-01 on purpose — both a wording ban and a
+# retracted claim in this project's own history — the other three are
+# retracted claims with no BW row. ──
+RC	RC-1	structural guarantee
+RC	RC-2	the five write tools
+RC	RC-3	a specific agent
+RC	RC-4	a commit cannot be made without a human decision
+RC	RC-5	the tool surface is the boundary
