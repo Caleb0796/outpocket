@@ -7,7 +7,9 @@
 //   employee, no report open  → 5 tools
 //   employee, draft open      → 12 tools
 //   employee, draft clean     → 13 tools (submit_expense_report appears)
-//   auditor                   → 6 tools  (all read-only; no write tool exists)
+//   auditor                   → 6 tools  (read-only by construction: every tool
+//                                on it is side-effect-free, so the property is a
+//                                fact about the set, not a hint on a def)
 //
 // Pure module: no DOM. The page bridge, the in-page simulated agent, the
 // manual tool console and `node --test` all dispatch through the same
@@ -185,6 +187,35 @@ function defs(erp, hooks) {
     },
   };
 
+  // Read-only by construction (R-9 (B)): unlike open_expense_report this never
+  // touches openReportId and never appends to the day book, so it is safe on a
+  // surface whose whole claim is that it cannot write.
+  const t_get_report = {
+    name: "get_report",
+    description:
+      "Read one expense report by id: header, status, every line with amounts, receipt links and provenance, totals, and the blocking and warning counts. A pure read — it does not open the report in the page and writes nothing, so the page keeps showing whatever it was showing. Ids come from list_expense_reports.",
+    inputSchema: {
+      type: "object",
+      properties: { report_id: { ...S, description: "e.g. RP-1018" } },
+      required: ["report_id"],
+    },
+    annotations: { readOnlyHint: true },
+    execute: ({ report_id }) => {
+      // The browser parses inputSchema but does not enforce it, so check here.
+      const id = typeof report_id === "string" ? report_id.trim() : "";
+      const r = id ? erp.state.reports.find((x) => x.id === id) : null;
+      if (!r) {
+        const known = erp.listReports().map((x) => x.id).join(", ");
+        return ok(`No report ${id || "(no report_id given)"}. Readable here: ${known || "(none)"}.`);
+      }
+      const vd = erp.verdict(r.id); // pure: validates, never records
+      const lines = r.lines.length ? r.lines.map(lineText).join("\n") : "(no lines)";
+      return ok(
+        `Report ${r.id} “${r.title}” (${r.project}) · ${r.status} · ${r.lines.length} line(s) · ` +
+        `total ${fmtUsd(vd.totalUsd)} · ${vd.blocking} blocking, ${vd.warnings} warning(s).\n${lines}`);
+    },
+  };
+
   const lineProps = {
     date: { ...S, description: "Receipt date, YYYY-MM-DD" },
     merchant: { ...S, description: "Merchant name as printed on the receipt" },
@@ -342,7 +373,7 @@ function defs(erp, hooks) {
   // ── compile the surface for the current state ────────────────
   if (!session) return [t_signin_status];
   if (session.role === "auditor")
-    return [t_scope, t_policy, t_list_reports, t_open, t_get_open, t_day_book];
+    return [t_scope, t_policy, t_list_reports, t_get_report, t_get_open, t_day_book];
 
   const base = [t_scope, t_policy, t_list_reports, t_create, t_open];
   if (!open) return base;

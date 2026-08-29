@@ -3,6 +3,12 @@
 // drift from the authority. DO and DEADLINE are the only hand-written fields, and DO is
 // passed in on the command line so it is visible in the dispatch record.
 //
+// The PIT line is generated, not typed. It is a MERGE GATE (erp/charters/L1.md, clause 6),
+// and the first four dispatch records of Day 1 omitted it: one seat wrote a pit anyway from
+// its charter and one did not, which is not a difference in diligence but a difference in
+// what each seat happened to carry over. A gate that is not in the contract is a gate the
+// contract-holder cannot see. Caught by the peer session mcp-6d, 2026-08-29.
+//
 //   node tools/contract.mjs <NODE> --deadline <iso> --do "<sentences>"   > .team/contracts/<NODE>.txt
 //   node tools/contract.mjs <NODE> --accept-only                          (verbatim accept, nothing else)
 import fs from 'node:fs';
@@ -24,6 +30,12 @@ process.stdout.write(
   `INPUTS:    ${inputs}\n` +
   `DO:        ${val('--do')}\n` +
   `ACCEPT:    ${node.accept}\n` +
+  `PIT:       kb/pits/${node.id}.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.\n` +
+  `           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a\n` +
+  `           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it\n` +
+  `           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands\n` +
+  `           the file from you — that contradiction is L1's to carry to PM, not yours to\n` +
+  `           resolve. Write the file; L1 absorbs the ownership finding.)\n` +
   `BRANCH:    seat/${node.owner}-${node.id}\n` +
   `DEADLINE:  ${val('--deadline')}\n`
 );

@@ -218,10 +218,17 @@ function checkAcceptPaths() {
   }
 
   const D = (k) => distinct[k].size;
-  console.log(`ACCOUNTING, PUBLISHED TWO WAYS. G0.accept's 182/152/7 figure is one hit per`);
-  console.log(`(node, token) pair; raw occurrences are a larger number. Printing only one of`);
-  console.log(`them is how the previous published run and a strict implementation drifted`);
-  console.log(`apart (R-36). The accept also flags 182/152/7 as STALE under R-44.`);
+  console.log(`ACCOUNTING, PRINTED HERE AND RESTATED NOWHERE — D-35. This mode tokenizes the`);
+  console.log(`accept text AND the documents, so its own published output is part of the corpus`);
+  console.log(`it measures: naming the seven directory prefixes in the predicate added seven`);
+  console.log(`path tokens and the re-run counted fourteen. THE MEASUREMENT IS NOT IDEMPOTENT`);
+  console.log(`UNDER PUBLICATION, so any restated figure is a fixed point the next prose edit`);
+  console.log(`breaks — which is how 179/19 and 182/152/7 went stale rather than merely being`);
+  console.log(`superseded. What the predicate asserts is the INVARIANT: exit 0, zero`);
+  console.log(`unresolved, the prefix class printed separately from the verbatim class rather`);
+  console.log(`than folded into it (R-36), and every exemption entry used at least once.`);
+  console.log(`Both bases are printed because publishing only one is how the previous run and`);
+  console.log(`a strict implementation drifted apart.`);
   console.log(`\ndistinct (node, token) pairs resolved: ${seenPair.size}`);
   console.log(`  ${D('verbatim')} VERBATIM · ${D('prefix')} PREFIX · ${D('basename')} BASENAME (t5) · ${D('preexisting')} PRE-EXISTING · ${D('exempt')} EXEMPT`);
   console.log(`\nraw candidate token occurrences resolved: ${candidates}`);

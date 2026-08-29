@@ -30,3 +30,36 @@ MERGED V5 7578174 pits:kb/pits/V5.md accept:PASS
 # detection…" vs 'cdp', and no flag/headless/toolCount/cdpDomainEnabled/invokeToolRoundTrip)
 # nor the probe-verdict shape, and V0's second declared output harness/probe-v0.mjs does
 # not exist. Recorded in kb/pits/V5.md under EARLIER. I1 has it as Day-1 work.
+
+MERGED T6 745d560 pits:kb/pits/T6.md accept:PASS
+
+# T6 — the RED test L0 shipped, fixed. Owner I2. Accept run verbatim via
+#   tools/accept-gate.mjs T6 --run 0 IN I2'S OWN WORKTREE, exit 0:
+#   tests/surface.test.mjs 9/9, the named 'auditor surface: read-only by
+#   construction' ok, auditor set exactly {get_day_book, get_expense_policy,
+#   get_open_report, get_report, get_session_scope, list_expense_reports}.
+#   FULL SUITE 24 tests / 24 pass / 0 FAIL on origin/main — that is the tree
+#   G3 clones, and R-26(c) is now satisfiable for the first time.
+#   Distinct tool count 15 -> 16, as R-9 option (B) requires.
+#
+#   Gate 2 (Layer-0 lint) recorded N/A, NOT waived: G4 is still in flight and
+#   tools/lint-layer0.mjs does not exist yet. T6 is re-lintable once G4 lands.
+#
+# OPEN FOR PM, raised by L1 and NOT L1's to verdict — THE PIT FILE IS
+#   UNOWNABLE BY THE SEAT THAT MUST WRITE IT. Merge gate clause 6 requires
+#   kb/pits/<node>.md; conventions.ownership_rule resolves kb/pits/** to L1
+#   and NO node lists a pit file in outputs (erp/PATHS.md 2.8: "produced by no
+#   node and budgeted in nobody's hours"). So every building seat that
+#   satisfies gate 4 violates gate 3, mechanically and forever. Measured:
+#     DENY  kb/pits/T6.md  [longest matching glob `kb/pits/**` -> L1, not I2]
+#     OK    src/tools.js            [declared output of T6 (owner I2)]
+#     OK    tests/surface.test.mjs  [declared output of T6 (owner I2)]
+#   T6 was merged with the violation ON THE RECORD rather than waived, because
+#   the alternative was blocking Day 1's leverage node on a contradiction that
+#   is not I2's fault. Escalated to PM with three candidate resolutions.
+#
+# PROCESS FIX, caught by the peer session mcp-6d: the four dispatch records in
+#   78fa31d carried no PIT line, so the merge gate was invisible from the
+#   artifact each seat worked to. I2 wrote a pit from its charter; I3 did not.
+#   That is not a difference in diligence. tools/contract.mjs now GENERATES a
+#   PIT line and every contract has been regenerated.

@@ -1,0 +1,20 @@
+#!/bin/sh
+# .githooks/pre-commit — Layer-0 lint gate (node G4, owner I4).
+# Zero model calls. Blocks the commit on any banned legacy identifier, any
+# tool description over 500 characters, any banned-wording hit or any
+# retracted claim landing anywhere the scan reaches (erp/RISK.md §2).
+#
+# This is the second clause of L1's merge gate for every node merged after
+# G4 — a false green here is expensive for the rest of the week.
+
+node tools/lint-layer0.mjs
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: tools/lint-layer0.mjs failed (exit $status) — commit blocked." >&2
+  echo "See the violations named above." >&2
+  exit 1
+fi
+
+exit 0

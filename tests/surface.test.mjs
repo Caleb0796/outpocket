@@ -25,12 +25,27 @@ test("employee surface grows with state: 5 → 12 → 13 (door) → shrinks when
   assert.equal(names(w.toolset).length, 12);
 });
 
-test("auditor surface: read-only by construction", () => {
+test("auditor surface: read-only by construction", async () => {
   const w = makeWorld();
   w.erp.signIn("ruiz", "human");
   const n = names(w.toolset);
-  assert.deepEqual(n.sort(), ["get_day_book", "get_expense_policy", "get_open_report", "get_session_scope", "list_expense_reports", "open_expense_report"].sort());
+  assert.deepEqual(n.sort(), ["get_day_book", "get_expense_policy", "get_open_report", "get_report", "get_session_scope", "list_expense_reports"].sort());
   for (const d of w.toolset.surface()) assert.equal(d.annotations?.readOnlyHint, true, `${d.name} must be readOnly`);
+
+  // Constructive, not a hint we ask a model to believe: run every tool the
+  // auditor actually has and prove none of them moved the page or the log.
+  // open_expense_report is off this surface precisely because it fails that —
+  // it sets openReportId and appends to the day book (R-9 option (B)).
+  const someReport = w.erp.listReports()[0].id;
+  const before = { open: w.erp.state.openReportId, book: w.erp.state.dayBook.length };
+  for (const name of n) {
+    const res = await w.dispatch(name, { report_id: someReport });
+    assert.ok(res.content[0].text.length > 0, `${name} returned nothing`);
+  }
+  const got = await w.dispatch("get_report", { report_id: someReport });
+  assert.match(got.content[0].text, new RegExp(someReport), "get_report must read the report it was asked for");
+  assert.equal(w.erp.state.openReportId, before.open, "no auditor tool may move the open report");
+  assert.equal(w.erp.state.dayBook.length, before.book, "no auditor tool may append to the day book");
 });
 
 test("submitted reports expose no editing tools", async () => {
