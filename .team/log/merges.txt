@@ -384,3 +384,41 @@ MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
 #   A PREDICATE IS PRODUCED BY ANYTHING. Both checkers passed all three of these
 #   happily — drive.mjs resolves as a declared H2 output every time. Three nodes
 #   have paid for it today.
+
+# --check-modes SHIPPED (D-59, G0 follow-up) AND PAID FOR ITSELF THE SAME DAY.
+#   For every (script, --flag) pair in an accept: if the script EXISTS, the flag
+#   literal must appear in it; if it does NOT, the producing node must be a HARD
+#   INPUT of the node naming it. 31 pairs, 22 resolved on disk, 6 deferred, 3
+#   violations — TWO UNKNOWN TO ANYONE THIS MORNING.
+#     H3.accept names harness/drive.mjs --fallback, which does not exist. FOURTH
+#       instance of the consumer-specifies-the-producer defect, on the node
+#       immediately BEHIND T2 on the critical path.
+#     E5.accept names webmcp-eval-kit/bin/eval.mjs --suite, produced by E1, with
+#       no E1 -> E5 hard edge.
+#   PM's note on the second one is the argument for buying the instrument rather
+#   than reading more carefully: E2 and E3 name the same script and BOTH carry
+#   their E1 edge, so E5 was the ODD ONE OUT rather than the pattern. A human
+#   scanning E5 sees a well-formed node. ONLY SOMETHING COMPARING SIBLING NODES
+#   AGAINST EACH OTHER SEES THE GAP.
+#   THE LIMIT IS IN THE SOURCE: it checks FLAGS. S1's missing static route was a
+#   CAPABILITY IN PROSE and is unreachable by it, permanently. Two of three.
+#
+# FOUR MISSING HARD EDGES OF ONE SHAPE DRAWN IN ONE EVENING — H2->F1, H2->T2,
+#   H2->H3, E1->E5 — three of the four pointing at harness/drive.mjs.
+#   124 edges, 113 hard, 105 qualifying, 0 violations. --check-modes is now down
+#   to exactly the two flags I1 is writing, which is the instrument being right
+#   rather than the tree being broken.
+#
+# D-61 CLOSED THE GAP L1 RAISED, and D-60 is what made it urgent: with the entry
+#   bankable on day one, docs/DEVPOST.md could drift for two days while every
+#   existing check stayed green, because every D6 clause verifies an ASSET THE
+#   ENTRY POINTS AT and never the entry's own answers. D5 now writes
+#   evidence/D5-entry-sync.txt with the sha256 of DEVPOST.md as last pasted;
+#   D6 asserts that sha still matches. DELIBERATELY A SHA AND NOT A HUMAN
+#   CONFIRMATION — "the operator confirms the answers still match" is a human
+#   judgement standing as an acceptance predicate, the exact defect D4 was
+#   rewritten to remove.
+#
+# V1's GATE: SWEPT AND THE VERDICT DOES NOT EXIST — no branch, no artifact.
+#   Not D-55's "finished but unreported"; QA never ran the read. Re-dispatched
+#   under D-46. Silence is not a pass.
