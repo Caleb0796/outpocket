@@ -56,7 +56,12 @@
   #agent-banner:empty { display: none; }
   .personas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
          list-style: none; padding: 0; margin: 0 0 24px; }
-  [data-persona] { background: #fff; border: 1px solid #d9dae0; border-radius: 8px; padding: 16px; }
+  /* The whole card is clickable, so it must LOOK clickable — the shell's click
+     handler resolves any click inside the card to its data-persona id, and the
+     button inside is kept as the keyboard-reachable control. */
+  [data-persona] { background: #fff; border: 1px solid #d9dae0; border-radius: 8px;
+         padding: 16px; cursor: pointer; }
+  [data-persona]:hover { border-color: #16181d; }
   [data-persona] .role { display: inline-block; font-size: 11px; text-transform: uppercase;
          letter-spacing: 0.08em; color: #55596a; border: 1px solid #d9dae0;
          border-radius: 999px; padding: 2px 8px; margin-bottom: 8px; }

@@ -155,6 +155,26 @@ function showPicker() {
   render();
 }
 
+/**
+ * Delegated click handling.
+ *
+ * THE WHOLE PERSONA CARD IS THE TARGET, not just the button inside it, and that
+ * is a correctness requirement rather than a convenience. `closest()` walks UP
+ * the tree, so a handler that looks only for `[data-login]` can never match a
+ * click that lands on the enclosing `<li data-persona>` — the button is a
+ * DESCENDANT of the card, below the click, not an ancestor above it.
+ *
+ * harness/drive.mjs --smoke-login clicks `[data-persona="<id>"]` at the
+ * element's centre via a trusted Input.dispatchMouseEvent, because that is what
+ * a judge's mouse produces. MEASURED on this page: the centre of the card is
+ * the `<li>` itself, `closest('[data-login]')` from there is null, and
+ * `closest('[data-persona]')` is the persona id. So the card must resolve.
+ *
+ * Order matters. `[data-login]` is checked first so a click on the button takes
+ * the button's own branch and the card branch never sees it; a click anywhere
+ * else on the card falls through to the second branch. One login call either
+ * way, never two.
+ */
 document.addEventListener("click", (event) => {
   const loginButton = event.target.closest("[data-login]");
   if (loginButton) {
@@ -162,6 +182,14 @@ document.addEventListener("click", (event) => {
     login(loginButton.dataset.login);
     return;
   }
+
+  const personaCard = event.target.closest("[data-persona]");
+  if (personaCard?.dataset.persona) {
+    event.preventDefault();
+    login(personaCard.dataset.persona);
+    return;
+  }
+
   if (event.target.closest('[data-action="switch"]')) {
     event.preventDefault();
     showPicker();
