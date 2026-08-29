@@ -522,3 +522,64 @@ MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
 #
 # THE PAIRED GATE IS NOW A TRIO: I3's root widening + UX's mount + T2. None of
 #   the three is valid alone. Merged locally to test, reset, NOT pushed.
+
+MERGED V2   pits:kb/pits/V2.md accept:PASS
+MERGED G2   pits:kb/pits/G2.md accept:PASS
+
+# V2 — RECOVERED FROM A DANGLING COMMIT. seat/I1-V2 pointed at main and fe4e495
+#   was on NO branch. Third shared-checkout incident today, after UX's checkout
+#   moved HEAD under me and my own G5 commit landed on UX's branch. Found by sha,
+#   branched, gated normally, nothing lost, I1 did nothing wrong. The peer session
+#   mcp-6d independently anchored the same sha as insurance a moment later; both
+#   anchors deleted after the merge.
+#   THE EVIDENCE IS STRONG AND MY FIRST CHECK OF IT WAS WRONG. I probed for
+#   before/after/gap keys, got null, and read that as a defective artifact. The
+#   real keys are observationPair.before/.after/.gapMs. My probe asked the wrong
+#   question — the third time today I drew a conclusion from a check that could
+#   not have answered it (the T2 module-graph walk with a hardcoded base, the
+#   D-41 grep against a retraction, and this).
+#   What the evidence actually carries: toolCount 5 -> 6 with gapMs 3, a
+#   documentNonce identical across both readings and navigationsSinceLoad 0
+#   (two independent witnesses that ONE document instance was observed, since a
+#   reload would discard the nonce and emit a second frameNavigated), the sixth
+#   tool registered BY NAME over the CDP WebMCP domain rather than through
+#   Runtime.evaluate, and the un-awaited getTools().length recorded as
+#   "undefined" beside each reading to keep IR-18 visible. It also RETRACTS an
+#   earlier 4048 ms gap from its own rig as a defect in that rig's push detector
+#   rather than reporting it.
+#
+# G2 — README demo credentials and open-app paths. Accept 2/2, suite 102/102.
+#
+# CORRECTION TO THE V2 ENTRY ABOVE: I ORPHANED THAT COMMIT MYSELF. The reflog is
+# unambiguous and I had blamed the shared checkout for all of it:
+#   seat/I1-V2@{7}  branch: Created from HEAD
+#   seat/I1-V2@{6}  commit: I1: V2 — the before/after pair …   <- I1's delivery
+#   seat/I1-V2@{5..3}  merge worktree-s1-d66 / seat/UX-F1 / seat/I2-T2
+#                      <- MY trio gating, run believing I was on main
+#   seat/I1-V2@{2}  reset: moving to origin/main   <- MY reset, which orphaned it
+# HALF of it is the shared checkout: HEAD@{7} reads "checkout: moving from main
+# to seat/I1-V2" and I did not run that. The other half is mine: I ran three
+# merges and a `git reset --hard` WITHOUT EVER CHECKING WHICH BRANCH I WAS ON.
+# Every trio gating result was still valid — same content, same commands — but
+# the bookkeeping was wrong for the whole sequence, and the reset destroyed a
+# seat's delivery. I then reported the dangling commit as the shared-checkout
+# hazard rather than as my own reset. The hazard is real and it put me on the
+# wrong branch; it did not run reset --hard.
+#
+# NOTHING WAS LOST. fe4e495 was recovered by sha, gated normally and merged; the
+# push was `HEAD:main`, so origin/main is correct throughout and never carried a
+# wrong tree. Local `main` was stale at d41f303 while origin/main was ab4831b,
+# and is now corrected. seat/I1-V2 is re-pointed at I1's own commit.
+#
+# AND THE HOOK CAUGHT IT, which is DEV-005 paying for itself within hours of the
+# send-back: my record commit was BLOCKED because pre-commit-ownership resolved
+# the seat from the branch name as I1 and denied .team/log/merges.txt and
+# erp/graph.state.json. That gate exists because G5 shipped inert and PM sent it
+# back; the chained hook I asked I4 for is what turned a silent wrong-branch
+# commit into a refusal. It is the first time tonight an instrument stopped ME
+# rather than reporting on someone else.
+#
+# THE RULE, and it is cheap: CHECK THE BRANCH BEFORE A DESTRUCTIVE GIT COMMAND,
+# every time, not only when something looks odd. `git reset --hard` on a branch
+# you have not verified is the one command in this loop that can destroy another
+# seat's work, and I ran it four times tonight.

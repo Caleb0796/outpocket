@@ -25,13 +25,14 @@
     "F1",
     "H5",
     "S9",
-    "V1"
+    "V1",
+    "V2",
+    "G2"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 HELD. Own scope green, DEV-006 vindicated. Blocked on the served root.",
-    "F1 mount": "UX \u2014 DONE on seat/UX-F1, two commits: register.js mount + the env-banner orphan it found itself.",
-    "served root": "I3 \u2014 D-66, 0.25 h. src/page/ -> src/, guard re-anchored, GET / -> page/index.html.",
-    "_gate": "ALL THREE MERGE AS ONE GATE. None is valid alone."
+    "T2": "I2 \u2014 STILL RED. src/page/register.js is BYTE-IDENTICAL between 4e9c58e and c563cdd; the amendment was a rebase, not a fix. Everything upstream is proven green.",
+    "F1 mount": "UX \u2014 ready, holds with the trio.",
+    "served root": "I3 \u2014 root widening + base-href regression fix, ready, holds with the trio."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
