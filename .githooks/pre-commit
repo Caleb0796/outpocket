@@ -1,11 +1,30 @@
 #!/bin/sh
-# .githooks/pre-commit — Layer-0 lint gate (node G4, owner I4).
-# Zero model calls. Blocks the commit on any banned legacy identifier, any
-# tool description over 500 characters, any banned-wording hit or any
-# retracted claim landing anywhere the scan reaches (erp/RISK.md §2).
+# .githooks/pre-commit — commit gate chain (node G4, owner I4).
 #
-# This is the second clause of L1's merge gate for every node merged after
-# G4 — a false green here is expensive for the rest of the week.
+# Chains TWO independent gates, git's canonical pre-commit hook being the only
+# one git ever invokes by name — .githooks/pre-commit-ownership is not itself a
+# hook git will call, so it must run from here or it never fires at all
+# (DEV-005, PM send-back on G5, 2026-08-29).
+#
+# ORDER: ownership first, then Layer-0 lint.
+#   A staged path this seat has no right to touch is invalid regardless of its
+#   content — that is the cheaper, more fundamental defect, and a seat should
+#   not spend time chasing lint violations in a file it should never have
+#   staged in the first place. Layer-0 lint (zero model calls, node G4) runs
+#   second and only once ownership has already passed.
+#
+# Fails on either gate; each failure names itself so a seat knows which one
+# rejected the commit without needing to re-run both by hand.
+
+.githooks/pre-commit-ownership
+status=$?
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: pre-commit-ownership failed (exit $status) — commit blocked." >&2
+  echo "See the ownership violation named above." >&2
+  exit 1
+fi
 
 node tools/lint-layer0.mjs
 status=$?
