@@ -1,0 +1,15 @@
+{
+  "question": "Does a suspended execute time out in the ChatGPT built-in browser, and after how long?",
+  "verdict": "times-out",
+  "timeoutMs": 22267,
+  "timeoutSecondsApprox": 22.3,
+  "clientError": "Error: Timed out running CDP command \"Runtime.evaluate\" for tab 1",
+  "origin": "http://localhost:8795",
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+  "chromiumMajor": 151,
+  "method": "probe_hang returns a Promise that never settles. The agent was told not to give up on its own initiative and to report what the client did.",
+  "consequence": "DECISIVE AGAINST suspend-until-signed. A human cannot review a report and sign it in 22 seconds. S5 MUST ship the two-call handshake mode - execute returns {status:'awaiting_signature', ticket} immediately and the signature arrives on a separate call. RISK.md already required S5 to be written with BOTH modes behind one switch from the start, so this is a switch position, not a rewrite.",
+  "incidental": "The error names Runtime.evaluate, so this client drives tool execution over CDP via Runtime.evaluate rather than the CDP WebMCP domain's invokeTool. Recorded as an observation, not a conclusion about other clients.",
+  "caveat": "Measured once, on localhost. The plan requires two independent runs with a disagreement threshold; this is run 1 of 2.",
+  "observedAt": "2026-08-29T07:58:00Z"
+}

@@ -1,0 +1,20 @@
+{
+  "question": "Does an agent-initiated tool execute carry the page session cookie?",
+  "verdict": "same-session",
+  "origin": "http://localhost:8795",
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+  "chromiumMajor": 151,
+  "rawResult": {
+    "cookiePresent": true,
+    "cookieMatches": true,
+    "cookieValue": "v5-probe-fixed-value",
+    "sawCookieHeader": true,
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+    "secFetchSite": "same-origin",
+    "secFetchMode": "cors",
+    "at": "2026-08-29T07:55:25.814Z"
+  },
+  "caveat": "Measured on localhost, a secure context but NOT the plain remote HTTPS origin V1/V3 specify. Re-run against the Render origin before treating as final.",
+  "consequence": "Kernel 3 (session as credential) survives; contingencies[0] does NOT fire. But this is also the answer that makes the sign gate worse: an agent whose fetch carries the cookie can POST /respond itself, which is the surviving forgery vector (D-19).",
+  "observedAt": "2026-08-29T07:55:25.814Z"
+}

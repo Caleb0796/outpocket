@@ -1,0 +1,13 @@
+{
+  "question": "Does the built-in browser refresh the tool list mid-session, without a page reload?",
+  "verdict": "refreshes",
+  "origin": "http://localhost:8795",
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+  "chromiumMajor": 151,
+  "method": "probe_flip registered a sixth tool at runtime via registerTool with an AbortController signal; the agent was then asked to list tools again without reloading.",
+  "agentAnswer": "Yes - probe_extra is now available. The page exposes six tools.",
+  "pageState": { "toolsRegistered": 6, "probe_extra": "REGISTERED" },
+  "precision": "No page reload was needed. The agent picked the sixth tool up on a subsequent turn in the same conversation. This does NOT establish that a surface change reaches the model mid-turn with no prompt at all, so keep the storyboard narration at 'on its next turn'.",
+  "consequence": "Demo beat 1 works on camera. The plan's hedge - re-prompt after the flip, never say 'on the spot' - is satisfied and can stay as written.",
+  "observedAt": "2026-08-29T07:56:32.695Z"
+}

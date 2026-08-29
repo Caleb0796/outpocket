@@ -1,0 +1,11 @@
+{
+  "question": "navigator.modelContext alias status on the client under test",
+  "verdict": "absent",
+  "chromiumMajor": 151,
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+  "documentPresent": true,
+  "navigatorAlias": false,
+  "method": "page-side feature detection, read off typeof - never off whether a CDP domain enables",
+  "note": "The 150 removal holds. Also MEASURED separately on standalone Chrome 152: navigator.modelContext undefined there too.",
+  "observedAt": "2026-08-29T07:53:18.841Z"
+}
