@@ -602,7 +602,7 @@ heaviest. Computed from `graph.json.capacity.schedule_A.days`:
 
 | | nodes | owning seats | agent hours | human-gated hours |
 |---|---|---|---|---|
-| **Day 1** | 16 | 7 | 24.0 | **2.5** — `G1` 0.5 + `V1` 2.0 |
+| **Day 1** | 15 | 7 | 24.0 | **2.0** — `V1` 2.0 (`G1` moved to Day 6, R-42) |
 | Day 3 | 16 | **9** | **29.0** | 0 |
 
 Day 3 ties Day 1 on nodes and beats it on both seats and agent hours. What Day 1 owns alone is
@@ -1095,7 +1095,7 @@ template as the positional prompt (§2). PM and L1 read `done` most mornings; th
    human-gated ones. A ready node with no seat is the alarm nothing else raises.
 6. `READY:` empty while nodes remain → the graph is stuck. That is the other alarm.
 7. `ASK:` has at most one item. Answer it in one line, now.
-8. Do your own human-gated nodes. Day 1: `G1`, `V1`. Day 5: `D4`. Day 6: `D5`, `D6`.
+8. Do your own human-gated nodes. Day 1: `V1`. Day 5: `D4`. Day 6: `G1`, `D5`, `D6`.
 9. **T2 to L1**, once, mid-afternoon. Merged nodes only, with the accept line that proved each.
 10. **T3 to L2**, only on a day you need an opinion. Not daily.
 11. **T4 to PM** at end of day. The deviation loop (§0 correction 1 form) must print nothing.

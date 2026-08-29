@@ -135,9 +135,11 @@ HANDOVER §1 and gatehouse BUILD.md T16.5):
 initial commit each; `outpocket` already carries a 1066-byte LICENSE and a
 1376-byte README.md, so **G1** is a visibility flip plus About-box verification,
 not a licensing task — `graph.json.contradictions_with_skeleton[0]`). Flipping to
-public is node **G1** and it is a *gated* node — gated meaning a human must
-perform it, not that it may be deferred. See the decision log (§8, D-12):
-**G1 executes on Day 1, not at the end.**
+public is node **G1** and it is a *gated* node — a human must perform it.
+**G1 executes on Day 6, immediately before D5 (submission).** The contest
+requires a public repo *at submission*, not during the build, and keeping work
+private until then is the lower-risk default. See §8, D-12 (superseded) and
+D-30.
 
 **Track B — after the deadline.** Lane **X** (extraction of the reusable modules
 into `webmcp-dev-kit`, and promotion of the eval harness into `webmcp-eval-kit`)
@@ -533,7 +535,7 @@ agent-hours per day**. Properties, all re-verified by execution for this revisio
   Day 3, S2 to Day 4 and S7 to Day 5 to get there. The cap counts **agent** hours
   only: the five human-gated nodes are drawn from the human's budget, because the
   seat is waiting on a person rather than working.
-- Three human floors sit on top of the topological order: **G1** not before Day 1
+- Three human floors sit on top of the topological order: **G1** on Day 6, before D5
   (D-12), **D4** not before Day 5, **D5/D6** on Day 6 — so Day 6 carries no code.
 - All five interface freezes in `graph.json.interface_freezes` meet or beat their
   stated deadline: `erp/contracts/violation.schema.json` by **S10** (Day 1,
@@ -978,7 +980,7 @@ This is new in v2.1.0 and it is stated here because the day table now exposes it
 
 | day | human-gated nodes | hours | against a 2.5 h/day average |
 |---|---|---|---|
-| **Day 1** | G1 0.5 + V1 2.0 | **2.5** | exactly on budget |
+| **Day 1** | V1 2.0 | **2.0** | 1.0 h of steering left |
 | **Day 5** | D4 4.0 | **4.0** | **1.5 h over** |
 | **Day 6** | D5 2.0 + D6 2.0 | **4.0** | **1.5 h over**, on the morning of a 13:00 PT deadline |
 | Days 0, 2, 3, 4 | none | 0 | the review-overhead term only |
@@ -1089,7 +1091,7 @@ buying a domain. It is a bonus — **unless V1 returns ABSENT**, at which point
 | D-09 | **Origin trial + custom domain are a bonus, never a blocker** — unless V1 returns ABSENT (§7) | Judges arrive via the ChatGPT built-in browser or a Chrome flag; both bypass the token | MEASURED |
 | D-10 | **Build against the Chromium major installed now — 152.** If it breaks, we require the upgrade rather than back-porting | Explicit user preference. Ruling R-8: **V0 asks about the installed major, not 151**, and every version claim in the corpus anchors to 152 | user decision |
 | D-11 | **Enterprise browser-policy risk is out of scope** | Explicit user instruction | user decision |
-| D-12 | **G1 (repos public) executes on Day 1, not at the end** | These same disqualification gaps opened all four review rounds and were still open at the end of each. Deferral is *how* they stayed open. Competitive leakage over five days at this stage is negligible | OUR-ESTIMATE on leakage; MEASURED on the review history |
+| D-12 | ~~G1 (repos public) executes on Day 1~~ — **SUPERSEDED by D-30 (2026-08-29)**. The original reasoning stands as a warning and is kept: these same disqualification gaps opened all four review rounds and were still open at the end of each, and *deferral is how they stayed open*. What was wrong was the remedy | OUR-ESTIMATE on leakage; MEASURED on the review history | superseded |
 | D-13 | **Lane X is Track B.** Extraction into the two kits happens after 09-03 | Extraction on a deadline produces a worse product and a worse library. Firing the X rank frees 0 horizon-A hours | plan ruling |
 | D-14 | **HANDOVER §12.1's code freeze is lifted.** It read "do not touch code until the user answers"; the user has answered and the repos exist | MEASURED: three repos created and pushed 2026-08-28 | MEASURED |
 | D-15 | **The demo does not open with form-filling.** §5 | Four reasons, §5 | plan ruling |
@@ -1107,6 +1109,7 @@ buying a domain. It is a bonus — **unless V1 returns ABSENT**, at which point
 | D-27 | **"Eight frozen schemas" is dead vocabulary (R-28).** `erp/contracts/` holds eight **files** — six `*.schema.json` and two frozen data documents — and **nine from Day 0**, once V5 adds `probe-verdict.schema.json`. Predicates say **every `*.schema.json` in `erp/contracts/`**; no predicate or title states a count | The phrase was wrong about the composition and stale from Day 0, and it survived in `graph.json`'s own G6 title the same round CONTRACTS.md declared it dead. Ruling R-28 | MEASURED (the files are on disk) |
 | D-28 | **G6's catch is CONTRACTS.md §11 check 3b (R-29):** run the frozen policy over the frozen snapshot and compare the computed verdict to the carried one | G6's advertised catch — a known `canonical_bytes` error in `policy-versions.json` — is **stale: 2458 and 2457 both recompute correctly**. Check 3b is a real catch, already implemented, and its absence is the whole of CONTRACTS.md §7.2a. Ruling R-29 | MEASURED (both byte counts recomputed) |
 | D-29 | **The two WebMCP flag names are interchangeable, the flag works headless, and the eval suite may therefore run headless in CI (R-30).** "The flag name differs by scenario" is demoted to a **house rule about our own configuration**; H2's and V0's evidence files **record** `headless` and do not constrain it, while **keeping the flag requirement**; `cdpDomainEnabled` is recorded and never asserted on | MEASURED 2026-08-28 by the session owner, Chrome 152.0.7977.64, `--headless=new`, a clean dedicated `--user-data-dir` per launch, page over `http://localhost`: no flag → `undefined`; `WebMCP` → `object`, `registerTool` succeeds; `WebMCPTesting` → `object`, `registerTool` succeeds. `FACTS.md` IR-16(b) is **false and retracted** — `WebMCP.enable` returns OK even in a launch with no page API at all, so a probe reading the CDP domain instead of the page API reads "on" when it is off. This is what makes **E6** feasible at all. Ruling R-30 | MEASURED |
+| D-30 | **G1 (flip both repos public) moves to Day 6, immediately before D5.** Ruled by the user 2026-08-29, overturning D-12. The contest requires a public repo **at submission**, not during the build, and keeping work in progress private until then is the lower-risk default. The supposed technical dependency was false: **MEASURED — `git clone` of a PRIVATE repo succeeds when the CLI is authenticated** (52 files cloned from `Caleb0796/outpocket` while private), so `G3`'s clean-clone gate needed the *push*, not the *visibility*; the `G1→G3` edge is deleted. D-12's process argument is preserved at zero leakage by a **Day-1 rehearsal against a throwaway repo** (see `G1.notes`) — never by flipping outpocket public and back, which is a real publish event. Day 1's human-gated load drops 2.5 → 2.0 h; Day 6 rises 4.0 → 4.5 h | MEASURED on the clone; user ruling on the schedule | ruled by the user |
 
 ---
 
