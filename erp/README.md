@@ -176,12 +176,14 @@ Patterns must be `\b`-anchored: unanchored, `our differentiator` matches the inn
   a "first hour tomorrow" paragraph, and a named "most likely to go wrong that nobody has caught" —
   the sign gate's surviving forgery is described two incompatible ways two JSON keys apart in the
   same frozen file.
-- **Three restatement drifts I measured today**, all cheap text edits, none structural: (1)
-  `GRAPH.md`'s `S5` row appends ", one-shot guard" to a title `graph.json` does not carry; (2)
-  `EVAL.md` §4 still restates the critical path as `L0 → T6 → S10 → …` at **29.0 h**, which v2.3.0
-  rerouted to `L0 → V5 → S10 → …` at **29.5 h**; (3) `PATHS.md` §2.4 and §3 publish the superseded
-  accept-path run (**179 / 157 / 12 / 10 / 19**) while `G0`'s accept publishes the recomputed one
-  (**182 / 152 / 7 / 12 / 11 / 21**) — the two authorities disagree about the same run.
+- ~~**Three restatement drifts**~~ **— all three are CLOSED, and leaving them listed here as live
+  was itself a defect (R-44).** Verified 2026-08-29: (1) `graph.json`'s `S5` title *does* carry
+  ", one-shot guard" and `GRAPH.md` matches it; (2) `EVAL.md` §4 already restates the path as
+  `L0 → V5 → S10 → …` at **29.5 h**, equal to `capacity.graph_depth_hours`; (3) `PATHS.md` §3
+  carries the retraction of the superseded **179 / 157** run rather than republishing it.
+- **`G0`'s accept-path accounting is stale and says so.** R-43/R-44 edited `S5`, `S12` and `V6`
+  accept text, which changes the token set. Recompute and republish on the first Day-0 run; do not
+  quote **182 / 152 / 7** or "0 UNRESOLVED" as a current measurement.
 - **The unknowns V0–V4** (`RISK.md` §4), each with a pre-declared fallback. **All five now carry
   readings (2026-08-29) and none has passed its answering node** — see `evidence/UNKNOWNS.md`, and
   quote each with its origin, because `V1` was read remotely and the rest on localhost. `V1` — is
