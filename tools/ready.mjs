@@ -19,6 +19,7 @@
 // which conventions.ownership_rule names as its one implementation.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { whoMayWrite } from './check-ownership.mjs';
 
 const G = JSON.parse(fs.readFileSync('erp/graph.json', 'utf8'));
@@ -433,6 +434,191 @@ function checkModes() {
   return violations === 0;
 }
 
+// ---------------------------------------------------------------- --check-orphans
+// D-63, bought after the FIFTH instance of a predicate requiring an effect nobody
+// was told to produce: src/page/register.js was a correct, complete T2 output that
+// NOTHING EVER LOADED. index.html loaded ui/shell.js and nothing else; the page
+// registered zero tools; the node could not pass.
+//
+// THE RULE: every declared node output under src/** that EXISTS ON DISK must be
+// REFERENCED FROM A NON-COMMENT CONTEXT — an import/require, a <script src>, an
+// entry point in package.json scripts, or a path named in some node's accept.
+// An output that has not been built yet is not an orphan; it is unbuilt.
+//
+// STRIPPING COMMENTS IS THE WHOLE TRICK AND IT IS WHY THIS IS NOT TRIVIAL.
+// register.js WAS mentioned in BOTH index.html and ui/shell.js — in comments, by
+// name, accurately — so a checker that counted mentions would have called it
+// mounted and passed. Beating a naive mention-counter is the specific failure
+// this implementation exists to beat, so the comment stripper is the load-bearing
+// part and is tested by --selftest-orphans below.
+//
+// STATED LIMIT, same discipline as --check-modes' two-of-three: THIS CATCHES AN
+// ARTIFACT THAT IS NEVER REFERENCED. IT DOES NOT CATCH A CAPABILITY THAT WAS
+// NEVER BUILT. S1's missing static route was not an orphaned file — it was a
+// missing BEHAVIOUR in a file that exists and loads and is referenced everywhere.
+// Nothing cheap reaches that. One of the two, not both.
+
+// Comment strippers. Deliberately conservative: they may leave a comment in
+// (a false PASS on that one reference) but must never remove live code (a false
+// FAIL). A checker that invents violations is worse than one that misses some.
+export function stripJsComments(src) {
+  let out = '', i = 0, mode = 'code', quote = '';
+  while (i < src.length) {
+    const c = src[i], n = src[i + 1];
+    if (mode === 'code') {
+      if (c === '/' && n === '*') { mode = 'block'; i += 2; continue; }
+      if (c === '/' && n === '/') { mode = 'line'; i += 2; continue; }
+      if (c === '"' || c === "'" || c === '`') { mode = 'str'; quote = c; out += c; i++; continue; }
+      out += c; i++; continue;
+    }
+    if (mode === 'block') { if (c === '*' && n === '/') { mode = 'code'; i += 2; out += ' '; continue; } i++; continue; }
+    if (mode === 'line') { if (c === '\n') { mode = 'code'; out += '\n'; } i++; continue; }
+    if (mode === 'str') {
+      if (c === '\\') { out += c + (n ?? ''); i += 2; continue; }
+      if (c === quote) { mode = 'code'; }
+      out += c; i++; continue;
+    }
+  }
+  return out;
+}
+export function stripHtmlComments(src) { return src.replace(/<!--[\s\S]*?-->/g, ' '); }
+
+function checkOrphans() {
+  const roots = [];
+  (function walk(d) {
+    if (!fs.existsSync(d)) return;
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const q = path.join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(q); }
+      else if (/\.(js|mjs|cjs|html)$/.test(e.name)) roots.push(q);
+    }
+  })('src');
+  // tests/ MUST be in the corpus. Leaving it out reported src/samples.js as an
+  // orphan when tests/helpers.mjs imports it — a checker inventing a violation,
+  // which is worse than one that misses. Found by running it before shipping it.
+  for (const extra of ['server', 'harness', 'probe', 'tests', 'tools', 'evals']) {
+    (function walk(d) {
+      if (!fs.existsSync(d)) return;
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const q = path.join(d, e.name);
+        if (e.isDirectory()) { if (e.name !== 'node_modules') walk(q); }
+        else if (/\.(js|mjs|cjs|html)$/.test(e.name)) roots.push(q);
+      }
+    })(extra);
+  }
+
+  // One stripped corpus, built once, with each file's own text excluded when we
+  // ask whether OTHERS reference it — a file importing itself proves nothing.
+  const stripped = new Map();
+  for (const f of roots) {
+    const src = fs.readFileSync(f, 'utf8');
+    stripped.set(f, f.endsWith('.html') ? stripHtmlComments(src) : stripJsComments(src));
+  }
+
+  const pkg = fs.existsSync('package.json') ? fs.readFileSync('package.json', 'utf8') : '';
+  const acceptText = G.nodes.map((n) => n.accept).join('\n');
+
+  const targets = [];
+  for (const n of G.nodes) {
+    for (const o of n.outputs) {
+      const c = stripTrailing(o);
+      if (!c.startsWith('src/')) continue;
+      if (!/\.(js|mjs|cjs|html)$/.test(c)) continue;
+      if (!fs.existsSync(c)) continue; // unbuilt is not orphaned
+      targets.push({ path: c, node: n.id, owner: n.owner });
+    }
+  }
+
+  let orphans = 0;
+  const referenced = [];
+  for (const t of targets) {
+    const base = t.path.split('/').pop();
+    let via = null;
+    for (const [f, text] of stripped) {
+      if (f === t.path) continue;
+      // A reference is a quoted specifier ending in this basename: import,
+      // require, dynamic import, or a <script src>. Bare prose cannot match
+      // because the quote characters are required.
+      const re = new RegExp(`["'\\\`][^"'\\\`]*${base.replace(/\./g, '\\.')}["'\\\`]`);
+      if (re.test(text)) { via = f; break; }
+    }
+    if (!via && new RegExp(`["'][^"']*${base.replace(/\./g, '\\.')}`).test(pkg)) via = 'package.json scripts';
+    if (!via && acceptText.includes(t.path)) via = 'named in an accept';
+    if (via) { referenced.push(`${t.path} (${t.node}) <- ${via}`); continue; }
+    bad(`${t.path} is a declared output of ${t.node} (${t.owner}), EXISTS on disk, and is referenced from NO non-comment context — nothing loads it`);
+    orphans++;
+  }
+
+  console.log(`${targets.length} built output(s) under src/ checked against a COMMENT-STRIPPED corpus of ${roots.length} file(s)`);
+  for (const r of referenced) console.log(`        ${r}`);
+  console.log(`LIMIT, STATED: this catches an ARTIFACT NEVER REFERENCED. It does NOT catch a`);
+  console.log(`CAPABILITY NEVER BUILT — S1's missing static route was a live, loaded, referenced`);
+  console.log(`file with a behaviour missing from it, and nothing cheap reaches that.`);
+  if (!orphans) ok('every built src/ output is loaded from somewhere real');
+  return orphans === 0;
+}
+
+// The stripper is the load-bearing part, so it is tested rather than trusted.
+function selftestOrphans() {
+  const cases = [
+    ['// import "./ghost.js"\n', false, 'line comment'],
+    ['/* import "./ghost.js" */\n', false, 'block comment'],
+    ['import "./ghost.js";\n', true, 'real import'],
+    ['<!-- <script src="./ghost.js"></script> -->', false, 'html comment', true],
+    ['<script src="./ghost.js"></script>', true, 'real script tag', true],
+    ['const mod = "./ghost.js";\n', true, 'a quoted specifier in live code, after a stripper pass'],
+    ['const s = "not a path";\n// import "./ghost.js"\n', false, 'comment AFTER live code still stripped'],
+  ];
+  let fails = 0;
+  for (const [src, want, label, isHtml] of cases) {
+    const out = isHtml ? stripHtmlComments(src) : stripJsComments(src);
+    const got = /["'`][^"'`]*ghost\.js["'`]/.test(out);
+    if (got !== want) { bad(`selftest-orphans: ${label} — expected reference ${want}, got ${got}`); fails++; }
+    else ok(`selftest-orphans: ${label}`);
+  }
+  return fails === 0;
+}
+
+// ---------------------------------------------------------------- --check-record
+// Clause 6c says THE RECORD OF A MERGE IS PART OF THE MERGE, and nothing checked
+// the record. On 2026-08-29 .team/log/merges.txt carried four rows naming pit
+// files that do not exist and two rows with no sha at all, while the row count
+// and graph.state.json.done agreed exactly — SO BOTH REGISTERS AGREED WHILE BOTH
+// OVERSTATED THE TREE. Two registers agreeing is not two registers being right.
+//
+// Every MERGED row must satisfy: the sha resolves to a commit that exists, and
+// the pit path exists in HEAD or reads PENDING. PENDING is honest and passes;
+// naming a file that is not there does not.
+function checkRecord() {
+  const LOG = '.team/log/merges.txt';
+  if (!fs.existsSync(LOG)) { bad(`${LOG} does not exist`); return false; }
+  const rows = fs.readFileSync(LOG, 'utf8').split('\n').filter((l) => l.startsWith('MERGED'));
+  const st = fs.existsSync(STATE_PATH) ? JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) : { done: [] };
+  let violations = 0;
+  const seen = [];
+  for (const line of rows) {
+    const m = line.match(/^MERGED\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
+    if (!m) { bad(`malformed row: ${line}`); violations++; continue; }
+    const [, node, sha, pit] = m;
+    seen.push(node);
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) { bad(`${node}: "${sha}" is not a sha`); violations++; }
+    else {
+      const r = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]);
+      if (r.status !== 0) { bad(`${node}: sha ${sha} is not a commit in this repository`); violations++; }
+    }
+    if (pit !== 'PENDING' && !fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+  }
+  const done = new Set(st.done || []);
+  const rowsNotDone = seen.filter((n) => !done.has(n));
+  const doneNotRows = [...done].filter((n) => !seen.includes(n));
+  if (rowsNotDone.length) { bad(`rows for nodes not in graph.state.json.done: ${rowsNotDone.join(' ')}`); violations++; }
+  if (doneNotRows.length) { bad(`done but no merge row: ${doneNotRows.join(' ')}`); violations++; }
+  const pending = rows.filter((l) => /pits:PENDING/.test(l)).length;
+  console.log(`${rows.length} merge row(s) checked; ${done.size} node(s) done; ${pending} pit(s) PENDING`);
+  if (!violations) ok('every row names a sha that exists and a pit that exists or is honestly PENDING');
+  return violations === 0;
+}
+
 // ---------------------------------------------------------------- --check-tables
 // R-22: this mode is what makes restatement legal at all. falsification[9] used to forbid a
 // sibling document from restating a node table outright; the rule is now narrowed to "a
@@ -594,6 +780,9 @@ const MODES = [
   ['--check-tables', checkTables],
   ['--check-schedule', checkSchedule],
   ['--check-modes', checkModes],
+  ['--check-orphans', checkOrphans],
+  ['--check-record', checkRecord],
+  ['--selftest-orphans', selftestOrphans],
 ];
 
 const argv = process.argv.slice(2);
