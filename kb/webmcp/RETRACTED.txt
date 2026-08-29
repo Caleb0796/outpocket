@@ -1,0 +1,56 @@
+# kb/webmcp/RETRACTED.txt — retracted-claims register (node G4, owner I4)
+#
+# Each entry is a claim this project asserted at some point in its own
+# documents and then lost the right to assert, per the ruling that retracted
+# it. `node tools/lint-layer0.mjs --assert-register` checks this file for
+# each of the five literal strings below, verbatim and case-sensitive; it
+# does not run the wording/identifier scan over this file (kb/webmcp/RETRACTED.txt
+# is a self-referential registry, structurally the same as kb/webmcp/BANNED.txt:
+# it must quote the retracted strings in order to register them).
+#
+# D5 (docs/DEVPOST.md) and every other scanned document in this project fails
+# the lint on any live use of these five strings; this file is where they are
+# looked up, not where they are asserted.
+
+1. "structural guarantee"
+   RETRACTED — erp/RISK.md §2, BW-11. The absence of a binary channel is
+   page-enforced, not browser-enforced: Chrome does not validate
+   inputSchema; it performs a JSON parse and an is-it-an-Object check, then
+   hands the args to the page. Write instead: "page-enforced".
+
+2. "the five write tools"
+   RETRACTED — R-20 (erp/graph.json G4.accept; erp/FACTS.md §9). The
+   revoked/write set is COMPUTED per state, never hard-coded: it is every
+   tool where `annotations.readOnlyHint !== true`. In state
+   S2-emp-draft-clean that count is SEVEN, not five — the old count of five
+   omitted submit_expense_report and open_expense_report. No document,
+   narration line or schema annotation may write this count as a literal;
+   derive it from the annotation.
+
+3. "a specific agent"
+   RETRACTED — R-21 (erp/graph.json G4.accept; erp/FACTS.md §9). WebMCP
+   exposes no agent identity. The specification states the browser agent
+   uses a different internal mechanism, and `execute(args, opts)` carries no
+   attested caller. The page cannot distinguish ChatGPT-Sol from a CDP
+   script from H3, our own in-page fallback agent, which exists precisely to
+   drive the same surface with no agent at all. We may attest that a tool
+   call arrived and that a human signed the snapshot it produced — nothing
+   about who called.
+
+4. "a commit cannot be made without a human decision"
+   RETRACTED — R-13 (erp/CONTRACTS.md 2026-08-28 ruling; erp/FACTS.md §9a).
+   Narrowed to the one sentence this layer can actually prove: "a commit
+   cannot be made without a POST from the authenticated session to
+   /api/sign/{request_id}/respond." That sentence asserts the POST, not a
+   human — the confirm_token added by the same ruling is defence in depth,
+   not a proof of personhood, and its value is a direct function of unknown
+   V3 (MEASURED same-session, the unfavourable branch — see erp/HANDOVER.md
+   §3, R-43/R-44).
+
+5. "the tool surface is the boundary"
+   RETRACTED — erp/RISK.md §2, BW-01. The surface is a menu, not a lock: a
+   client can call whatever it likes, and the page's own 403 is a UX
+   affordance, not enforcement. The boundary that actually holds is the
+   server's per-request check (S2), against the session the human already
+   holds. Write instead: "the tool surface is the intent surface; the
+   boundary is enforced on the server, per request".

@@ -1,0 +1,13 @@
+registerTool
+document.modelContext
+readOnlyHint
+untrustedContentHint
+AbortController
+confirm_token
+human-sign gate
+snapshot digest
+server-side re-canonicalization
+per-request server check
+day book hash chain
+canonical snapshot digest
+credential lives in the page

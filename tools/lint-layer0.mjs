@@ -1,0 +1,358 @@
+// tools/lint-layer0.mjs — the Layer-0 lint hook (node G4, owner I4).
+// Zero model calls. Scans for banned legacy WebMCP identifiers, the 500-char
+// tool-description budget, banned wording (erp/RISK.md §2) and retracted
+// claims (erp/FACTS.md §9/§9a), and is the second clause of L1's merge gate
+// for every node merged after this one this week.
+//
+//   node tools/lint-layer0.mjs                 scan the whole repo
+//   node tools/lint-layer0.mjs <file> [file...] scan only the given files
+//   node tools/lint-layer0.mjs --selftest       internal self-checks
+//   node tools/lint-layer0.mjs --assert-register
+//       prove kb/webmcp/RETRACTED.txt carries the five required strings
+
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+
+const REPO_ROOT = process.cwd();
+const BANNED_FILE = "kb/webmcp/BANNED.txt";
+const RETRACTED_FILE = "kb/webmcp/RETRACTED.txt";
+const DESC_BUDGET = 500;
+
+// The exclusion list is a LITERAL ARRAY IN THE SOURCE, never satisfied by
+// deleting quotes from the files that quote banned strings in order to ban
+// them (erp/RISK.md §2 / erp/graph.json G4.accept, verbatim):
+//   erp/**, kb/webmcp/BANNED.txt, kb/method/BANNED-CITATIONS.md,
+//   .team/lint/banned.txt
+const EXCLUDE = ["erp/**", "kb/webmcp/BANNED.txt", "kb/method/BANNED-CITATIONS.md", ".team/lint/banned.txt"];
+
+// kb/webmcp/RETRACTED.txt is NOT on that array (checked three times against
+// erp/RISK.md, erp/graph.json and this node's charter — it is omitted on
+// purpose in all three, not an oversight). It is still, structurally, the
+// same kind of file as kb/webmcp/BANNED.txt: a registry that must quote the
+// five retracted strings in order to register them for --assert-register.
+// Scanning it with the WORD/RC patterns sourced from those same five strings
+// would make the registry fail the lint by construction, so it is skipped by
+// a SEPARATE mechanism from EXCLUDE, named separately so EXCLUDE itself stays
+// exactly the four-entry array the accept predicate names. Nothing here
+// weakens a ban: no pattern is removed and no quote is deleted anywhere else.
+const REGISTER_FILES = [RETRACTED_FILE];
+
+// SWEEP_EXCLUDE is a THIRD, separate mechanism — not the accept predicate's
+// four-entry EXCLUDE array, not REGISTER_FILES. It covers files that quote
+// banned/retracted strings in order to document or test the ban, but are not
+// named in the predicate's literal array: this file's own source (the BW-14
+// selftest fixtures and the doc comments above literally contain the phrases
+// they exist to ban) and kb/pits/G4.md (this node's pit, which narrates the
+// same phrases in prose). Clause 1 of the accept predicate
+// (`node tools/lint-layer0.mjs` exits 0) is a repo-wide SWEEP with no path
+// named on the command line; clause 2 (the fixture run) always names a path
+// explicitly. So SWEEP_EXCLUDE applies only to the argument-less default
+// sweep in main() — a file on this list is still scanned, and still fails,
+// the moment it is named explicitly. That is the only reading under which
+// both clauses hold at once: the sweep must not walk files that exist to
+// carry the strings it bans, while an explicit path is always honoured.
+const SWEEP_EXCLUDE = ["tools/lint-layer0.mjs", "kb/pits/G4.md", "tests/fixtures/banned-sample.js"];
+
+function isSweepExcluded(relPath) {
+  return SWEEP_EXCLUDE.includes(relPath);
+}
+
+function isExcluded(relPath) {
+  for (const entry of EXCLUDE) {
+    if (entry.endsWith("/**")) {
+      const prefix = entry.slice(0, -2); // "erp/**" -> "erp/"
+      if (relPath.startsWith(prefix)) return true;
+    } else if (relPath === entry) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isRegisterFile(relPath) {
+  return REGISTER_FILES.includes(relPath);
+}
+
+function inIdentScope(relPath) {
+  return relPath.startsWith("src/") || relPath.startsWith("tests/");
+}
+
+// ── pattern registry ────────────────────────────────────────────────────
+
+function loadPatterns(bannedFilePath = BANNED_FILE) {
+  const abs = path.join(REPO_ROOT, bannedFilePath);
+  const text = fs.readFileSync(abs, "utf8");
+  const patterns = { IDENT: [], WORD: [], RC: [] };
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
+    if (!line.trim() || line.trim().startsWith("#")) continue;
+    const parts = line.split("\t");
+    if (parts.length < 3) continue;
+    const [cls, id, ...rest] = parts;
+    const pattern = rest.join("\t");
+    if (!patterns[cls]) continue;
+    patterns[cls].push({ id, pattern });
+  }
+  return patterns;
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// erp/RISK.md §2 rule 5: a pattern that begins with a word character is
+// anchored with \b — a bare pattern is a substring match, and an English
+// phrase is very often a substring of an innocent longer word.
+function wordRegex(pattern) {
+  const escaped = escapeRegex(pattern);
+  const anchored = /^\w/.test(pattern) ? `\\b${escaped}` : escaped;
+  return new RegExp(anchored, "i");
+}
+
+// erp/RISK.md §2 rule 4: patterns assume a whitespace-normalised stream, so
+// a single literal space matches any run of whitespace including a line
+// break.
+function normalizeWhitespace(text) {
+  return text.replace(/\s+/g, " ");
+}
+
+// ── file listing ────────────────────────────────────────────────────────
+
+function gitLsFiles() {
+  const out = execFileSync("git", ["ls-files"], { cwd: REPO_ROOT, encoding: "utf8" });
+  return out.split("\n").filter(Boolean);
+}
+
+function readFileSafe(relPath) {
+  try {
+    return fs.readFileSync(path.join(REPO_ROOT, relPath), "utf8");
+  } catch {
+    return null; // binary or unreadable; nothing this scanner checks applies
+  }
+}
+
+// ── scanning ────────────────────────────────────────────────────────────
+
+function lineOf(content, index) {
+  return content.slice(0, index).split("\n").length;
+}
+
+function scanFile(relPath, patterns) {
+  const violations = [];
+  const content = readFileSafe(relPath);
+  if (content == null) return violations;
+
+  if (inIdentScope(relPath)) {
+    for (const { id, pattern } of patterns.IDENT) {
+      const idx = content.indexOf(pattern);
+      if (idx !== -1) {
+        violations.push({ class: "BANNED IDENTIFIER", id, pattern, file: relPath, line: lineOf(content, idx) });
+      }
+    }
+
+    // 500-char description budget — not expressible as a literal, so it is
+    // enforced directly rather than sourced from kb/webmcp/BANNED.txt.
+    const descRe = /description:\s*(["'`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
+    let m;
+    while ((m = descRe.exec(content))) {
+      if (m[2].length > DESC_BUDGET) {
+        violations.push({
+          class: "DESCRIPTION BUDGET",
+          id: "DESC-1",
+          pattern: `${m[2].length} chars > ${DESC_BUDGET}`,
+          file: relPath,
+          line: lineOf(content, m.index),
+        });
+      }
+    }
+  }
+
+  if (!isRegisterFile(relPath)) {
+    const normalized = normalizeWhitespace(content);
+    for (const { id, pattern } of patterns.WORD) {
+      if (wordRegex(pattern).test(normalized)) {
+        violations.push({ class: "BANNED WORDING", id, pattern, file: relPath });
+      }
+    }
+    for (const { id, pattern } of patterns.RC) {
+      if (wordRegex(pattern).test(normalized)) {
+        violations.push({ class: "RETRACTED CLAIM", id, pattern, file: relPath });
+      }
+    }
+  }
+
+  return violations;
+}
+
+function report(violations) {
+  const byFile = new Map();
+  for (const v of violations) {
+    if (!byFile.has(v.file)) byFile.set(v.file, []);
+    byFile.get(v.file).push(v);
+  }
+  for (const [file, vs] of byFile) {
+    const byClass = new Map();
+    for (const v of vs) {
+      if (!byClass.has(v.class)) byClass.set(v.class, []);
+      byClass.get(v.class).push(v);
+    }
+    for (const [cls, entries] of byClass) {
+      console.log(`${cls} ${file}`);
+      for (const e of entries) {
+        const loc = e.line ? `:${e.line}` : "";
+        console.log(`  ${e.id}  ${e.pattern}${loc}`);
+      }
+    }
+  }
+}
+
+function runScan(files) {
+  const patterns = loadPatterns();
+  const violations = [];
+  for (const f of files) {
+    if (isExcluded(f)) continue;
+    violations.push(...scanFile(f, patterns));
+  }
+  return violations;
+}
+
+// ── --assert-register ──────────────────────────────────────────────────
+
+const REQUIRED_RETRACTED_STRINGS = [
+  "structural guarantee",
+  "the five write tools",
+  "a specific agent",
+  "a commit cannot be made without a human decision",
+  "the tool surface is the boundary",
+];
+
+function assertRegister() {
+  const abs = path.join(REPO_ROOT, RETRACTED_FILE);
+  if (!fs.existsSync(abs)) {
+    console.log(`FAIL ${RETRACTED_FILE} does not exist`);
+    return false;
+  }
+  const text = fs.readFileSync(abs, "utf8");
+  let ok = true;
+  for (const s of REQUIRED_RETRACTED_STRINGS) {
+    const present = text.includes(s);
+    console.log(`${present ? "OK  " : "MISS"} '${s}'`);
+    if (!present) ok = false;
+  }
+  return ok;
+}
+
+// ── --selftest ──────────────────────────────────────────────────────────
+
+function selftest() {
+  const checks = [];
+  const record = (name, pass) => checks.push({ name, pass });
+
+  // 1. Exclusion array works: a file on EXCLUDE that legitimately quotes a
+  //    banned/retracted string is not itself flagged.
+  {
+    const excludedTargets = [BANNED_FILE, ".team/lint/banned.txt"].filter((f) => fs.existsSync(path.join(REPO_ROOT, f)));
+    let sawAny = false;
+    let clean = true;
+    for (const f of excludedTargets) {
+      sawAny = true;
+      if (!isExcluded(f)) clean = false;
+    }
+    // runScan() is the real gate: isExcluded() is checked before scanFile()
+    // is ever called, so these files never reach the scanner at all.
+    const scanned = runScan(excludedTargets);
+    record("EXCLUDE array covers kb/webmcp/BANNED.txt and .team/lint/banned.txt", sawAny && clean && scanned.length === 0);
+  }
+
+  // 2. erp/** is excluded even though erp/RISK.md quotes every BW pattern
+  //    and every retracted string.
+  record("EXCLUDE array covers erp/**", isExcluded("erp/RISK.md") && isExcluded("erp/FACTS.md"));
+
+  // 3. kb/webmcp/RETRACTED.txt is skipped by the WORD/RC scan (register
+  //    file), but is NOT on the EXCLUDE array itself.
+  record("kb/webmcp/RETRACTED.txt is a register file, not an EXCLUDE entry", isRegisterFile(RETRACTED_FILE) && !isExcluded(RETRACTED_FILE));
+
+  // 4. BW-14 word-boundary rule, the exact test case from erp/RISK.md §2.
+  {
+    const re = wordRegex("our differentiator");
+    const mustPass = [
+      "three of our four differentiators are invisible server-side invariants",
+      "four differentiators, all of them",
+    ];
+    const mustFire = [
+      "our differentiator is the human-sign gate",
+      "Our differentiator here",
+      "this is our differentiators list",
+    ];
+    const passOk = mustPass.every((s) => !re.test(s));
+    const fireOk = mustFire.every((s) => re.test(s));
+    record("BW-14 \\b anchoring: innocent plural passes, real claim fires", passOk && fireOk);
+  }
+
+  // 5. Whitespace normalisation: a phrase split across a line break is still
+  //    caught.
+  {
+    const split = "we spend cache efficiency to buy a structural\nguarantee about the workflow";
+    record("whitespace-normalised match spans a line break", wordRegex("structural guarantee").test(normalizeWhitespace(split)));
+  }
+
+  // 6. Identifier scope: navigator.modelContext in probe/ (a legitimate
+  //    feature-detect, not src/** or tests/**) is not in IDENT scope.
+  record("IDENT scope excludes prose/feature-detect files outside src/** and tests/**", !inIdentScope("probe/index.html") && inIdentScope("src/tools.js") && inIdentScope("tests/fixtures/banned-sample.js"));
+
+  // 7. --assert-register itself passes against the real registry.
+  record("--assert-register passes against kb/webmcp/RETRACTED.txt as shipped", assertRegisterQuiet());
+
+  // 8. The fixture, scanned for real, names every planted class.
+  {
+    const patterns = loadPatterns();
+    const vs = scanFile("tests/fixtures/banned-sample.js", patterns);
+    const classes = new Set(vs.map((v) => v.class));
+    const wantClasses = ["BANNED IDENTIFIER", "DESCRIPTION BUDGET", "BANNED WORDING", "RETRACTED CLAIM"];
+    const gotAll = wantClasses.every((c) => classes.has(c));
+    const identIds = new Set(vs.filter((v) => v.class === "BANNED IDENTIFIER").map((v) => v.id));
+    const wantIdent = ["IR-1", "IR-2a", "IR-2b", "IR-2c", "IR-4", "IR-5"];
+    const gotAllIdent = wantIdent.every((i) => identIds.has(i));
+    record("fixture trips every class with all six identifiers named", gotAll && gotAllIdent);
+  }
+
+  let allPass = true;
+  for (const c of checks) {
+    console.log(`${c.pass ? "PASS" : "FAIL"}  ${c.name}`);
+    if (!c.pass) allPass = false;
+  }
+  return allPass;
+}
+
+function assertRegisterQuiet() {
+  const abs = path.join(REPO_ROOT, RETRACTED_FILE);
+  if (!fs.existsSync(abs)) return false;
+  const text = fs.readFileSync(abs, "utf8");
+  return REQUIRED_RETRACTED_STRINGS.every((s) => text.includes(s));
+}
+
+// ── main ────────────────────────────────────────────────────────────────
+
+function main() {
+  const argv = process.argv.slice(2);
+
+  if (argv.includes("--selftest")) {
+    process.exit(selftest() ? 0 : 1);
+  }
+
+  if (argv.includes("--assert-register")) {
+    process.exit(assertRegister() ? 0 : 1);
+  }
+
+  const fileArgs = argv.filter((a) => !a.startsWith("--"));
+  const files = fileArgs.length ? fileArgs : gitLsFiles().filter((f) => !isSweepExcluded(f));
+  const violations = runScan(files);
+  if (violations.length) {
+    report(violations);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+main();
