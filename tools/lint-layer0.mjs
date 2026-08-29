@@ -39,7 +39,7 @@ const EXCLUDE = ["erp/**", "kb/webmcp/BANNED.txt", "kb/method/BANNED-CITATIONS.m
 const REGISTER_FILES = [RETRACTED_FILE];
 
 // SWEEP_EXCLUDE is a THIRD, separate mechanism — not the accept predicate's
-// four-entry EXCLUDE array, not REGISTER_FILES. It excludes two classes of
+// four-entry EXCLUDE array, not REGISTER_FILES. It excludes one class of
 // file, named as a principle so the next entry has to argue against a stated
 // rule rather than pattern-match a growing list:
 //
@@ -50,13 +50,15 @@ const REGISTER_FILES = [RETRACTED_FILE];
 //        from erp/graph.json by tools/contract.mjs, and erp/** is already
 //        on EXCLUDE.
 //
-//   (ii) prose whose SUBJECT is the ban. A place whose job is to narrate
-//        "the phrase X is banned/retracted, here is why" cannot do that job
-//        without quoting the phrase it is about — the same justification
-//        already applied to kb/webmcp/RETRACTED.txt via REGISTER_FILES.
-//        `kb/pits/**` is this: a pit narrates what a node learned, and a
-//        retraction narrative is exactly that sentence (kb/pits/G4.md,
-//        kb/pits/S10.md, and any pit after them).
+// A pit (kb/pits/**) is NOT this class and is deliberately not excluded: a
+// pit is authored, not generated, and nothing else in the project reads it —
+// no test, no schema, no review step. A blanket exclusion there would buy a
+// false-positive class at the price of the only instrument that would ever
+// check a retracted claim planted in the one file class with no other
+// reader. The rule a pit follows instead: it names the ruling and states the
+// correct claim, it does not quote the retracted string verbatim — see
+// kb/pits/G4.md for a worked example. (`--selftest` proves this class is
+// actually caught: see the planted-pit-assertion check below.)
 //
 // Two named files fit neither class but still can't trip the default sweep:
 //   - tools/lint-layer0.mjs: this file's own source, whose doc comments and
@@ -75,7 +77,7 @@ const REGISTER_FILES = [RETRACTED_FILE];
 // once: the sweep must not walk files that exist to carry the strings it
 // bans, while an explicit path is always honoured. The predicate's own
 // four-entry EXCLUDE array above is untouched by any of this.
-const SWEEP_EXCLUDE = ["tools/lint-layer0.mjs", "tests/fixtures/banned-sample.js", ".team/contracts/**", "kb/pits/**"];
+const SWEEP_EXCLUDE = ["tools/lint-layer0.mjs", "tests/fixtures/banned-sample.js", ".team/contracts/**"];
 
 function isSweepExcluded(relPath) {
   for (const entry of SWEEP_EXCLUDE) {
@@ -346,6 +348,28 @@ function selftest() {
     const wantIdent = ["IR-1", "IR-2a", "IR-2b", "IR-2c", "IR-4", "IR-5"];
     const gotAllIdent = wantIdent.every((i) => identIds.has(i));
     record("fixture trips every class with all six identifiers named", gotAll && gotAllIdent);
+  }
+
+  // 9. kb/pits/** is NOT sweep-excluded: a retracted claim ASSERTED inside a
+  //    pit-path file must still be caught, both by the default sweep and by
+  //    scanFile() directly. This is the regression test for the hole found
+  //    when kb/pits/** was briefly on SWEEP_EXCLUDE — a planted assertion of
+  //    "We hereby assert the five write tools" inside a pit produced zero
+  //    hits under that exclusion.
+  {
+    const fixturePath = "kb/pits/__selftest-fixture.md";
+    const abs = path.join(REPO_ROOT, fixturePath);
+    fs.writeFileSync(abs, "We hereby assert the five write tools remain in force.\n");
+    let vs;
+    try {
+      const patterns = loadPatterns();
+      const notSweepExcluded = !isSweepExcluded(fixturePath);
+      vs = scanFile(fixturePath, patterns);
+      const caught = vs.some((v) => v.class === "RETRACTED CLAIM" && v.id === "RC-2");
+      record("kb/pits/** assertion of a retracted claim is caught, not sweep-excluded", notSweepExcluded && caught);
+    } finally {
+      fs.unlinkSync(abs);
+    }
   }
 
   let allPass = true;
