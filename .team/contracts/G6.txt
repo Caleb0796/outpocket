@@ -1,0 +1,17 @@
+NODE:      G6
+OWNER:     QA
+INPUTS:    L0, S10, S11, V5
+DO:        Write tools/contracts-check.mjs and evidence/G6-contracts.txt. ajv-2020-12-validate every *.schema.json in erp/contracts/ against its own $schema and each schema's examples against itself. Recompute every published digest in erp/contracts/policy-versions.json with src/canonical.js (S11's, merged today — R-11, it is the ONLY canonicaliser) and assert a byte-exact match INCLUDING canonical_bytes; fail loudly on a mismatch rather than reporting the recomputed value. Assert every tool name in erp/contracts/tool-surface.contract.md resolves to a definition. THEN CHECK 3b, which is this node's real catch.
+ACCEPT:    `node tools/contracts-check.mjs | tee evidence/G6-contracts.txt` exits 0: it ajv-2020-12-validates every `*.schema.json` in erp/contracts/ against its own $schema — the `.md` contract files carry no schema and are covered by the erp/contracts/FREEZE.md sha256 check instead — validates each schema's `examples` against itself, recomputes every published digest in erp/contracts/policy-versions.json with src/canonical.js and asserts a byte-exact match including canonical_bytes, and asserts that every tool name in erp/contracts/tool-surface.contract.md resolves to a definition. It fails loudly on a digest mismatch rather than reporting the recomputed value. AND — R-29, AND THIS IS THIS NODE'S REAL CATCH — it runs erp/CONTRACTS.md §11 CHECK 3b: evaluate the frozen policy (erp/contracts/policy.schema.json examples[0]) over the frozen snapshot (erp/contracts/signature.schema.json examples[0].snapshot) with src/policy.js and assert the resulting verdict equals the `verdict` that snapshot carries, in `blocking`, in `warning` AND in the set of identifying quadruples. Check 3b is S3's to implement and this node's to hook; it is the check whose absence let a snapshot declaring blocking:0 sit for three review rounds on a line the frozen policy blocks, while every round re-hashed it. Re-hashing a fixture proves the canonicaliser agrees with itself and proves nothing about whether the fixture could exist.
+PIT:       D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields with
+           your merge request and L1 writes kb/pits/G6.md itself. The fields, in
+           order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a legal ENTRY; no
+           report at all is not, and L1 cannot merge you without one. Report it in YOUR
+           OWN WORDS — L1 transcribes and names you, and a pit L1 composed is worse than
+           no pit. EARLIER is the one that pays: what you would tell yourself an hour
+           before you learned it. This resolves a contradiction that stood all of Day 1:
+           no node lists a pit in outputs, so the ownership rule's clause (a) is empty by
+           design and the glob kb/pits/** is L1's, which made the pit gate and the
+           ownership gate reject each other on every merge of the sprint.
+BRANCH:    seat/QA-G6
+DEADLINE:  2026-08-29T23:59-07:00

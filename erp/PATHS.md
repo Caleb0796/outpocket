@@ -369,7 +369,19 @@ producing node and the hours are funded there.
 | `kb/webmcp/RETRACTED.txt` | K1 | I4 | **G4** | — |
 | `kb/webmcp/MECHANISMS.txt` | K1 | I4 | **G4** | — |
 | `kb/method/BANNED-CITATIONS.md` | K2 | L1 | **L0** | — |
-| `kb/pits/<node-id>.md` | L1 | — | *(merge ritual, unbudgeted)* | — |
+| `kb/pits/<node-id>.md` | L1 | **L1, and only L1** | *(merge ritual, unbudgeted)* | — |
+
+> **D-31, ruled 2026-08-29 — the pit file is written by L1, reported by the seat.** The building
+> seat does **not** commit its own pit. It REPORTS the five fields to L1 with its merge request;
+> L1 commits `kb/pits/<node-id>.md` as part of the merge. Reason: the merge gate required a file
+> that the ownership rule forbade its author to write, so **every seat that satisfied gate 6
+> violated gate 3, mechanically, forever**. No node lists a pit in `outputs` (clause (a) is empty
+> by design — §2.8 keeps the ritual unbudgeted), and the longest-matching glob `kb/pits/**`
+> resolves to L1 (clause (b)). Rather than bend the ownership model for one directory, the write
+> moves to the seat the glob already names. `kb/pits/**` stays L1's, `conventions.ownership_rule`
+> is unchanged, no node's `outputs` are touched, and the branch diff stays clean. Cost: one
+> commit per merge, on L1. The pit must carry the **seat's own words** and name the seat; L1
+> transcribes, it does not compose — a pit L1 invented is worse than no pit.
 | `.team/charters/<seat>.md` | L1 | L1 | **L0** | *(symlink to `erp/charters/`; nothing created it before L0)* |
 | `.team/contracts`, `.team/log`, `.team/deviations`, `.team/stalls.md`, `.team/lint/banned.txt` | L1 | L1 | **L0** | *(no trailing slashes — these are the literal strings in `L0.outputs`)* |
 | `.team/deviations/DEV-E3-eval-case-known-open.md` | L1 | I3 | **S5** | *(the one deviation ticket the graph SCHEDULES: the `confirm_token` flips `eval-case.schema.json` `examples[1]` from `known-open` to **`enforced`** (R-27 — `refused` is **not** in the frozen enum `[enforced, known-open, not-runnable]`, and the gate that demanded it would have failed ajv and turned `npm test` red repo-wide on Day 3), that file is frozen by `S10` on Day 1, and `E3` failed by construction until this was booked — R-13, and the worked adopt-not-send-back example)* |

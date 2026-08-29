@@ -353,12 +353,12 @@ windows open. **And you do not boot sixteen of them on day one.** From
 | Day | Node-owning seats that must be live | Nodes |
 |---|---|---|
 | **0** | **L1, I1** | L1: `L0` · I1: `V5` |
-| 1 | + I2, I3, I4, QA, UX | 16 nodes |
+| 1 | + I2, I3, I4, QA, UX | 15 nodes |
 | 2 | + PM (`V6`), C4 | 13 nodes |
 | 3 | + L2 (`E4`), C1 (`E8`) | 16 nodes |
 | 4 | + C3 (`E9`) | 9 nodes |
 | 5 | C4, I3, UX | 4 nodes |
-| 6 | I4, QA | 2 nodes |
+| 6 | I4, QA | 3 nodes |
 
 Day 0 is **two seats**. Add **PM and W at the end of Day 0**, once `L0` is green — PM because you
 talk to it from Day 1 morning, W because it is the deviation instrument. (W is **not** the
@@ -525,7 +525,10 @@ You trigger it with one prompt, **T0**, first thing each morning (§7). You do n
 lines and you do not choose the nodes — `node tools/ready.mjs` chooses them and L1 executes.
 
 **Not all fourteen boot at 08:25, and they should not.** Only **nine** nodes are ready at Day-1
-dawn, and three of those are not L1's to boot (`G0` is L1's own; `G1` and `V1` are yours). Six
+dawn, and three of those are not L1's to boot: `G0` is L1's own, `V1` is yours, and **`G1` is
+ready but SCHEDULED DAY 6 and must not run today** (R-42/D-30 — running it publishes both
+repositories five days early; ready ≠ scheduled, and this is the one place in the sprint where
+the difference is a disqualification-shaped risk rather than a bookkeeping one). Six
 remain, held by **four seats** — `T6`→I2, `S11`→I3, `G4`→I4, and `V0`→I1, with I1's `H1` and `H5`
 queued behind `V0` because a seat works one node at a time. The rest of Day 1's nodes are
 dispatched as their predecessors land: `S10` the moment `T6` merges, `S1` and `T1` after `S10`,
@@ -621,8 +624,10 @@ Day 1, and only on Day 1, the ready set is computed **by hand** off `graph.json`
 > *"Day 1 dispatch, and read the first sentence twice: `tools/ready.mjs` is `G0`, it is yours, and
 > it does not exist yet — do not try to run it. Today's ready set is computed by hand over
 > `erp/graph.json`'s hard edges with `L0` and `V5` done, and it is nine nodes:
-> `G0 G1 G4 V0 V1 H1 H5 T6 S11`. Three are not yours to boot — `G0` you build yourself, `G1` and
-> `V1` are human-gated and I am doing them. **Boot the other six now**, one seat per node, seat
+> `G0 G1 G4 V0 V1 H1 H5 T6 S11`. Three are not yours to boot — `G0` you build yourself, and `V1`
+> is human-gated and I am doing it. **`G1` is human-gated, ready, and SCHEDULED DAY 6: nobody
+> touches it today** (R-42/D-30). `H5` is likewise ready but scheduled Day 2. **Boot the other
+> six now**, one seat per node, seat
 > from the node's `owner` field, model and effort from the `TEAM.md` §1 roster, and the node's
 > `accept` predicate copied VERBATIM out of `graph.json` as the positional prompt:
 > `T6`→I2, `S11`→I3, `G4`→I4, and `V0`→I1 (I1 also owns `H1` and `H5` today — one node at a time,
@@ -666,11 +671,17 @@ and labels it. Either way you get back the fixed block from `charters/PM.md`:
 
 ```
 READY:    G0 G1 G4 V0 V1 H1 H5 T6 S11
-BLOCKED:  G3 S10 S1 T1 F0 G5 G6 H2
+BLOCKED:  G3 waits on T6 · S10 waits on T6 · S1 waits on S10 · T1 waits on S10
+          F0 waits on G4 · G5 waits on G0 · G6 waits on S10 · H2 waits on H1
 BURNED:   5.0 / 29.5 on the critical path
 DECIDED:  D-17 recorded 3.0 h/day, nothing cut
 ASK:      nothing
 ```
+
+**`READY` is the ready set, not the day's work order.** Two of those nine are ready and NOT
+scheduled today: **`G1` is Day 6** (R-42/D-30) and **`H5` is Day 2**. `graph.json`'s hard edges
+say what *may* start; `capacity.schedule_A` says what *does*. Booting a node because it appeared
+in `READY` is how `G1` nearly published both repositories on Day 1.
 
 **That block is recomputed, and it is nine nodes, not sixteen.** An earlier draft of this file
 printed all sixteen of `schedule_A.days["1"]` here and called it a ready set. It is not one —
@@ -680,7 +691,7 @@ predecessor already done. With `{L0, V5}` done, eight of that sixteen are still 
 
 | Blocked node | waits on | | Blocked node | waits on |
 |---|---|---|---|---|
-| `G3` | `G1`, `T6` | | `G5` | `G0` |
+| `G3` | `T6` | | `G5` | `G0` |
 | `S10` | `T6` | | `G6` | `S10`, `S11` |
 | `S1` | `S10` | | `H2` | `H1` |
 | `T1` | `S10`, `T6` | | `F0` | `G4` |
@@ -696,14 +707,22 @@ it is `tools/ready.mjs` telling you the graph is stuck**, and it is the cheapest
 system.
 
 **Cross-check T0 against T1 while both are fresh.** The nodes L1 says it booted seats for should
-be the nodes PM says are ready, minus the ones L1 owns itself (`G0`) and your two human-gated ones
-(`G1`, `V1`). A ready node with no seat booted is the Day-1 failure this manual exists to prevent.
+be the nodes PM says are ready, minus the ones L1 owns itself (`G0`), your Day-1 human-gated one
+(`V1`), and the ones that are **ready but not scheduled today** — on Day 1 that is `G1` (Day 6,
+R-42/D-30) and `H5` (Day 2). A ready node with no seat booted is the Day-1 failure this manual
+exists to prevent; a *scheduled-later* node with a seat booted is the other one, and for `G1` it
+publishes both repositories five days early.
 
 **08:35 — you decide the one thing Day 1 asks of you.** `ASK` carries at most one item; on Day
 1 it is likely the scheduling of your own two human-gated nodes. Answer in one line.
 
-**`G1` (0.5 h).** Flip both repos public with a root LICENSE. `G1` has **two** declared outputs
-and the manual used to name only one, so here is the whole node:
+**`G1` (0.5 h) — DAY 6, NOT TODAY.** R-42/D-30 moved this node from Day 1 to Day 6, immediately
+before `D5`. **Do not run any of the three steps below on Day 1.** They are kept here, in the
+human-gated walkthrough, because this is the only place in the manual that prints the *acting*
+commands and Day 6 needs them; read them on Day 6 morning. The deleted `G1 → G3` edge was the
+only reason this was ever a Day-1 node, and it is deleted because an authenticated `git clone` of
+a PRIVATE repo succeeds (MEASURED). Flip both repos public with a root LICENSE. `G1` has **two**
+declared outputs and the manual used to name only one, so here is the whole node:
 
 | `G1.outputs` | Who makes it | How |
 |---|---|---|
@@ -763,10 +782,11 @@ JSON, and a mismatch fails the node. So while you are in that browser, capture *
 inside the set `S10` freezes on Day 1 — so if it is missing on Day 1 morning, that is a Day-0
 failure to escalate, not something to improvise around.
 
-**09:00–12:00 — you do `G1` and `V1` yourself.** No prompts spent. Four building seats are working
+**09:00–12:00 — you do `V1` yourself.** `G1` is NOT part of today (Day 6, R-42/D-30), so Day 1's
+human-gated load is **2.0 h, not 2.5**. No prompts spent. Four building seats are working
 against the contracts L1 booted them with at 08:25 — I2 on `T6`, I3 on `S11`, I4 on `G4`, I1 on
 `V0` — and W is live. **QA and UX have nothing to do at 08:25 and that is correct, not an
-omission**: QA's Day-1 nodes are `G3` (needs `G1` and `T6`) and `G6` (needs `S10` and `S11`), and
+omission**: QA's Day-1 nodes are `G3` (needs `T6` merged AND pushed) and `G6` (needs `S10` and `S11`), and
 UX's is `F0` (needs `G4`). L1 boots them the moment those predecessors merge. You will not read
 any of their output, and that is the design, not a lapse (`TEAM.md` §2).
 

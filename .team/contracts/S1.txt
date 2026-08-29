@@ -1,0 +1,13 @@
+NODE:      S1
+OWNER:     I3
+INPUTS:    S10
+DO:        Write the single-file Node server server/index.mjs with a cookie session, the frozen erp/contracts/session.contract.md, and tests/acceptance/session.test.mjs. POST /api/login sets a Set-Cookie with HttpOnly and SameSite=Lax; GET /api/me with that cookie returns the persona and without it returns 401. EXACTLY TWO personas exist, chen (employee) and ruiz (auditor), matching the frozen enum in erp/contracts/eval-case.schema.json — check that file, do not invent the spelling.
+ACCEPT:    `node --test tests/acceptance/session.test.mjs` — POST /api/login sets a Set-Cookie with HttpOnly and SameSite=Lax; GET /api/me with that cookie returns the persona; GET /api/me without it returns 401. Exactly two personas exist, chen (employee) and ruiz (auditor), matching the frozen enum in erp/contracts/eval-case.schema.json.
+PIT:       kb/pits/S1.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/I3-S1
+DEADLINE:  2026-08-29T23:59-07:00

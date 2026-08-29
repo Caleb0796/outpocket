@@ -1,0 +1,66 @@
+OK:   erp/contracts/eval-case.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/eval-case.schema.json: examples[0] valid
+OK:   erp/contracts/eval-case.schema.json: examples[1] valid
+OK:   erp/contracts/eval-case.schema.json: examples[2] valid
+OK:   erp/contracts/eval-case.schema.json: examples[3] valid
+OK:   erp/contracts/eval-case.schema.json: examples[4] valid
+OK:   erp/contracts/eval-case.schema.json: x-invalidExamples[0] correctly rejected
+OK:   erp/contracts/eval-case.schema.json: x-invalidExamples[1] correctly rejected
+OK:   erp/contracts/eval-case.schema.json: x-invalidExamples[2] correctly rejected
+OK:   erp/contracts/policy.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/policy.schema.json: examples[0] valid
+OK:   erp/contracts/policy.schema.json: x-invalidExamples[0] correctly rejected
+unknown format "uri" ignored in schema at path "#/properties/origin"
+unknown format "uri" ignored in schema at path "#/properties/origin"
+unknown format "date-time" ignored in schema at path "#/properties/observedAt"
+unknown format "date-time" ignored in schema at path "#/properties/observedAt"
+OK:   erp/contracts/probe-verdict.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/probe-verdict.schema.json: no top-level "examples" declared (not required)
+unknown format "date-time" ignored in schema at path "#/properties/at"
+unknown format "date-time" ignored in schema at path "#/properties/at"
+OK:   erp/contracts/provenance.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/provenance.schema.json: examples[0] valid
+OK:   erp/contracts/provenance.schema.json: examples[1] valid
+OK:   erp/contracts/provenance.schema.json: x-invalidExamples[0] correctly rejected
+OK:   erp/contracts/signature.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/signature.schema.json: examples[0] valid
+OK:   erp/contracts/signature.schema.json: examples[1] valid
+OK:   erp/contracts/signature.schema.json: examples[2] valid
+OK:   erp/contracts/signature.schema.json: examples[3] valid
+OK:   erp/contracts/signature.schema.json: examples[4] valid
+OK:   erp/contracts/signature.schema.json: examples[5] valid
+OK:   erp/contracts/tool-export.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/tool-export.schema.json: no top-level "examples" declared (not required)
+OK:   erp/contracts/tool-export.schema.json: x-invalidExamples[0] correctly rejected
+OK:   erp/contracts/tool-export.schema.json: x-invalidExamples[1] correctly rejected
+OK:   erp/contracts/violation.schema.json: compiles under ajv-2020-12
+OK:   erp/contracts/violation.schema.json: examples[0] valid
+OK:   erp/contracts/violation.schema.json: examples[1] valid
+OK:   erp/contracts/violation.schema.json: examples[2] valid
+OK:   erp/contracts/violation.schema.json: x-invalidExamples[0] correctly rejected
+OK:   erp/contracts/violation.schema.json: x-invalidExamples[1] correctly rejected
+OK:   policy-versions.json: 2026-08.1 canonical_bytes matches (2458)
+OK:   policy-versions.json: 2026-08.1 digest matches (sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38)
+OK:   policy-versions.json: 2026-08.2 canonical_bytes matches (2457)
+OK:   policy-versions.json: 2026-08.2 digest matches (sha256:d024607ef7d8597e4d403f97c0ebe9fadf69a8196f6ba16cb60c10292df1f362)
+OK:   tool-surface.contract.md: `add_expense_line` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `create_expense_report` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_day_book` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_expense_policy` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_open_report` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_report` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_session_scope` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `get_signin_status` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `link_receipt` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `list_expense_reports` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `list_receipts` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `open_expense_report` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `remove_expense_line` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `submit_expense_report` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `update_expense_line` resolves to a definition in src/tools.js
+OK:   tool-surface.contract.md: `validate_expense_report` resolves to a definition in src/tools.js
+OK:   CHECK 3b: blocking matches (0)
+OK:   CHECK 3b: warning matches (0)
+OK:   CHECK 3b: identifying-quadruple set matches (0 violation(s))
+
+contracts-check: all checks green

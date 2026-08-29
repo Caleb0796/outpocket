@@ -1,0 +1,254 @@
+
+> outpocket@0.1.0 test
+> node --test
+
+TAP version 13
+# Subtest: all seven OCF-1 vectors reproduce byte-for-byte
+ok 1 - all seven OCF-1 vectors reproduce byte-for-byte
+  ---
+  duration_ms: 0.91925
+  type: 'test'
+  ...
+# Subtest: v6/v7: identical lines differing only in provenance.amount source digest differently
+ok 2 - v6/v7: identical lines differing only in provenance.amount source digest differently
+  ---
+  duration_ms: 0.154541
+  type: 'test'
+  ...
+# Subtest: object keys sort ascending by code point, recursively, at every depth
+ok 3 - object keys sort ascending by code point, recursively, at every depth
+  ---
+  duration_ms: 0.04475
+  type: 'test'
+  ...
+# Subtest: arrays preserve order and are never sorted
+ok 4 - arrays preserve order and are never sorted
+  ---
+  duration_ms: 0.387458
+  type: 'test'
+  ...
+# Subtest: integers only: non-integer numbers are E_CANON_NUMBER outside the inputSchema carve-out
+ok 5 - integers only: non-integer numbers are E_CANON_NUMBER outside the inputSchema carve-out
+  ---
+  duration_ms: 0.222208
+  type: 'test'
+  ...
+# Subtest: -0 normalises to 0
+ok 6 - -0 normalises to 0
+  ---
+  duration_ms: 0.045333
+  type: 'test'
+  ...
+# Subtest: bare keys must match ^[A-Za-z0-9_]{1,64}$ or raise E_CANON_KEY
+ok 7 - bare keys must match ^[A-Za-z0-9_]{1,64}$ or raise E_CANON_KEY
+  ---
+  duration_ms: 0.052625
+  type: 'test'
+  ...
+# Subtest: OCF-1 carve-out: dollar-prefixed keys and non-integer numbers are legal inside an inputSchema subtree
+ok 8 - OCF-1 carve-out: dollar-prefixed keys and non-integer numbers are legal inside an inputSchema subtree
+  ---
+  duration_ms: 0.112
+  type: 'test'
+  ...
+# Subtest: the inputSchema carve-out is scoped to that subtree and nowhere else
+ok 9 - the inputSchema carve-out is scoped to that subtree and nowhere else
+  ---
+  duration_ms: 0.325
+  type: 'test'
+  ...
+# Subtest: strings: NFC normalisation before serialising, non-ASCII and DEL stay literal
+ok 10 - strings: NFC normalisation before serialising, non-ASCII and DEL stay literal
+  ---
+  duration_ms: 0.256
+  type: 'test'
+  ...
+# Subtest: strings: only quote, backslash and C0 controls are escaped
+ok 11 - strings: only quote, backslash and C0 controls are escaped
+  ---
+  duration_ms: 0.084958
+  type: 'test'
+  ...
+# Subtest: lone surrogates are E_CANON_STRING
+ok 12 - lone surrogates are E_CANON_STRING
+  ---
+  duration_ms: 0.111083
+  type: 'test'
+  ...
+# Subtest: null is legal and never omitted by the serialiser
+ok 13 - null is legal and never omitted by the serialiser
+  ---
+  duration_ms: 0.027792
+  type: 'test'
+  ...
+# Subtest: no whitespace: separators are exactly , and :
+ok 14 - no whitespace: separators are exactly , and :
+  ---
+  duration_ms: 0.025375
+  type: 'test'
+  ...
+# Subtest: digest() is domain-separated by kind: same value, different kind, different digest
+ok 15 - digest() is domain-separated by kind: same value, different kind, different digest
+  ---
+  duration_ms: 0.137625
+  type: 'test'
+  ...
+# Subtest: disallowed shapes (Date, undefined, functions) raise a canon error
+ok 16 - disallowed shapes (Date, undefined, functions) raise a canon error
+  ---
+  duration_ms: 0.06125
+  type: 'test'
+  ...
+# Subtest: money conversion is integer-exact
+ok 17 - money conversion is integer-exact
+  ---
+  duration_ms: 0.379333
+  type: 'test'
+  ...
+# Subtest: missing fields block
+ok 18 - missing fields block
+  ---
+  duration_ms: 0.263167
+  type: 'test'
+  ...
+# Subtest: date window: future and stale block, recent passes
+ok 19 - date window: future and stale block, recent passes
+  ---
+  duration_ms: 0.081958
+  type: 'test'
+  ...
+# Subtest: meal cap scales with attendees
+ok 20 - meal cap scales with attendees
+  ---
+  duration_ms: 0.252125
+  type: 'test'
+  ...
+# Subtest: meals ≥ $75 require itemization
+ok 21 - meals ≥ $75 require itemization
+  ---
+  duration_ms: 0.089834
+  type: 'test'
+  ...
+# Subtest: alcohol is caught in declared itemization, with the amount in the fix
+ok 22 - alcohol is caught in declared itemization, with the amount in the fix
+  ---
+  duration_ms: 0.194042
+  type: 'test'
+  ...
+# Subtest: alcohol lexicon uses word boundaries (no 'Winehouse' false positive)
+ok 23 - alcohol lexicon uses word boundaries (no 'Winehouse' false positive)
+  ---
+  duration_ms: 0.04
+  type: 'test'
+  ...
+# Subtest: lodging cap scales with nights
+ok 24 - lodging cap scales with nights
+  ---
+  duration_ms: 0.042958
+  type: 'test'
+  ...
+# Subtest: transport/supplies caps block; airfare only warns
+ok 25 - transport/supplies caps block; airfare only warns
+  ---
+  duration_ms: 0.173667
+  type: 'test'
+  ...
+# Subtest: itemization gap warns when sum drifts from amount
+ok 26 - itemization gap warns when sum drifts from amount
+  ---
+  duration_ms: 0.289667
+  type: 'test'
+  ...
+# Subtest: `other` requires a description
+ok 27 - `other` requires a description
+  ---
+  duration_ms: 0.086208
+  type: 'test'
+  ...
+# Subtest: receipt required at/above $25, not below
+ok 28 - receipt required at/above $25, not below
+  ---
+  duration_ms: 0.040125
+  type: 'test'
+  ...
+# Subtest: policy JSON fits the official 1500-char output budget and carries its version
+ok 29 - policy JSON fits the official 1500-char output budget and carries its version
+  ---
+  duration_ms: 0.062125
+  type: 'test'
+  ...
+# Subtest: currency: EUR converts, unsupported blocks
+ok 30 - currency: EUR converts, unsupported blocks
+  ---
+  duration_ms: 0.6695
+  type: 'test'
+  ...
+# Subtest: report level: empty, project scope/inactive, large-total warn
+ok 31 - report level: empty, project scope/inactive, large-total warn
+  ---
+  duration_ms: 0.397791
+  type: 'test'
+  ...
+# Subtest: signed out: the surface is a single explainer tool
+ok 32 - signed out: the surface is a single explainer tool
+  ---
+  duration_ms: 1.418125
+  type: 'test'
+  ...
+# Subtest: employee surface grows with state: 5 → 12 → 13 (door) → shrinks when dirty
+ok 33 - employee surface grows with state: 5 → 12 → 13 (door) → shrinks when dirty
+  ---
+  duration_ms: 1.037125
+  type: 'test'
+  ...
+# Subtest: auditor surface: read-only by construction
+ok 34 - auditor surface: read-only by construction
+  ---
+  duration_ms: 0.910916
+  type: 'test'
+  ...
+# Subtest: submitted reports expose no editing tools
+ok 35 - submitted reports expose no editing tools
+  ---
+  duration_ms: 0.0935
+  type: 'test'
+  ...
+# Subtest: descriptions fit the official 500-char budget in every state
+ok 36 - descriptions fit the official 500-char budget in every state
+  ---
+  duration_ms: 0.261708
+  type: 'test'
+  ...
+# Subtest: double lock: a captured submit tool refuses after the surface moved on
+ok 37 - double lock: a captured submit tool refuses after the surface moved on
+  ---
+  duration_ms: 0.217791
+  type: 'test'
+  ...
+# Subtest: calling an unregistered tool names the real surface
+ok 38 - calling an unregistered tool names the real surface
+  ---
+  duration_ms: 0.069
+  type: 'test'
+  ...
+# Subtest: auditor writes are impossible twice over: no tool AND a 403 underneath
+ok 39 - auditor writes are impossible twice over: no tool AND a 403 underneath
+  ---
+  duration_ms: 0.2275
+  type: 'test'
+  ...
+# Subtest: every tool output in a busy session respects the 1500-char budget
+ok 40 - every tool output in a busy session respects the 1500-char budget
+  ---
+  duration_ms: 1.672583
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 40
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 47.999625

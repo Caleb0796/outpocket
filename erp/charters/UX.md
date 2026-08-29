@@ -201,7 +201,17 @@ the remote origin**, or you will not see the prompt until the take that counts.
   whole video. Give it a permanent place on the first screen and do not tuck it
   away** — it is how a real platform gap becomes visible instead of mysterious.
 - Do not imply that revoking a tool stops a call already in flight. It does not.
-  Copy must be precise: revocation blocks the **next** call.
+  **Sanctioned phrasing, and it is the replacement column of BW-22 in
+  `erp/RISK.md` §2 verbatim: "revocation prevents the next invocation; an
+  in-flight execute runs to completion."** D-40, 2026-08-29: this bullet used to
+  prescribe the wording `revocation` + `blocks`, which is the literal registered
+  as **BW-22**. `erp/**` is on the lint's EXCLUDE array, so this charter never
+  failed a gate — it simply taught you a string that fails one in every document
+  you actually write, and a seat that quoted its own charter into a pit was
+  blocked by the pre-commit hook the same day. **The rule for every charter,
+  including this one: name the rule id, do not quote the banned string.** BW-22,
+  BW-23 (`revoking cancels`) and BW-24 (`unregistering cancels`) all cover this
+  claim; read them in `erp/RISK.md` §2 for the reasoning and the replacement.
 
 ## Escalation path
 
