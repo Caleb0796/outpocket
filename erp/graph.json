@@ -13,7 +13,7 @@
     "horizon": "A = must land before 2026-09-03 13:00 PT. B = post-deadline.",
     "hours": "Agent-hours for the owning seat, including the seat's own test-writing AND the acceptance tooling its accept predicate invokes. Human review overhead is budgeted at 0.05 x the NON-human-gated agent hours only; a human does not review their own gated hours at 5%.",
     "evidence_grades": "MEASURED | PUBLISHED | VENDOR-CLAIMED | OUR-ESTIMATE | UNVERIFIED",
-    "ownership_rule": "A seat may write a path if EITHER (a) it owns a node that lists that path in `outputs`, OR (b) the longest-matching glob in `file_ownership` names it. (a) beats (b). `tools/check-ownership.mjs` (G0) implements exactly this and nothing else. This replaces the previous glob-only rule, which mechanically rejected 23 of the graph's own node outputs."
+    "ownership_rule": "A seat may write a path if EITHER (a) it owns a node that lists that path in `outputs`, OR (b) the longest-matching glob in `file_ownership` names it. (a) beats (b). `tools/check-ownership.mjs` (G0) implements exactly this and nothing else. This replaces the previous glob-only rule, which mechanically rejected 23 of the graph's own node outputs. D-37, 2026-08-29 — THE RULE IS UNCHANGED; WHAT CHANGED IS WHAT MAY APPEAR IN `outputs`. A node's `outputs` lists what that node AUTHORS. Bringing a file into version control is a git act, not authorship, and listing it as an output makes clause (a) hand the file to the committing seat forever. L0 listed erp/graph.json, erp/PATHS.md and erp/DECISIONS.md because it commits them on Day 0; clause (a) therefore resolved all three to L1 and DENIED PM — the author of the authority — in favour of the seat that committed it once. The three are removed from L0.outputs. erp/RUBRIC.md STAYS an L0 output: R-16 makes its CONTENT L0's, which is the distinction this ruling turns on. erp/DECISIONS.md is a V6 output and V6 is PM's, so clause (a) now resolves it to PM by the same rule that used to deny PM. THE GENERAL FORM, and it is the same shape as D-31: when the model and a declaration disagree, fix the declaration. Do not add a precedence carve-out, and do not make any row of file_ownership dynamic."
   },
   "id_collision_warnings": [
     "The D-lane node ids D1..D6 are NOT days. Calendar days are always written 'Day 1'..'Day 6' in prose.",
@@ -832,7 +832,6 @@
         "tests/surface.test.mjs",
         "tests/policy.test.mjs",
         "tests/helpers.mjs",
-        "erp/DECISIONS.md",
         ".team/charters",
         ".team/contracts",
         ".team/log",
@@ -843,8 +842,6 @@
         "~/.codex/builder.config.toml",
         "~/.codex/redteam.config.toml",
         "~/.codex/evaluator.config.toml",
-        "erp/PATHS.md",
-        "erp/graph.json",
         "erp/RUBRIC.md",
         "kb/method/BANNED-CITATIONS.md",
         "evidence/L0-bootstrap.txt"
@@ -854,7 +851,7 @@
       "cut": 0,
       "repo": "outpocket",
       "horizon": "A",
-      "notes": "ADDED node, and the head of the critical path. MEASURED 2026-08-28: outpocket tracks exactly .gitignore, LICENSE, README.md; `ls ~/.codex/*.config.toml` returns no matches; erp/ is entirely untracked. Four of sixteen seats could not boot and the first node in the graph could not run its own accept. It also writes erp/PATHS.md into git, because PATHS.md is the second authority and a seat working in a worktree must have it. R-4: the builder, redteam and evaluator profile files each set sandbox_workspace_write.network_access = true; the verifier profile does NOT, and is never used for a blind run anyway (see E8). FIXED DEFECT (gate order): the previous accept ran the clone in gate (2) and the commit in gate (5), so `npm ci` ran against a clone of a tree tracking only .gitignore, LICENSE and README.md and reproduced the exact `npm error code EUSAGE ... can only install with an existing package-lock.json` this node exists to eliminate — reproduced by execution during re-verification. The commit is now gate (4) and the clone is gate (5). L1 FIRST BOOT: `.team/charters/L1.md` is a symlink this node creates, so L1 cannot read it before running. L1's FIRST boot, and only its first, reads `erp/charters/L1.md` directly; every later boot and every other seat uses `.team/charters/`. This one sentence also stands in TEAM.md §1 and is the only permitted exception. R-16: erp/RUBRIC.md is an output here (+0.5 h, 3.0 -> 3.5). It is L2's only instrument, it was cited by four charters and produced by nothing, and it is authored on Day 0 rather than flagged OPEN forever. R-17: the contract files already exist at erp/contracts/ as planning artifacts. L0 does NOT move, copy or re-author them; it commits them where they are."
+      "notes": "ADDED node, and the head of the critical path. MEASURED 2026-08-28: outpocket tracks exactly .gitignore, LICENSE, README.md; `ls ~/.codex/*.config.toml` returns no matches; erp/ is entirely untracked. Four of sixteen seats could not boot and the first node in the graph could not run its own accept. D-37, 2026-08-29: erp/graph.json, erp/PATHS.md and erp/DECISIONS.md were REMOVED from this node's outputs. L0 commits them into git on Day 0, but PM authors them, and listing them here made clause (a) of the ownership rule deny PM every subsequent edit to its own authority. L0 runs once and is done, so the removal creates no future denial for L1 and the Day-0 creation stands as executed. erp/RUBRIC.md stays, because R-16 makes its content L0's. It also writes erp/PATHS.md into git, because PATHS.md is the second authority and a seat working in a worktree must have it. R-4: the builder, redteam and evaluator profile files each set sandbox_workspace_write.network_access = true; the verifier profile does NOT, and is never used for a blind run anyway (see E8). FIXED DEFECT (gate order): the previous accept ran the clone in gate (2) and the commit in gate (5), so `npm ci` ran against a clone of a tree tracking only .gitignore, LICENSE and README.md and reproduced the exact `npm error code EUSAGE ... can only install with an existing package-lock.json` this node exists to eliminate — reproduced by execution during re-verification. The commit is now gate (4) and the clone is gate (5). L1 FIRST BOOT: `.team/charters/L1.md` is a symlink this node creates, so L1 cannot read it before running. L1's FIRST boot, and only its first, reads `erp/charters/L1.md` directly; every later boot and every other seat uses `.team/charters/`. This one sentence also stands in TEAM.md §1 and is the only permitted exception. R-16: erp/RUBRIC.md is an output here (+0.5 h, 3.0 -> 3.5). It is L2's only instrument, it was cited by four charters and produced by nothing, and it is authored on Day 0 rather than flagged OPEN forever. R-17: the contract files already exist at erp/contracts/ as planning artifacts. L0 does NOT move, copy or re-author them; it commits them where they are."
     },
     {
       "id": "G0",

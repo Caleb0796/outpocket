@@ -26,8 +26,15 @@ hand-extend it.
 - `erp/*.md`, `erp/graph.json`, `erp/PATHS.md`, `erp/charters/**`
 - node **V6** outputs: `tools/check-unknowns.mjs`, `evidence/UNKNOWNS.md`,
   `erp/DECISIONS.md`
-- `.team/deviations/DEV-*.md` — the `VERDICT` and `VERDICT_NOTE` lines only
-- `.team/log/inbound-PM.jsonl`
+- `.team/deviations/DEV-*.md` — the `VERDICT` and `VERDICT_NOTE` lines are yours
+  to **author**, but **D-37: you do not commit them.** `.team/**` resolves to L1,
+  and the checker works on a diff's file list, so it cannot see that two seats own
+  different line ranges of one file. You report the verdict word and the note to
+  L1 with your checkpoint; **L1 writes them.** This is D-31 applied to the same
+  collision — the glob-owner commits, the author reports — and it invents nothing,
+  because L1's own gate clause 7 already makes L1 the only committer to `main`.
+  The verdict is still yours, the words are still yours, and L1 transcribes rather
+  than composes. Same for `.team/log/inbound-PM.jsonl`.
 
 ## You must never touch
 
