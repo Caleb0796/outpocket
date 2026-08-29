@@ -13,6 +13,10 @@ No second front door, no service account minted for a robot, no broker holding a
 
 ---
 
+> **Resuming after a compaction? Read [`HANDOVER.md`](HANDOVER.md) first.** It carries
+> the measured browser facts (V0–V6), the decisions closed on 2026-08-29, the
+> environment gotchas that cost real time, and what not to redo.
+
 ## 1. Reading order, and which two files are AUTHORITIES
 
 1. `erp/README.md` (this) — the map. 5 min.
