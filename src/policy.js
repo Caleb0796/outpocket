@@ -311,7 +311,7 @@ export const POLICY_DOCUMENT = Object.freeze({
 // erp/contracts/policy-versions.json digest_prefix.
 export const POLICY_DIGEST_PREFIX = "outpocket/policy/1";
 export const POLICY_DIGEST = digest(POLICY_DIGEST_PREFIX, POLICY_DOCUMENT);
-export const POLICY_CANONICAL_BYTES = Buffer.byteLength(canon(POLICY_DOCUMENT), "utf8");
+export const POLICY_CANONICAL_BYTES = new TextEncoder().encode(canon(POLICY_DOCUMENT)).length;
 
 // ── The policy as an agent-readable projection ─────────────────────
 // get_expense_policy does NOT serve POLICY_DOCUMENT: its canonical form is
