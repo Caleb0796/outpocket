@@ -311,3 +311,35 @@ MERGED S3  e3bdd75 pits:kb/pits/S3.md accept:PASS
 #   UX correctly refused to touch it and so did I. Dispatched to QA.
 #   Verified independently: plain origin/main runs that file 7/7; it goes red only
 #   with F1 merged. Cause is F1 landing and nothing else.
+
+MERGED S4  f580670 pits:kb/pits/S4.md accept:PASS
+MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
+
+# S4 — the violation envelope. Two things built so they CANNOT DRIFT: rule_id and
+#   fix_class are LOOKED UP from S3's frozen POLICY_DOCUMENT rather than retyped
+#   into a second rule table, and the x-fixLint scan reads its banned list LIVE
+#   from the schema's own x-fixLint.bannedSubstrings. Same discipline as
+#   extracting an accept predicate instead of retyping it.
+#   "Every write route" had no HTTP write routes to point at — S2 and T2 build
+#   those. I3 took neither easy reading (declare it vacuous, or wait) and wrote
+#   ONE REAL SCENARIO PER RULE, R01..R19, each ajv-validated against the frozen
+#   schema. And it corrected its own ASSERTION rather than the message when the
+#   two disagreed: only `fix` was ever required to match the schema's worked
+#   instance, because `fix` is what x-fixLint grades.
+#
+# F1 — MERGED TOGETHER WITH QA's TRIPWIRE FLIP, because neither is valid alone:
+#   QA's commit asserts GET / -> 200 and is red without F1's index.html; F1 is red
+#   against the old 404 assertion. Combined tree 82/82, tested before either was
+#   pushed.
+#   MY LEAD WAS THE RIGHT FAMILY AND THE WRONG MECHANISM. I guessed the handler
+#   matched event.target instead of closest(). It already used closest() — and
+#   closest() walks UP while the button sits BELOW the click, making [data-login]
+#   structurally unreachable from a card click. UX measured the page rather than
+#   implementing my story: elementFromPoint at the card centre returns the LI
+#   itself, closest('[data-login]') -> null. Had it implemented my version the
+#   node would have gone green and the geometry would have stayed unknown.
+#   A DIAGNOSIS FROM THE PERSON HOLDING THE MERGE GATE IS THE EASIEST KIND TO
+#   ACCEPT UNCRITICALLY, which is exactly why it needs measuring like any other.
+#
+# THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
+#   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
