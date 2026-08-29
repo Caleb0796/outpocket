@@ -9,6 +9,7 @@
 
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
+import { policyHandler } from "./routes/policy.mjs";
 
 const PERSONAS = {
   chen: Object.freeze({ persona: "chen", role: "employee" }),
@@ -88,6 +89,8 @@ export function createApp() {
       if (!persona) return sendJson(res, 401, { error: "E_NO_SESSION" });
       return sendJson(res, 200, persona);
     }
+
+    if (policyHandler(req, res, url)) return;
 
     sendJson(res, 404, { error: "E_NOT_FOUND" });
   };
