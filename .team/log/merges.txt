@@ -742,3 +742,5 @@ MERGED T2  0483c20 pits:PENDING accept:PASS
 #   the earlier gate. UX corrected my framing of that and was right: not "a
 #   console error if a judge opens devtools" but a page with NO TOOLS AT ALL that
 #   said nothing about it.
+
+MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
