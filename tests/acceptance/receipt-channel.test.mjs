@@ -104,19 +104,79 @@ function employeeWithOpenDraft() {
   return { erp, report, line };
 }
 
-test("link_receipt with an unknown id returns a violation envelope with code RECEIPT_NOT_FOUND", async () => {
-  const { erp, line } = employeeWithOpenDraft();
+/** The code out of a tool result's `Error [CODE]: message` text. */
+function codeOf(result) {
+  const text = result?.content?.[0]?.text ?? "";
+  const m = /^Error \[([A-Z_][A-Z0-9_]*)\]:/.exec(text);
+  return m ? m[1] : null;
+}
+
+test("link_receipt with an unknown receipt id fails, names the id, mutates nothing, and is distinguishable from an unknown line", async () => {
+  const { erp, report, line } = employeeWithOpenDraft();
   const toolset = createToolset(erp);
 
-  const result = await toolset.call("link_receipt",
+  // (iii) is asserted over the CANONICAL DIGEST rather than a field-by-field
+  // comparison: the digest covers the whole projection, so a mutation anywhere
+  // in the report fails this, including one nobody thought to look for.
+  const before = erp.canonicalDigest(report.id);
+
+  const res = await toolset.call("link_receipt",
     { line_id: line.id, receipt_id: "rc_does_not_exist" }, { source: "agent" });
+  const text = res?.content?.[0]?.text ?? "";
 
-  const text = result?.content?.[0]?.text ?? "";
-  const envelope = result?.envelope ?? result?.structuredContent ?? null;
+  // (i) it FAILS — the result is an error, not a success message.
+  assert.match(text, /^Error \[/, `expected a failure, got: ${JSON.stringify(text)}`);
 
-  assert.ok(envelope, `link_receipt returned no violation envelope — it returned text only: ${JSON.stringify(text)}`);
-  assert.equal(envelope.schema, "outpocket.violation/1");
-  assert.equal(envelope.code, "RECEIPT_NOT_FOUND");
-  assert.equal(envelope.entity, "receipt");
-  assert.equal(envelope.entity_id, "rc_does_not_exist");
+  // (ii) it NAMES the receipt id, so the agent can tell WHICH id was wrong
+  // rather than only that something was.
+  assert.ok(text.includes("rc_does_not_exist"),
+    `the message must name the receipt id it rejected: ${JSON.stringify(text)}`);
+
+  // (iii) it does NOT mutate the report.
+  assert.equal(erp.canonicalDigest(report.id), before,
+    "a rejected link_receipt changed the report");
+  assert.equal(erp.receiptById("rc_does_not_exist"), undefined,
+    "a rejected link_receipt invented a receipt");
+  assert.equal(line.receiptId, null, "a rejected link_receipt attached something to the line");
+
+  // (iv) THE STRENGTHENING (D-68): the unknown-RECEIPT code must be distinct
+  // from the unknown-LINE code. Both conditions used to share one generic
+  // NOT_FOUND, so an agent could not tell which of its two arguments was wrong
+  // — a latent defect that a test asserting only "it fails" would preserve
+  // forever.
+  const unknownLine = await toolset.call("link_receipt",
+    { line_id: "ln_does_not_exist", receipt_id: "rc_does_not_exist" }, { source: "agent" });
+
+  const receiptCode = codeOf(res);
+  const lineCode = codeOf(unknownLine);
+  assert.ok(receiptCode, `no code in the unknown-receipt result: ${JSON.stringify(text)}`);
+  assert.ok(lineCode, `no code in the unknown-line result: ${JSON.stringify(unknownLine?.content?.[0]?.text)}`);
+  assert.notEqual(receiptCode, lineCode,
+    `unknown receipt and unknown line must not share the code ${receiptCode} — ` +
+    "an agent cannot tell which argument was wrong");
+
+  // and the unknown-LINE path must not mutate anything either
+  assert.equal(erp.canonicalDigest(report.id), before);
+});
+
+test("the no-mutation check is not vacuous — a successful link DOES move the digest", async () => {
+  // Clause (iii) above asserts canonicalDigest is unchanged after a rejected
+  // link. That assertion is only worth anything if the digest would have moved
+  // had the link succeeded. It is not obvious that it would: the digest covers
+  // a PROJECTION of the report, and a field outside that projection could
+  // change without it noticing — which is how "it did not mutate" quietly
+  // becomes "I did not look".
+  //
+  // MEASURED here, in the direction that matters: attaching a receipt does NOT
+  // move the digest (it is not on a line yet), and linking it DOES.
+  const { erp, report, line } = employeeWithOpenDraft();
+  const before = erp.canonicalDigest(report.id);
+
+  const rc = await erp.attachReceipt({ filename: "receipt.pdf", bytes: new Uint8Array([1, 2, 3]) }, "human");
+  assert.equal(erp.canonicalDigest(report.id), before,
+    "attaching a receipt is not a change to the report and must not move the digest");
+
+  erp.linkReceipt(line.id, rc.id, "human");
+  assert.notEqual(erp.canonicalDigest(report.id), before,
+    "a successful link_receipt must move the digest — otherwise clause (iii) asserts nothing");
 });
