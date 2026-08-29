@@ -93,8 +93,19 @@ tell was available and cheap: `NO_COLOR=1` failing to suppress colour is itself 
 something is *forcing* it. I read that as "the codes are unconditional" when it meant
 "something in my environment outranks NO_COLOR".
 
-**Credit where due:** I1 challenged the RED and was right that the gate is green and that the
-FACTS §14 re-grade had to be withdrawn. I1's *explanation* — a transient caused by the four
-profile files being written concurrently with the run — was not what happened; the failure
-reproduced deterministically before and after all four existed. Two seats reached opposite
-results because their shells differ, which is the finding worth carrying forward.
+**Credit where due:** the peer review session **`mcp-6d`** challenged the RED and was right
+that the gate is green and that the FACTS §14 re-grade had to be withdrawn. Its
+*explanation* — a transient caused by the four profile files being written concurrently
+with the run — was not what happened; the failure reproduced deterministically before and
+after all four existed. **Not I1**, whose only involvement in gate (4) was being warned not
+to build on the SGR claim; an earlier revision of this ticket credited I1 with the catch and
+attributed `mcp-6d`'s wrong mechanism to it, and both halves were wrong.
+
+`mcp-6d` also independently re-ran gates (3) and (7) from a fresh clone of the pushed
+remote, which is the right place to check a symlink: `.team/charters` is stored mode 120000
+with target `../erp/charters`, resolves in the clone, and `ls .team/charters | wc -l` is 16
+there. The predicate holds in the tree G3 will actually see, not only locally.
+
+**Two sessions reached opposite results from the same command on the same machine because
+their shells differ. That is the finding worth carrying forward**, and it generalises past
+this gate — see the FORCE_COLOR note in `kb/pits/L0.md`.
