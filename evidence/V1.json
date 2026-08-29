@@ -1,7 +1,11 @@
 {
-  "origin": "http://localhost:8795",
+  "origin": "https://webmcp-probe.onrender.com",
   "chatgptModel": "Sol",
   "modelContextPresent": true,
   "toolCount": 5,
-  "observedAt": "2026-08-29T07:53:18.841Z"
+  "observedAt": "2026-08-29T15:41:08.228Z",
+  "chromiumMajor": 151,
+  "navigatorAliasPresent": false,
+  "isSecureContext": true,
+  "note": "chromiumMajor, navigatorAliasPresent and isSecureContext are TRANSCRIBED from evidence/V1.png (D-48, PM 2026-08-29). Nothing was re-run, no captured value was altered, and chatgptModel was not touched. The mapping is provable from probe/index.html, not inferred: the PNG's 'navigator.modelContext / undefined' row is rendered by `s.navigatorAliasPresent ? \"present (alias alive)\" : \"undefined\"`, and chromiumMajor comes off `navigator.userAgent.match(/Chrome\\/(\\d+)/)` - a UA-derived hint and not the binary's version, exactly as this schema's caveat on that field warns. THE BUILT-IN BROWSER IS CHROMIUM 151; the installed Chrome V0 measured is 152, read from the binary (evidence/V0.json). Two different engines, and the alias is absent on both - which corroborates HANDOVER section 3 rule 1 on a SECOND engine and is a stronger result than V0 alone. NOT populated, deliberately: tools, agentListed, agentSawTools and registrationError. The PNG carries no registration readback and no error - the three tool names visible on it appear only inside the page's 'ask the agent, in this order' instructions, and 'probe_extra: not registered' is the expected pre-probe_flip state - so filling those fields would be inference rather than transcription. chatgptModel is attested by the OPERATOR and cannot be corroborated by the page, so QA's D-46 read verifies four of the five required fields by construction."
 }
