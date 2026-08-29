@@ -256,3 +256,30 @@ MERGED S3  e3bdd75 pits:kb/pits/S3.md accept:PASS
 #   and no node lists it, so clause (a) is empty. Scope was added to S1 without
 #   adding the file that scope produces to S1.outputs. Fourth instance of the
 #   D-31/D-37 shape: the model is right and a declaration is short.
+
+# I1's D-50 + D-48 follow-ups merged (not a new node row).
+#   --smoke-login exists and FAILS DIAGNOSTICALLY: it names the ordering fact in
+#   its own error text rather than erroring opaquely, which is what let F1's
+#   span 0 be diagnosed in one run.
+#   V1's optional fields TRANSCRIBED, and the boundary held exactly: three fields
+#   the PNG proves, FOUR REFUSED as inference (tools, agentListed, agentSawTools,
+#   registrationError), the mapping traced to probe/index.html rather than
+#   asserted, and chromiumMajor flagged as UA-DERIVED rather than binary-read —
+#   the caveat the schema itself carries. L1 verified mechanically before merging
+#   that all five original values are byte-identical: D-43 HELD, additions only.
+#   THE RESULT IS NOW IN THE RECORD RATHER THAN IN A PNG: the ChatGPT built-in
+#   browser is CHROMIUM 151, the installed Chrome V0 measured is 152, and the
+#   alias is absent on BOTH — HANDOVER section 3 rule 1 corroborated on a SECOND
+#   engine, which is stronger than V0 alone. V0's notes said under R-8 that "151
+#   is not present on this machine and the previous framing asked about a version
+#   nobody can test." We have it now.
+#
+# F1 REMAINS HALF-GREEN AND THE BLOCKER HAS MOVED INSIDE IT. With the static
+#   route and --smoke-login both merged, L1 measured in a detached worktree at
+#   seat/UX-F1 + main: / -> 200 text/html, /ui/shell.js -> 200 text/javascript,
+#   /api/me -> 401, span 1 still 2 elements — and a TRUSTED click on
+#   [data-persona="ruiz"] leaves GET /api/me at 401. The page loads, the module
+#   loads, the endpoint works, and the click is not reaching a POST. That is F1's
+#   own defect and it is dispatched back to UX with the dependency evidence
+#   attached so it does not re-derive it. Span 0 exists precisely to separate
+#   "the API works" from "the page uses the API"; only the first was under test.

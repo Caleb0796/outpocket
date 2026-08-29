@@ -23,10 +23,10 @@
     "S3"
   ],
   "in_flight": {
-    "H2 --smoke-login": "I1 \u2014 D-50, 0.5 h. F1's span 0 still needs it.",
-    "V1 optional fields": "I1 \u2014 D-48 transcription, then QA gates once (D-46).",
-    "V1 human gate": "QA \u2014 dispatched, waiting on I1's transcription first.",
-    "F1": "UX \u2014 HALF-GREEN. Span 1 MEASURED. Span 0's static-route blocker is now CLEARED; --smoke-login remains."
+    "S4": "I3 \u2014 HEAD OF THE CRITICAL PATH (S4 -> T2 -> H3 -> H6 -> D4 -> D5 -> D6).",
+    "H5": "I1 \u2014 dispatched if idle.",
+    "V1 gate": "QA \u2014 file is complete, gate is live.",
+    "F1": "UX \u2014 half-green; both external blockers CLEARED, the remaining failure is inside F1: a trusted click on [data-persona] does not reach POST /api/login."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

@@ -1,0 +1,13 @@
+NODE:      S4
+OWNER:     I3
+INPUTS:    S3, S10
+DO:        Build the violation-envelope producer against erp/contracts/violation.schema.json, which S10 FROZE on Day 1 and which sha256sum -c erp/contracts/FREEZE.md verifies. The filename is SINGULAR. You may not edit it — a change to a frozen file needs a PM deviation ticket referenced in the commit body. S3's policy engine and S10's freeze are both merged and are your inputs.
+ACCEPT:    `node --test tests/acceptance/envelope.test.mjs` — every error body from every write route validates against erp/contracts/violation.schema.json with all of code, severity, field, fix, candidates present; and the same input produces a byte-identical envelope on two runs. AND `node --test tests/fix-lint.test.mjs` exits 0, implementing the substring lint erp/contracts/violation.schema.json declares in `x-fixLint`: it must REJECT the schema-valid instance the contract files under `x-invalidExamples` for exactly this purpose, the one whose `fix` names the evasive edit (verbatim from countinghouse/src/policy.js:133, a live defect in the spike). No JSON Schema keyword can catch that instance, so without this test the contract's own check would report green on a case it is documented to fail.
+PIT:       kb/pits/S4.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/I3-S4
+DEADLINE:  2026-08-30T23:59-07:00
