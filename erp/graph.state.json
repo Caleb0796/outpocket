@@ -14,13 +14,14 @@
     "G3",
     "G0",
     "G5",
-    "T1"
+    "T1",
+    "F0"
   ],
   "in_flight": {
-    "S1": "I3 9efd47bb \u2014 branch seat/I3-S1",
-    "F0": "UX 5d4a5e9c \u2014 branch seat/UX-F0, RE-DISPATCHED after L1 destroyed the first session's uncommitted work with `claude rm` on a BUSY seat",
-    "G6": "QA 3c9d2932 \u2014 branch seat/QA-G6",
-    "H1": "I1 20427ad3 \u2014 branch seat/I1-H1"
+    "S1": "I3 \u2014 branch seat/I3-S1",
+    "G6": "QA \u2014 branch seat/QA-G6, unblocked and committing",
+    "H1": "I1 \u2014 branch seat/I1-H1",
+    "(G4 follow-up)": "I4 \u2014 BANNED.txt row for the phrase V2's result forbids; no node, closes an enforcement gap"
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
