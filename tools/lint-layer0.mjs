@@ -38,6 +38,26 @@ const EXCLUDE = ["erp/**", "kb/webmcp/BANNED.txt", "kb/method/BANNED-CITATIONS.m
 // weakens a ban: no pattern is removed and no quote is deleted anywhere else.
 const REGISTER_FILES = [RETRACTED_FILE];
 
+// SWEEP_EXCLUDE is a THIRD, separate mechanism — not the accept predicate's
+// four-entry EXCLUDE array, not REGISTER_FILES. It covers files that quote
+// banned/retracted strings in order to document or test the ban, but are not
+// named in the predicate's literal array: this file's own source (the BW-14
+// selftest fixtures and the doc comments above literally contain the phrases
+// they exist to ban) and kb/pits/G4.md (this node's pit, which narrates the
+// same phrases in prose). Clause 1 of the accept predicate
+// (`node tools/lint-layer0.mjs` exits 0) is a repo-wide SWEEP with no path
+// named on the command line; clause 2 (the fixture run) always names a path
+// explicitly. So SWEEP_EXCLUDE applies only to the argument-less default
+// sweep in main() — a file on this list is still scanned, and still fails,
+// the moment it is named explicitly. That is the only reading under which
+// both clauses hold at once: the sweep must not walk files that exist to
+// carry the strings it bans, while an explicit path is always honoured.
+const SWEEP_EXCLUDE = ["tools/lint-layer0.mjs", "kb/pits/G4.md", "tests/fixtures/banned-sample.js"];
+
+function isSweepExcluded(relPath) {
+  return SWEEP_EXCLUDE.includes(relPath);
+}
+
 function isExcluded(relPath) {
   for (const entry of EXCLUDE) {
     if (entry.endsWith("/**")) {
@@ -326,7 +346,7 @@ function main() {
   }
 
   const fileArgs = argv.filter((a) => !a.startsWith("--"));
-  const files = fileArgs.length ? fileArgs : gitLsFiles();
+  const files = fileArgs.length ? fileArgs : gitLsFiles().filter((f) => !isSweepExcluded(f));
   const violations = runScan(files);
   if (violations.length) {
     report(violations);
