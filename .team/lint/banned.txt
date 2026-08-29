@@ -1,0 +1,38 @@
+# .team/lint/banned.txt — operational banned-string list for the Layer-0 lint hook.
+#
+# SEED, written by L0 on Day 0 so the hook has a list on Day 1. Node G4 (I4) owns
+# tools/lint-layer0.mjs and is the authority on how this file is read; K1 owns
+# kb/webmcp/BANNED.txt, which is a SEPARATE file and not this one (erp/PATHS.md).
+#
+# This file quotes banned strings in order to ban them, so G4's scan EXCLUDES it,
+# along with erp/**, kb/webmcp/BANNED.txt and kb/method/BANNED-CITATIONS.md.
+#
+# Format: one banned literal per line. '#' starts a comment. Blank lines ignored.
+
+# --- Class 1: dead WebMCP identifiers (erp/FACTS.md §1, IR-1 / IR-2 / IR-4) ---
+# IR-1: removed in Chromium; `typeof navigator.modelContext` is `undefined`.
+navigator.modelContext
+# IR-2: all three are gone.
+provideContext
+unregisterTool
+clearContext
+# IR-4: does not exist. Annotations are readOnlyHint only.
+outputSchema
+# Listed by the WPT IDL but not by the prose — see erp/FACTS.md §5.
+consequentialHint
+
+# --- Class 2: retracted claims (erp/FACTS.md §9; G4 --assert-register requires
+# these five as literal scannable strings in kb/webmcp/RETRACTED.txt) ---
+structural guarantee
+the five write tools
+a specific agent
+a commit cannot be made without a human decision
+the tool surface is the boundary
+
+# --- Class 3: banned wording ---
+# Populated by K1/G4. Do not add a phrase here without a citation in erp/FACTS.md
+# §8 (poison citations) or §9 (retracted claims); an uncited ban is a lint that
+# nobody can defend at review.
+
+# --- Not expressible as a literal, enforced in tools/lint-layer0.mjs directly ---
+# * tool description longer than 500 characters (the official budget)

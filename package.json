@@ -1,0 +1,12 @@
+{
+  "name": "outpocket",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expense-report agent surface over WebMCP — sprint A.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {"test": "node --test", "start": "node server/index.mjs"},
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}
