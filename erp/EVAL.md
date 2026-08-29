@@ -419,7 +419,7 @@ verbatim only in the sections that are *about* them (§1.1, §6.1, §7, §8, §1
 | **E2** | Capability suite: the expected tool set for each application state | C4 | E1, T5 | 2 | 2 | webmcp-eval-kit | A |
 | **E3** | Negative-control suite with a declared pairing map | C4 | E1, T2, S2, S6 | 2 | 2 | webmcp-eval-kit | A |
 | **E4** | Blind grading protocol, rubric, packet builder and the hermetic Codex home | **L2** | T5 | 2 | 2 | webmcp-eval-kit | A |
-| **E5** | Deterministic surface accounting, provably zero model calls | C4 | T5 | 1 | 1 | webmcp-eval-kit | A |
+| **E5** | Deterministic surface accounting, provably zero model calls | C4 | T5, E1 | 1 | 1 | webmcp-eval-kit | A |
 | **E6** | CI running the evals against the DEPLOYED commit, not the working tree | C4 | E2, E3, E5, D1 | 2 | 2 | outpocket | A |
 | **E7** | Results table published in the README | C4 | E6 | 1 | 2 | outpocket | A |
 | **E8** | C1 blind grading run | **C1** | E4, T5 | 1 | 2 | webmcp-eval-kit | A |

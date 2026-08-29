@@ -1431,3 +1431,15 @@ of `H2`'s `harness/drive.mjs`, and `T2.inputs` was `[T1, H1, F1, S1, S4]` with n
 artifact with no edge to prove the dependency** — and both were invisible to
 `--check-schedule` (no edge to order) and to `--check-accept-paths` (the *path*
 resolves; the *mode* is not a path).
+
+**Appended 2026-08-29, final edge movement of the evening — and the count is now
+the finding.** D-61 adds `H2 → H3` and `E1 → E5`, both found by `--check-modes`
+on its **first run**, hours after D-59 bought it. Re-MEASURED: **124 edges, 113
+hard, 105 qualifying, 8 cross-horizon exempt, 0 violations; `inputs`↔`edges`
+bijective 124/124.** **Four missing hard edges of one shape were drawn in a
+single evening** — `H2 → F1`, `H2 → T2`, `H2 → H3`, `E1 → E5` — each one a
+predicate naming an artifact or a mode of an artifact that no edge connected it
+to. Three of the four point at `harness/drive.mjs`. **`E1 → E5` is the instructive
+one: `E2` and `E3` name the same script and BOTH carried their `E1` edge, so `E5`
+was the odd one out rather than the pattern** — which is exactly why no human
+reading found it and a checker comparing sibling nodes did.
