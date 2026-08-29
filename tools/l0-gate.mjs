@@ -54,6 +54,27 @@ if (mode === '--show') {
   process.exit(0);
 }
 
+// --run-seq <a> <b> — join two spans with ' && ' and run them in ONE shell.
+// Gate (7) needs this: its first span ends with `cd /tmp/l0`, and its second span
+// (`npm test > /tmp/l0/out.txt 2>&1; node -e "…"`) must run inside that clone. Run
+// separately they would execute in the worktree instead, which would assert the
+// property of the wrong tree — the exact mistake R-26(a) corrected. Nothing is
+// rewritten; the two strings are concatenated as they stand in the authority.
+if (mode === '--run-seq') {
+  const j = Number(process.argv[4]);
+  if (!Number.isInteger(j) || j < 0 || j >= spans.length) {
+    console.error('usage: l0-gate.mjs --run-seq <a> <b>');
+    process.exit(2);
+  }
+  const joined = spans[idx] + ' && ' + spans[j];
+  console.error('--- RUNNING VERBATIM FROM graph.json L0.accept (spans ' + idx + ' && ' + j + ', one shell) ---');
+  console.error(joined);
+  console.error('--- BEGIN OUTPUT ---');
+  const r = spawnSync('sh', ['-c', joined], { stdio: 'inherit' });
+  console.error('--- EXIT ' + r.status + ' ---');
+  process.exit(r.status === null ? 1 : r.status);
+}
+
 if (mode === '--run' || mode === '--run-clean') {
   const clean = mode === '--run-clean';
   const env = { ...process.env };

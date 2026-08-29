@@ -167,35 +167,78 @@ one, and four documented call sites run npm ci — G3's among them.
 
 51, not 50: erp/DECISIONS.md is the file gate (1) created.
 
-================================================================================
-GATE (6)  PUSH                                   ***HELD — NOT RUN***
-GATE (7)  LOCKFILE FROM A CLONE OF THE REMOTE    ***HELD — NOT RUN***
-================================================================================
-One read-only clause of gate (6) WAS executed, because it publishes nothing:
 
+================================================================================
+GATE (6)  PUSH — THE FIRST PUSH                                    ***GREEN***
+================================================================================
   node tools/l0-gate.mjs --run 21  ->  exit 0
   git remote get-url origin | grep -q '^https://github.com/Caleb0796/outpocket\(\.git\)\?$'
 
 The remote prints WITH the .git suffix, as the accept says it does, and the
-optional-group regex matches it. The two clauses that follow — `git push -u
-origin HEAD:main` and the rev-parse/ls-remote comparison — WERE NOT RUN.
-Gates (6) and (7) were deliberately NOT run. L0's accept opens "All SEVEN must
-pass, IN THIS ORDER"; gate (4) is red, so L0 is not accepted, and gate (6) is
-the first push — an irreversible, outward-facing act that publishes the head of
-the critical path. L1 does not push work that has not passed its own gate.
+optional-group regex matches it. An equality test against the bare URL would
+have failed here.
 
-Held, not abandoned. The tree is COMMITTED — 8db59a9 on branch
-worktree-L1-L0-bootstrap — and gate (6) runs the moment PM rules on
-DEV-L0-gate4-banner-grep and gate (4) exits 0 against the amended predicate.
+  node tools/l0-gate.mjs --run 23  ->  exit 0
+  git push -u origin HEAD:main
+  c1bcceb..a1f650b  HEAD -> main
 
-Also waiting on that same push: I1 handed off node V5's remaining output on
-branch worktree-i1-v5-probe-verdict-schema (1d75053), adding the NINTH contract
-file erp/contracts/probe-verdict.schema.json. S10 sha256-hashes erp/contracts/
-on Day 1 expecting nine files. L1 will gate and merge V5 as its OWN commit —
-not folded into this one, because two nodes in one sha cannot be reported or
-reverted separately — and carry both commits in the single gate (6) push.
+  node tools/l0-gate.mjs --run 24  ->  exit 0
+  test "$(git rev-parse HEAD)" = "$(git ls-remote origin refs/heads/main | cut -f1)"
 
-COST OF THE HOLD, STATED PLAINLY: Day 1 carries 15 nodes and G3 (cut 0) clones
-origin/main and runs npm ci. origin/main does not yet carry package.json,
-package-lock.json, src/**, tests/** or .team/**. Every Day-1 node is behind a
-one-line ruling on one predicate.
+origin/main now carries the PRODUCT tree — package.json, package-lock.json,
+src/**, tests/** and .team/** — which it did not before this gate. Committing
+locally was not enough: G3 clones the GitHub URL on Day 1 and never sees this
+working tree.
+
+R-26(b): this is the FIRST push, not the only one. L1 carries a standing
+obligation to push every merge to main. T6 fixes the RED test on Day 1 and G3
+asserts zero failures against origin/main — that fix reaches the remote only
+because L1 pushes it.
+
+================================================================================
+GATE (7)  LOCKFILE FROM A CLONE OF THE PUSHED REMOTE               ***GREEN***
+================================================================================
+  node tools/l0-gate.mjs --run-seq 28 29  ->  exit 0
+
+Both spans run in ONE shell, because the first ends with `cd /tmp/l0` and the
+second must execute inside that clone. Run separately, the second would assert
+a property of the worktree instead — the exact mistake R-26(a) corrected.
+
+  rm -rf /tmp/l0 && git clone https://github.com/Caleb0796/outpocket /tmp/l0
+    && cd /tmp/l0 && test -f package-lock.json && npm ci
+  ->  Cloning into '/tmp/l0'... added 5 packages, audited 6, 0 vulnerabilities
+
+  npm test > /tmp/l0/out.txt 2>&1; node -e "...tests 24 / fail 1 / named..."
+  ->  exit 0
+
+  /tmp/l0/out.txt:
+    not ok 18 - auditor surface: read-only by construction
+    # tests 24
+    # pass 23
+    # fail 1
+
+The clone is taken from the REMOTE, not from `.`, because the remote is the
+tree G3 installs from. `npm ci` exits 0 — the EUSAGE this node exists to
+eliminate is gone.
+
+THIS GATE ASSERTS 24 TESTS WITH EXACTLY ONE NAMED FAILURE, NOT EXIT 0. That is
+STRONGER than exit 0, not weaker: exit 0 is also satisfied by a suite that
+silently stopped discovering tests, which is the failure `npm test -- <name>`
+already produced once in this project (R-23). Zero failures on origin/main
+becomes true only after T6 is merged and L1 pushes that merge; asserting THAT
+is G3's job, which is why G3 carries a hard edge from T6.
+
+================================================================================
+RESULT: ALL SEVEN GATES GREEN. L0 ACCEPTED.
+================================================================================
+  main = a1f650b, pushed, remote sha verified equal to local HEAD.
+  Committer/merger on main: L1 only.
+  Pit: kb/pits/L0.md — all five keys.
+  Deviations raised: 1 (DEV-L0-gate4-banner-grep), CLOSED by the seat that
+    raised it, no amendment requested, erp/graph.json untouched throughout.
+
+STILL OUTSTANDING, NOT PART OF L0: node V5's remaining output sits on branch
+worktree-i1-v5-probe-verdict-schema (1d75053) — erp/contracts/probe-verdict.schema.json,
+the NINTH contract file. S10 sha256-hashes erp/contracts/ on Day 1 expecting
+nine. V5 is a separate node and gets its OWN merge, its own pit and its own
+push; two nodes in one sha cannot be reported or reverted separately.
