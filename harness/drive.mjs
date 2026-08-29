@@ -7,6 +7,10 @@
 //   node harness/drive.mjs                       # reachability gate -> evidence/H2-reachability.json
 //   node harness/drive.mjs --url <origin> --list  # one tool name per line on stdout, exit 0
 //   node harness/drive.mjs --url <origin> --exec <name>   # invoke by name over CDP, exit 0
+//   node harness/drive.mjs --smoke-login chen,ruiz        # a real login per persona, exit 0
+//
+// --smoke-login is D-50 (PM 2026-08-29): F1.accept has always invoked it and no node was ever
+// told to build it. See the block above modeSmokeLogin for what it does and why.
 //
 // Exit codes. 0 success. 2 THE TOOL WAS NOT FOUND — and only that; the browser's own
 // -32602 is what produces it, never a name check of ours (see resolveToolName). 1 is
@@ -412,6 +416,234 @@ async function modeExec(url, requested, input, { headless }) {
   }
 }
 
+// ------------------------------------------------------------------ --smoke-login (D-50)
+//
+// F1.accept has always run `node harness/drive.mjs --smoke-login chen,ruiz` and NO node was
+// ever told to build it: the mode was specified in the CONSUMER and never in the producer,
+// which is precisely the defect D-50 names. It is specified in H2.notes now, and built here.
+//
+// WHAT "A REAL LOGIN" MEANS, and why this drives a browser for something a two-line curl
+// could fake: the session cookie is HttpOnly (server/index.mjs, S1's contract), so no
+// harness-side HTTP client can prove the thing that matters. A real browser mints the cookie
+// into a real cookie jar and the page's OWN same-origin fetch is what carries it back. Each
+// persona gets a FRESH browser — launch() mkdtemps a new --user-data-dir per call, hence a
+// fresh cookie jar — and each is proved in three beats:
+//
+//   1. ANONYMOUS FIRST. GET /api/me from the page returns 401. Without this beat, a 200 in
+//      beat 3 could be a session left over from the previous persona and the mode would pass
+//      while proving nothing. That is the `!== 0`-passes-against-an-empty-surface trap
+//      (trap 2 above) wearing different clothes.
+//   2. LOG IN, by the page's own affordance where one exists — two paths, below.
+//   3. GET /api/me from the page returns 200 AND names the persona that was asked for.
+//
+// TWO PATHS, AND THE MODE ALWAYS SAYS WHICH ONE IT TOOK — kb/pits/L0.md: a green run and a
+// degraded run must never be confusable for each other.
+//
+//   dom   — `[data-persona="<p>"]` exists, so it is CLICKED and the shell's own handler does
+//           the login. This is the path that actually smoke-tests F1's shell.
+//   fetch — no such element, so the login goes through a same-origin credentialed POST to
+//           /api/login from the page context. Still a real browser and a real cookie jar,
+//           but it proves the SERVER and not the shell.
+//
+// The fallback is not a hedge, because F1's accept pairs this mode with its own assertion
+// that `[data-persona]` has length 2: when F1 is green those elements exist, so `dom` is the
+// path taken. `fetch` is what lets this mode be built and verified before UX's shell exists.
+// And `dom` is never silently downgraded — if the element is there and the click does not
+// produce a session, that is a FAILURE, not a reason to quietly try the fetch instead.
+//
+// The persona name is NOT validated against a list here, deliberately, and for the same
+// reason resolveToolName lets the browser produce its own -32602: the server owns the enum
+// (chen, ruiz — frozen in erp/contracts/eval-case.schema.json) and answers E_BAD_PERSONA for
+// anything else. A second copy of that enum in this file is a second place to get it wrong.
+
+// Every request this mode makes goes through the PAGE, never through Node, because the
+// browser's cookie jar is the thing under test.
+async function pageJson(cdp, sessionId, expression) {
+  const r = await evalInPage(cdp, sessionId, expression, true);
+  if (!r.ok) throw new Error(r.error);
+  return r.value;
+}
+
+const ME_EXPR = `(async () => {
+  const r = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' });
+  let body = null; try { body = await r.json(); } catch {}
+  return { status: r.status, body: body };
+})()`;
+
+const loginExpr = (persona) => `(async () => {
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persona: ${JSON.stringify(persona)} })
+  });
+  let body = null; try { body = await r.json(); } catch {}
+  return { status: r.status, body: body };
+})()`;
+
+// A TRUSTED click, dispatched through the Input domain at the element's centre, because that
+// is what a judge's mouse produces; el.click() synthesises an event with isTrusted false.
+// A zero-area element has no coordinate to click, so that case falls back to el.click() and
+// says so rather than dispatching into empty space and reporting a mysterious timeout.
+async function clickPersona(cdp, sessionId, persona) {
+  const sel = `[data-persona=${JSON.stringify(persona)}]`;
+  const box = await pageJson(cdp, sessionId, `(async () => {
+    const el = document.querySelector(${JSON.stringify(sel)});
+    if (!el) return { found: false };
+    el.scrollIntoView({ block: 'center' });
+    const b = el.getBoundingClientRect();
+    return { found: true, x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height };
+  })()`);
+  if (!box.found) return { found: false };
+  if (box.w < 1 || box.h < 1) {
+    await pageJson(cdp, sessionId,
+      `(async () => { document.querySelector(${JSON.stringify(sel)}).click(); return true; })()`);
+    return { found: true, how: 'el.click(), untrusted — the element has zero area' };
+  }
+  const at = { x: Math.round(box.x), y: Math.round(box.y), button: 'left', clickCount: 1 };
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at }, sessionId);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at }, sessionId);
+  return { found: true, how: 'trusted Input.dispatchMouseEvent' };
+}
+
+// The shell's click handler is asynchronous, so beat 3 polls rather than reading once.
+async function waitForSession(cdp, sessionId, { timeoutMs = 10000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  for (;;) {
+    last = await pageJson(cdp, sessionId, ME_EXPR);
+    if (last.status === 200) return last;
+    if (Date.now() >= deadline) return last;
+    await sleep(200);
+  }
+}
+
+async function smokeOne(origin, persona, { headless }) {
+  const b = await launch('cdp', { headless });
+  try {
+    const { sessionId } = await openPage(b, origin);
+
+    // Beat 1 — this browser starts anonymous.
+    const before = await pageJson(b.cdp, sessionId, ME_EXPR);
+    if (before.status !== 401) {
+      return { persona, ok: false, why: `GET /api/me BEFORE login returned ${before.status}, expected 401 — ` +
+        `this browser did not start anonymous, so a 200 after login would prove nothing` };
+    }
+
+    // Beat 2 — log in, by the page's own affordance where there is one.
+    const click = await clickPersona(b.cdp, sessionId, persona);
+    let path;
+    if (click.found) {
+      path = 'dom';
+      process.stderr.write(`drive: --smoke-login ${persona}: clicked [data-persona="${persona}"] via ${click.how}\n`);
+    } else {
+      path = 'fetch';
+      process.stderr.write(`drive: --smoke-login ${persona}: NO [data-persona="${persona}"] ELEMENT on the page — ` +
+        `falling back to a same-origin POST /api/login from the page context. ` +
+        `That proves the SERVER, not F1's shell.\n`);
+      const login = await pageJson(b.cdp, sessionId, loginExpr(persona));
+      if (login.status !== 200) {
+        return { persona, ok: false, path,
+          why: `POST /api/login returned ${login.status} ${JSON.stringify(login.body)}` };
+      }
+    }
+
+    // Beat 3 — a session exists and it names the persona that was asked for.
+    const after = await waitForSession(b.cdp, sessionId);
+    if (after?.status !== 200) {
+      return { persona, ok: false, path, why: path === 'dom'
+        ? `clicked [data-persona="${persona}"] but GET /api/me still returns ${after?.status} — ` +
+          `the element exists and is not wired to a login`
+        : `GET /api/me after login returned ${after?.status} ${JSON.stringify(after?.body)}` };
+    }
+    if (after.body?.persona !== persona) {
+      return { persona, ok: false, path,
+        why: `the session names persona ${JSON.stringify(after.body?.persona)}, asked for ${JSON.stringify(persona)}` };
+    }
+    return { persona, ok: true, path, role: after.body?.role };
+  } finally {
+    await b.close();
+  }
+}
+
+// F1's accept runs this mode with NO --url, so it brings its own server up on 127.0.0.1 —
+// a secure context, unlike 192.168.x.x and .local, which yield a silent undefined. --url
+// drives an already-running instance instead. server/index.mjs is IMPORTED, never copied:
+// a second definition of the session route is a second thing to drift.
+async function serveApp() {
+  const { createHttpServer } = await import(resolve(REPO, 'server', 'index.mjs'));
+  const server = createHttpServer();
+  await new Promise((res, rej) => {
+    server.once('error', rej);
+    server.listen(0, '127.0.0.1', res);
+  });
+  return {
+    origin: `http://127.0.0.1:${server.address().port}`,
+    close: () => new Promise((r) => server.close(r)),
+  };
+}
+
+// The page has to actually be SERVED. GET / is S1's static route (owner I3); while that is in
+// flight the server answers /api/* and falls through to its JSON 404, and this mode says so
+// plainly rather than failing three beats deeper with a stranger message.
+async function checkRootServesPage(origin) {
+  let res;
+  try {
+    res = await fetch(origin + '/', { redirect: 'follow' });
+  } catch (err) {
+    return { ok: false, why: `cannot reach ${origin}/ — ${err.message}` };
+  }
+  const type = res.headers.get('content-type') ?? '';
+  if (res.status === 200 && /text\/html/i.test(type)) return { ok: true };
+  return { ok: false, why:
+    `GET ${origin}/ returned ${res.status} ${type || '(no content-type)'}, expected 200 text/html. ` +
+    `The static route that serves src/page/index.html belongs to S1 (owner I3) and is in flight; ` +
+    `until it lands the server answers /api/* only and everything else falls through to E_NOT_FOUND. ` +
+    `That is an ordering fact, not a defect in --smoke-login.` };
+}
+
+async function modeSmokeLogin(spec, { url, headless }) {
+  const personas = String(spec ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (!personas.length) {
+    process.stderr.write('drive: --smoke-login needs at least one persona, e.g. --smoke-login chen,ruiz\n');
+    return 1;
+  }
+
+  const own = url ? null : await serveApp();
+  const origin = url ?? own.origin;
+  try {
+    process.stderr.write(`drive: --smoke-login ${personas.join(',')} against ${origin}` +
+      (own ? ' (server started by this process)' : ' (--url, server not ours)') + '\n');
+
+    const root = await checkRootServesPage(origin);
+    if (!root.ok) { process.stderr.write(`drive: ${root.why}\n`); return 1; }
+
+    const results = [];
+    for (const p of personas) {
+      let r;
+      try { r = await smokeOne(origin, p, { headless }); }
+      catch (err) { r = { persona: p, ok: false, why: err.message }; }
+      results.push(r);
+      if (r.ok) {
+        // STDOUT IS THE MACHINE SURFACE: one line per persona, plain strings via
+        // process.stdout.write and never console.log of an inspected value — every resident
+        // seat exports FORCE_COLOR=3 (kb/pits/L0.md), which makes util.inspect emit SGR codes
+        // even into a pipe, and NO_COLOR=1 does not suppress it.
+        process.stdout.write(`${r.persona} ok via ${r.path}\n`);
+        process.stderr.write(`drive: --smoke-login ${r.persona} PASSED — role ${JSON.stringify(r.role)}, ` +
+          `session minted and carried back by the browser (${r.path})\n`);
+      } else {
+        process.stderr.write(`drive: --smoke-login ${r.persona} FAILED — ${r.why}\n`);
+      }
+    }
+    const failed = results.filter((r) => !r.ok);
+    process.stderr.write(`drive: --smoke-login ${results.length - failed.length}/${results.length} persona(s) passed\n`);
+    return failed.length ? 1 : 0;
+  } finally {
+    if (own) await own.close();
+  }
+}
+
 // One arm of the gate: launch under `scenario`, load `url`, read everything, write nothing.
 async function gateArm(scenario, url, { headless, invoke }) {
   const b = await launch(scenario, { headless });
@@ -669,6 +901,7 @@ function parseArgv(argv) {
     else if (a === '--exec') out.exec = argv[++i];
     else if (a === '--gate') out.gate = true;
     else if (a === '--input') out.input = JSON.parse(argv[++i]);
+    else if (a === '--smoke-login') out.smokeLogin = argv[++i];
     else if (a === '--headed') out.headless = false;
     else if (a === '--headless') out.headless = true;
     else throw new Error(`unknown argument ${a}`);
@@ -681,6 +914,9 @@ const USAGE = [
   '  node harness/drive.mjs [--gate]                       reachability gate -> evidence/H2-reachability.json',
   '  node harness/drive.mjs --url <origin> --list          one tool name per line, exit 0',
   '  node harness/drive.mjs --url <origin> --exec <name>   invoke by name over CDP, exit 0',
+  '  node harness/drive.mjs --smoke-login chen,ruiz       a real login per persona in a real',
+  '                                                       browser, one fresh cookie jar each;',
+  '                                                       serves the app itself unless --url',
   '',
   'exit: 0 ok | 2 tool not found (the browser\'s own -32602) | 1 anything else',
 ].join('\n');
@@ -688,7 +924,9 @@ const USAGE = [
 let rc = 1;
 try {
   const o = parseArgv(process.argv.slice(2));
-  if (o.list || o.exec) {
+  if (o.smokeLogin !== undefined) {
+    rc = await modeSmokeLogin(o.smokeLogin, o);
+  } else if (o.list || o.exec) {
     if (!o.url) throw new Error('--list and --exec require --url');
     rc = o.list ? await modeList(o.url, o) : await modeExec(o.url, o.exec, o.input, o);
   } else {
