@@ -69,7 +69,19 @@ fallback; a row with no named fallback is malformed and the node does not pass.
   fine and the reader was stale.** A long turn is exactly when this bites,
   because the world moves inside it — and the block is the one artifact the
   human reads as current by construction. A node you call blocked must name the node id it waits on; "blocked" with
-  no named blocker is malformed and you fix it before publishing.
+  no named blocker is malformed and you fix it before publishing. **D-70,
+  2026-08-29 — A WORK ITEM IS NOT A BLOCKER, AND THIS IS THE CLAUSE I ACTUALLY
+  BROKE.** I published *"T2 waits on I3's served root"*. "The served root" is a
+  work item, not a node id, and naming it is what let me carry a blocker from a
+  teammate's message instead of computing one. **Had this rule been enforced as
+  written I would have had to derive the id from T2's unmet hard inputs, and the
+  answer was NONE — every input had merged two hours earlier.** So: **BLOCKED
+  names NODE IDS and nothing else, and those ids come from unmet hard inputs
+  computed by `ready.mjs` in the same turn** (D-56). **A node with no unmet
+  inputs that is still not done is NOT blocked — it is dispatched, or waiting on
+  its own uncommitted work, and those are different statuses calling for
+  different actions.** Calling the second one "blocked" points the reader at an
+  innocent seat.
 - The **critical path is computed, never asserted**: `node tools/ready.mjs
   --path`. If you cannot show the arithmetic, you do not have a critical path.
   `graph.json.critical_path_A` is graded **OUR-ESTIMATE** and stays that way

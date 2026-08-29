@@ -30,12 +30,20 @@ process.stdout.write(
   `INPUTS:    ${inputs}\n` +
   `DO:        ${val('--do')}\n` +
   `ACCEPT:    ${node.accept}\n` +
-  `PIT:       kb/pits/${node.id}.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.\n` +
-  `           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a\n` +
-  `           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it\n` +
-  `           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands\n` +
-  `           the file from you — that contradiction is L1's to carry to PM, not yours to\n` +
-  `           resolve. Write the file; L1 absorbs the ownership finding.)\n` +
+  `PIT:       D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and\n` +
+  `           L1 writes kb/pits/${node.id}.md from them. In order: TRIED, HAPPENED, CHANGED,\n` +
+  `           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1\n` +
+  `           cannot merge you without one.\n` +
+  `           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.\n` +
+  `           Reports have been made and lost three times in this sprint, and a seat stopped\n` +
+  `           before it reports takes its pit with it — one node's pit had to be written\n` +
+  `           marked "NOT the seat's own report", which is worse than the node deserved.\n` +
+  `           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is\n` +
+  `           worse than no pit. EARLIER is the field that pays: what you would tell\n` +
+  `           yourself an hour before you learned it.\n` +
+  `           (This block previously said "write it on your branch" — a contradiction with\n` +
+  `           D-31 that survived a reset of mine and misled three seats, all of which\n` +
+  `           correctly followed the ruling over the template and told me.)\n`
   `BRANCH:    seat/${node.owner}-${node.id}\n` +
   `DEADLINE:  ${val('--deadline')}\n`
 );

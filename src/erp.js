@@ -313,7 +313,15 @@ export function createErp({ now = () => new Date(), hashBytes = sha256Hex } = {}
     const line = r.lines.find((l) => l.id === lineId);
     if (!line) throw new ErpError("NOT_FOUND", `No line ${lineId} on the open report.`);
     const rc = receiptById(receiptId);
-    if (!rc) throw new ErpError("NOT_FOUND", `No receipt ${receiptId}. list_receipts shows what the employee has attached.`);
+    // D-68. The unknown-LINE case above and the unknown-RECEIPT case here used to
+    // throw the SAME generic NOT_FOUND, so a caller could not tell which of two
+    // different conditions it had hit — a latent defect found while F3 measured
+    // why its predicate could not pass. Distinguished here, in erp.js, and
+    // surfaced as text exactly as before: no envelope, no policy rule, no version
+    // bump. An unknown id is a BAD ARGUMENT, not an expense-policy violation, and
+    // violation.schema.json's own rule_id text keeps those namespaces apart "so
+    // that a policy version bump changes expense validation and nothing else".
+    if (!rc) throw new ErpError("RECEIPT_NOT_FOUND", `No receipt ${receiptId}. list_receipts shows what the employee has attached.`);
     if (rc.linkedLineId && rc.linkedLineId !== lineId)
       throw new ErpError("RECEIPT_TAKEN", `Receipt ${receiptId} already backs line ${rc.linkedLineId}. Each receipt backs exactly one line.`);
     const twin = state.receipts.find((x) => x.sha256 === rc.sha256 && x.id !== rc.id && x.linkedLineId);
