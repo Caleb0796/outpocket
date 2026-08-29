@@ -1,0 +1,32 @@
+# Merge log — one line per merge to main, in the format erp/charters/L1.md specifies:
+#   MERGED <node> <sha> pits:<path> accept:PASS
+#
+# This is NOT .team/log/inbound-PM.jsonl. That file is for inbound HUMAN messages
+# (erp/TEAM.md §2), and `ls .team/log/inbound-*.jsonl` must contain only PM, L1 and L2 —
+# putting merge lines there would corrupt what that invariant measures. PM reads this file
+# at boot instead.
+#
+# L1 is the sole committer and sole pusher to main (R-26(b)). Every line below was pushed
+# to origin/main and the remote sha verified equal to local HEAD before the line was written.
+
+MERGED L0 475bf0f pits:kb/pits/L0.md accept:PASS
+MERGED V5 7578174 pits:kb/pits/V5.md accept:PASS
+
+# L0 — Day-0 bootstrap. All SEVEN gates green, run verbatim from erp/graph.json via
+#   tools/l0-gate.mjs. First commit a1f650b (the bootstrap tree, gate (6)'s push);
+#   475bf0f corrects the gate-4 record. Full gate-by-gate account in
+#   evidence/L0-bootstrap.txt. One deviation raised and CLOSED by the raising seat,
+#   .team/deviations/DEV-L0-gate4-banner-grep.md — it asks PM for NOTHING, and its
+#   original requests (amend gate (4); re-grade erp/FACTS.md §14) are both WITHDRAWN.
+#   erp/graph.json was never edited.
+#
+# V5 — probe origin. Owner I1; L1 merged and pushed because R-26(b) reserves both.
+#   V5.accept re-run in L1's presence via tools/accept-gate.mjs, both clauses exit 0,
+#   plus independent checks of the three prose clauses against the DEPLOYED page.
+#   erp/contracts/ now carries NINE files, which is the set S10 freezes on Day 1.
+#
+# OPEN FOR PM, raised by I1 and not L1's to verdict: evidence/V0.json matches neither
+# V0.accept's declared shape (chromiumMajor vs chromeMajor, method:"page-side feature
+# detection…" vs 'cdp', and no flag/headless/toolCount/cdpDomainEnabled/invokeToolRoundTrip)
+# nor the probe-verdict shape, and V0's second declared output harness/probe-v0.mjs does
+# not exist. Recorded in kb/pits/V5.md under EARLIER. I1 has it as Day-1 work.
