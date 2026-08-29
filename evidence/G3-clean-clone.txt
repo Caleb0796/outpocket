@@ -1,0 +1,158 @@
+
+> outpocket@0.1.0 test
+> node --test
+
+TAP version 13
+# Subtest: money conversion is integer-exact
+ok 1 - money conversion is integer-exact
+  ---
+  duration_ms: 0.352542
+  type: 'test'
+  ...
+# Subtest: missing fields block
+ok 2 - missing fields block
+  ---
+  duration_ms: 0.250166
+  type: 'test'
+  ...
+# Subtest: date window: future and stale block, recent passes
+ok 3 - date window: future and stale block, recent passes
+  ---
+  duration_ms: 0.0775
+  type: 'test'
+  ...
+# Subtest: meal cap scales with attendees
+ok 4 - meal cap scales with attendees
+  ---
+  duration_ms: 0.244042
+  type: 'test'
+  ...
+# Subtest: meals ≥ $75 require itemization
+ok 5 - meals ≥ $75 require itemization
+  ---
+  duration_ms: 0.086917
+  type: 'test'
+  ...
+# Subtest: alcohol is caught in declared itemization, with the amount in the fix
+ok 6 - alcohol is caught in declared itemization, with the amount in the fix
+  ---
+  duration_ms: 0.185625
+  type: 'test'
+  ...
+# Subtest: alcohol lexicon uses word boundaries (no 'Winehouse' false positive)
+ok 7 - alcohol lexicon uses word boundaries (no 'Winehouse' false positive)
+  ---
+  duration_ms: 0.04075
+  type: 'test'
+  ...
+# Subtest: lodging cap scales with nights
+ok 8 - lodging cap scales with nights
+  ---
+  duration_ms: 0.03925
+  type: 'test'
+  ...
+# Subtest: transport/supplies caps block; airfare only warns
+ok 9 - transport/supplies caps block; airfare only warns
+  ---
+  duration_ms: 0.460667
+  type: 'test'
+  ...
+# Subtest: itemization gap warns when sum drifts from amount
+ok 10 - itemization gap warns when sum drifts from amount
+  ---
+  duration_ms: 0.265791
+  type: 'test'
+  ...
+# Subtest: `other` requires a description
+ok 11 - `other` requires a description
+  ---
+  duration_ms: 0.068875
+  type: 'test'
+  ...
+# Subtest: receipt required at/above $25, not below
+ok 12 - receipt required at/above $25, not below
+  ---
+  duration_ms: 0.030166
+  type: 'test'
+  ...
+# Subtest: policy JSON fits the official 1500-char output budget and carries its version
+ok 13 - policy JSON fits the official 1500-char output budget and carries its version
+  ---
+  duration_ms: 0.048917
+  type: 'test'
+  ...
+# Subtest: currency: EUR converts, unsupported blocks
+ok 14 - currency: EUR converts, unsupported blocks
+  ---
+  duration_ms: 0.582084
+  type: 'test'
+  ...
+# Subtest: report level: empty, project scope/inactive, large-total warn
+ok 15 - report level: empty, project scope/inactive, large-total warn
+  ---
+  duration_ms: 0.33825
+  type: 'test'
+  ...
+# Subtest: signed out: the surface is a single explainer tool
+ok 16 - signed out: the surface is a single explainer tool
+  ---
+  duration_ms: 1.390292
+  type: 'test'
+  ...
+# Subtest: employee surface grows with state: 5 → 12 → 13 (door) → shrinks when dirty
+ok 17 - employee surface grows with state: 5 → 12 → 13 (door) → shrinks when dirty
+  ---
+  duration_ms: 0.99725
+  type: 'test'
+  ...
+# Subtest: auditor surface: read-only by construction
+ok 18 - auditor surface: read-only by construction
+  ---
+  duration_ms: 0.884292
+  type: 'test'
+  ...
+# Subtest: submitted reports expose no editing tools
+ok 19 - submitted reports expose no editing tools
+  ---
+  duration_ms: 0.098584
+  type: 'test'
+  ...
+# Subtest: descriptions fit the official 500-char budget in every state
+ok 20 - descriptions fit the official 500-char budget in every state
+  ---
+  duration_ms: 0.245625
+  type: 'test'
+  ...
+# Subtest: double lock: a captured submit tool refuses after the surface moved on
+ok 21 - double lock: a captured submit tool refuses after the surface moved on
+  ---
+  duration_ms: 0.207209
+  type: 'test'
+  ...
+# Subtest: calling an unregistered tool names the real surface
+ok 22 - calling an unregistered tool names the real surface
+  ---
+  duration_ms: 0.0625
+  type: 'test'
+  ...
+# Subtest: auditor writes are impossible twice over: no tool AND a 403 underneath
+ok 23 - auditor writes are impossible twice over: no tool AND a 403 underneath
+  ---
+  duration_ms: 0.211792
+  type: 'test'
+  ...
+# Subtest: every tool output in a busy session respects the 1500-char budget
+ok 24 - every tool output in a busy session respects the 1500-char budget
+  ---
+  duration_ms: 1.503625
+  type: 'test'
+  ...
+1..24
+# tests 24
+# suites 0
+# pass 24
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 44.667375
