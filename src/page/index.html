@@ -79,6 +79,29 @@
          margin-bottom: 14px; background: #fff; }
   [data-region] > .slot-label { font-size: 11px; text-transform: uppercase;
          letter-spacing: 0.08em; color: #8b8fa0; }
+  /* Receipts (node F3). The two channels must read as a CONTRAST in a still
+     frame, not as two paragraphs that happen to follow each other — a judge may
+     score from images alone (docs/STORYBOARD.md SB-09 puts the agent's
+     affordance "beside" the human's). Side by side, with the weight on the
+     human column, is what carries that without any motion. */
+  [data-receipt-channel] .channel-heading { font-size: 15px; margin: 0 0 12px; }
+  [data-receipt-channel] .channels { display: grid; gap: 12px;
+         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-bottom: 16px; }
+  [data-channel] { border: 1px solid #d9dae0; border-radius: 8px; padding: 12px; }
+  [data-channel="human"] { border-left: 3px solid #16181d; }
+  [data-channel="agent"] { border-left: 3px solid #8b8fa0; background: #fbfbfc; }
+  [data-channel] .channel-label { font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.08em; color: #55596a; }
+  [data-channel] .channel-can { font-weight: 600; margin: 4px 0 6px; }
+  [data-channel] .channel-detail { margin: 0; font-size: 13px; color: #55596a; }
+  [data-receipt-list] { list-style: none; padding: 0; margin: 0 0 12px; font-size: 13px; }
+  [data-receipt-list] li { display: flex; gap: 10px; align-items: baseline;
+         padding: 6px 0; border-top: 1px solid #eceef3; }
+  [data-receipt-ref] { font-weight: 600; }
+  [data-receipt-link="unlinked"] { color: #8b8fa0; }
+  [data-receipt-enforcement] { font-size: 12px; color: #55596a; margin: 0;
+         border-top: 1px solid #eceef3; padding-top: 10px; }
+  [data-receipt-store] { font-size: 12px; color: #8a1c1c; margin: 6px 0 0; }
   [data-login-error]:empty { display: none; }
   [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
 </style>
@@ -179,6 +202,27 @@
   rule again at run time.
 -->
 <script type="module" src="./ui/shell.js"></script>
-<script type="module" src="./register.js"></script>
+
+<!--
+  THE onerror IS A GUARD, NOT DECORATION. src/page/register.js is node T2's
+  output and is not on main yet, so today this tag 404s on every page load. A
+  bare 404 is a raw console error on a project whose pitch is that the page is
+  honest about its own state — and no gate catches it, because node tests never
+  load the page and a failed module script does not stop the others evaluating.
+
+  The handler is an ATTRIBUTE rather than a listener attached from script,
+  deliberately: an attribute is bound before the fetch can fail, so the guard
+  needs no reasoning about evaluation order to be correct. It writes into
+  #agent-banner only when that banner is empty, so it can never overwrite H3's
+  "simulated agent" label, which is the more important message when both apply.
+-->
+<script type="module" src="./register.js" onerror="
+  console.error('outpocket: src/page/register.js (node T2) did not load — the tool surface is not registered on this page. Everything else on the page is unaffected.');
+  var b = document.getElementById('agent-banner');
+  if (b &amp;&amp; b.textContent.trim() === '') {
+    b.textContent = 'Tool surface not loaded — src/page/register.js is missing, so this page has registered no tools.';
+  }
+"></script>
+<script type="module" src="./ui/receipts.js"></script>
 </body>
 </html>
