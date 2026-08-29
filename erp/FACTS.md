@@ -1366,3 +1366,45 @@ against a 2.5 h/day budget, and records it as
 `capacity.human_hours_are_budgeted_in_total_not_per_day`. No rank of the cut
 ladder touches it — all five human-gated nodes are cut rank 0 — so it is a
 **D4-scope decision for PM**, not a defect any writer can close.
+
+---
+
+## 17. Appended 2026-08-29 — three figures in this file went stale under rulings it does not own
+
+Per §16's own rule, these arrive appended with a date and a grade rather than
+edited in above. Each supersedes an earlier line; the earlier line is left where
+it stands so the drift is readable.
+
+- **The human budget is RULED, not an assumption.** §15's "Human budget **2.5
+  h/day** is the working assumption … PM settles 2.5 vs 3.0 on Day 0" is
+  SUPERSEDED. **D-17 was ruled by the user directly on 2026-08-28**, before any
+  seat was dispatched: `human_hours_per_day = 3.0`. 16.5 h available against
+  15.875 h required; 0.625 h spare; **nothing is cut** and all 62 horizon-A nodes
+  stay in scope. The 2.5 h/day branch and its 27-node amputation set survive in
+  `capacity.human_budget_sensitivity` as a contingency only. Grade: **RULED** (by
+  the user). Home: `erp/DECISIONS.md` row D-17, gated by `L0` gate (1).
+- **The per-day human split above is stale in both directions.** §16's closing
+  paragraph ("2.5 h on Day 1 … 4.0 h on Day 5 and 4.0 h on Day 6 against a 2.5
+  h/day budget") is SUPERSEDED. R-42/D-30 moved `G1` from Day 1 to Day 6.
+  REGENERATED against `capacity.schedule_A.days`: **Day 1 = 2.0 h** (`V1`), **Day
+  5 = 4.0 h** (`D4`), **Day 6 = 4.5 h** (`G1` 0.5 + `D5` 2.0 + `D6` 2.0); the
+  other four days carry zero. Against the ruled 3.0 h/day that is **1.0 h over on
+  Day 5 and 1.5 h over on Day 6**. The 10.5 h TOTAL was right throughout; only
+  the per-day figures moved. The item remains open and remains PM's — the levers
+  are still two planned half-days or shortening `D4`'s scope, and no rank of the
+  ladder touches it. Grade: **MEASURED** (`node tools/ready.mjs --check-schedule`,
+  first green run 2026-08-29).
+- **The edge count moved with the same ruling.** `121 edges / 110 hard / 102
+  qualifying` was the accounting of the PRE-D-30 graph. R-42/D-30 deleted the
+  `G1 → G3` edge, which was hard and same-horizon, so every total drops by
+  exactly one: **120 edges, 109 hard, 101 qualifying, 8 cross-horizon exempt, 0
+  invariant violations.** Grade: **MEASURED** (`node tools/ready.mjs
+  --check-cuts`, 2026-08-29). `inputs`↔`edges` remains bijective, 120/120.
+
+**This also supersedes the `G1 → G3` sentence at §14** ("G3 clones a repo G1 makes
+public, which is why the `G1 → G3` edge…"): that edge no longer exists.
+
+**The checker §16 names now exists.** `node tools/ready.mjs --check-tables` (R-22)
+ran for the first time on 2026-08-29 and it is what caught all three of the above,
+plus a `G3.inputs` row and two day-count rows in three sibling documents. This is
+the mode working as designed on its first run, not a defect discovered late.

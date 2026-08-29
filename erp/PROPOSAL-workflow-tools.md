@@ -3,7 +3,8 @@
 **Status: PROPOSAL. Not a plan change.** `graph.json` and `PATHS.md` are unedited
 and remain the authorities. Nothing here is booked until the user accepts an
 option. Written 2026-08-28 against `graph.json` v2.3.0 (68 nodes, 121 edges,
-110 hard / 11 soft).
+110 hard / 11 soft) — the pre-D-30 accounting; the graph is 120 edges / 109 hard
+since R-42 deleted `G1 → G3`.
 
 **Decision window: hours, not days.** `S10` runs end of Day 1 (2026-08-29). Stated
 precisely, because the loose version of this sentence was wrong: `interface_freezes`
