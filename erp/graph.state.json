@@ -18,13 +18,15 @@
     "F0",
     "G6",
     "H1",
-    "S1"
+    "S1",
+    "H2",
+    "S3"
   ],
   "in_flight": {
-    "H2": "I1 \u2014 Day 1, branch seat/I1-H2",
-    "S3": "I3 \u2014 Day 2, critical-path head, branch seat/I3-S3",
-    "F1": "UX \u2014 Day 2, branch seat/UX-F1",
-    "(D-41 row)": "I4 \u2014 BANNED.txt row for the phrase V2's result forbids, plus the sweep PM wants as a NUMBER"
+    "H2 --smoke-login": "I1 \u2014 D-50, 0.5 h. F1's span 0 still needs it.",
+    "V1 optional fields": "I1 \u2014 D-48 transcription, then QA gates once (D-46).",
+    "V1 human gate": "QA \u2014 dispatched, waiting on I1's transcription first.",
+    "F1": "UX \u2014 HALF-GREEN. Span 1 MEASURED. Span 0's static-route blocker is now CLEARED; --smoke-login remains."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
@@ -35,6 +37,7 @@
     "H1": "I1's, queued behind V0 \u2014 one seat, one node at a time",
     "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
   },
-  "deviation_queue": "TEN tickets in .team/deviations/. W filed nine tonight under D-39; six are against L1. VERDICT empty on all nine \u2014 PM adjudicates.",
-  "note": "Day 1's machine lane finished early and Day 2 was opened on the user's authority. G1 stays DAY 6 (R-42/D-30). V1 is human-gated and V2/V3/V4/V6 sit behind its evidence."
+  "deviation_queue": "TEN tickets, ALL ADJUDICATED: 6 adopt, 2 debt (DEV-004 G0, DEV-008 F0), 1 send-back (DEV-005 G5), plus the Day-0 ticket. 67% adopt. Verdicts transcribed by L1 under clause 6b.",
+  "note": "Day 2. 121 edges after D-50 added H2->F1 \u2014 the same three totals as pre-D-30 by coincidence, not reversion (D-30 deleted G1->G3, D-50 added H2->F1). Ten deviation tickets all adjudicated: 6 adopt, 2 debt, 1 send-back.",
+  "closed_today": "DEV-005 (the only send-back) closed ahead of its 09:00 deadline. S1 static route merged \u2014 T2 unblocked on the critical path."
 }

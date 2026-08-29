@@ -3,13 +3,16 @@
 # Each entry is a claim this project asserted at some point in its own
 # documents and then lost the right to assert, per the ruling that retracted
 # it. `node tools/lint-layer0.mjs --assert-register` checks this file for
-# each of the five literal strings below, verbatim and case-sensitive; it
-# does not run the wording/identifier scan over this file (kb/webmcp/RETRACTED.txt
-# is a self-referential registry, structurally the same as kb/webmcp/BANNED.txt:
+# each of five required literal strings (REQUIRED_RETRACTED_STRINGS in
+# tools/lint-layer0.mjs), verbatim and case-sensitive — G4.accept reads "at
+# least these five entries", so entry 6 below is admitted by the predicate
+# as written and does not require an accept edit. It does not run the
+# wording/identifier scan over this file (kb/webmcp/RETRACTED.txt is a
+# self-referential registry, structurally the same as kb/webmcp/BANNED.txt:
 # it must quote the retracted strings in order to register them).
 #
 # D5 (docs/DEVPOST.md) and every other scanned document in this project fails
-# the lint on any live use of these five strings; this file is where they are
+# the lint on any live use of these strings; this file is where they are
 # looked up, not where they are asserted.
 
 1. "structural guarantee"
@@ -54,3 +57,13 @@
    server's per-request check (S2), against the session the human already
    holds. Write instead: "the tool surface is the intent surface; the
    boundary is enforced on the server, per request".
+
+6. "--headless=new enables WebMCP with no flag"
+   RETRACTED — R-30 (erp/graph.json; erp/FACTS.md §1b, IR-16(b); D-45).
+   Asserted 2026-08-28, FALSE: headless with no flag gives `typeof
+   document.modelContext === 'undefined'`, identical to headed with no
+   flag — the flag is required either way. The prior reading probed the CDP
+   `WebMCP` domain instead of the page: `WebMCP.enable` returns `OK` even in
+   a launch with no page API, so the probe read "on" when it was off. Write
+   instead: "the flag is required, headless or headed; grade flag-presence
+   only off `typeof document.modelContext` in the page".

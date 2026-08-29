@@ -155,3 +155,104 @@ MERGED G5  d70c28d pits:kb/pits/G5.md accept:PASS
 #   G5 switched G4's lint hook on for every seat at once and blocked QA's G6
 #   commit on a pre-existing failure. QA diagnosed it correctly against a clean
 #   HEAD and recommended the fix that shipped.
+
+MERGED F0  3007891 pits:kb/pits/F0.md accept:PASS
+MERGED G6  3b5d051 pits:kb/pits/G6.md accept:PASS
+MERGED H1  99ba3e8 pits:kb/pits/H1.md accept:PASS
+MERGED S1  80ae482 pits:kb/pits/S1.md accept:PASS
+
+# BOOKKEEPING CORRECTION, and the gap was mine. These four merges landed hours
+# ago and their MERGED lines never got written, so this file carried ELEVEN rows
+# while erp/graph.state.json.done carried FIFTEEN. HANDOVER section 1 names THIS
+# file as the record — one line per node, with sha and pit — so any seat auditing
+# from it undercounted by four. Found by the peer session mcp-6d, with the
+# measurement attached rather than the assertion.
+#
+# All four pits exist and all four were verified before the rows were written:
+#   F0  kb/pits/F0.md  landed 7b0c7d3 (rewritten once, to clear BW-33 ahead of
+#                      the row, under the same rule I imposed on other seats)
+#   G6  kb/pits/G6.md  landed 5f6c3c6, reported by QA under D-31
+#   H1  kb/pits/H1.md  landed ea1b9db, and it is the one marked NOT THE SEAT'S
+#                      OWN REPORT — I1 was stopped before it reported, so every
+#                      field is labelled for provenance and GRADE is UNVERIFIED
+#                      for anything about what the seat experienced
+#   S1  kb/pits/S1.md  committed by I3 before D-31 reached it, not a violation
+#
+# WHY IT HAPPENED, since it is the same class as the W-branch miss earlier: both
+# are bookkeeping that only happens if I remember to do it. The merge itself is
+# gated by four mechanical clauses; the RECORD of the merge is gated by nothing.
+# Two registers that must agree, with a checker on neither — which is precisely
+# the shape --check-tables exists to fix one level up, and does not cover here.
+
+MERGED H2  96bfd9f pits:kb/pits/H2.md accept:PASS
+MERGED S3  e3bdd75 pits:kb/pits/S3.md accept:PASS
+
+# CLAUSE 6c APPLIED TO ITSELF, TWENTY MINUTES AFTER I MERGED IT. D-49 rules that
+# THE RECORD OF A MERGE IS PART OF THE MERGE. I merged that clause, then merged
+# H2 and S3, then pushed a state file saying seventeen done while this file said
+# fifteen — the identical two-registers-one-checker gap it was written to close,
+# reopened by the person who wrote it in. Caught by my own end-of-batch count,
+# which is now part of the loop rather than a thing I remember to do.
+#
+# H2 — CDP driver. Six clauses green, re-run by L1 against the merged tree.
+#   I1's THROWAWAY SCOUT before designing is the method worth keeping: it removed
+#   three guesses that would each have shipped as a wrong assertion (toolsAdded
+#   fires ONCE with a tools ARRAY carrying frameId per tool; that channel spells
+#   the annotations differently from the page JS; an unknown tool name is a
+#   CDP-level rejection at send time, never a failed response). Every previous
+#   revision of the brief had the calling convention wrong.
+# S3 — policy engine. Four runnable spans green, 62/62, CHECK 3b still agreeing
+#   in blocking, warning AND the identifying-quadruple set.
+#   MY FIRST RUN OF contracts-check EXITED 1 AND I NEARLY WROTE IT UP AS A
+#   REGRESSION S3 INTRODUCES INTO A MERGED GATE. Cause: ajv missing, because
+#   node_modules is gitignored and a fresh scratch worktree has none. Fourth
+#   false red from the environment today, same shape as Day 0's FORCE_COLOR pit,
+#   and I got as far as drafting the theory before checking the environment.
+#
+# ADJUDICATION COMPLETE: all ten tickets carry PM's verdict, transcribed by L1
+#   under clause 6b — 6 adopt, 2 debt (DEV-004 G0, DEV-008 F0), 1 send-back
+#   (DEV-005 G5), plus the Day-0 ticket. 67% adopt.
+
+# TWO FOLLOW-UPS MERGED — NOT new MERGED rows, because neither is a node and the
+# row count must keep tracking graph.state.json.done. Both are scope on nodes
+# already recorded above.
+#
+# G5 / DEV-005 — THE SPRINT'S ONLY SEND-BACK, CLOSED AHEAD OF ITS 09:00 DEADLINE.
+#   .githooks/pre-commit now invokes pre-commit-ownership ahead of the lint;
+#   ownership first, because a staged path a seat has no right to touch is
+#   invalid regardless of its content. Gated against the AMENDED clause 3 — a
+#   REAL commit, not a hand-invoked script — on a real seat branch:
+#     seat I2 stages server/index.mjs (S1's, I3's)  -> exit 1, HEAD UNCHANGED
+#     owned path with a banned identifier           -> exit 1, HEAD UNCHANGED
+#     owned path, clean                             -> exit 0, HEAD ADVANCED
+#
+#   MY FIRST RUN OF THAT GATE WAS INVALID AND I NEARLY ACCEPTED IT. Scenario 1
+#   reported exit 0 with HEAD advanced and I read it as the fix not working. Two
+#   defects, both mine: `$?` was capturing an `echo` rather than the commit, and
+#   core.hooksPath was stored ABSOLUTE, so the worktree ran MAIN's unchained hook
+#   and proved nothing about the branch under test. A test that looks like proof
+#   and is wired to nothing is the exact defect the send-back exists to close,
+#   reproduced by the person gating it, one command later.
+#
+#   AND THE SECOND DEFECT WAS REAL BEYOND MY TEST: core.hooksPath absolute meant
+#   EVERY WORKTREE IN THIS REPOSITORY RAN THE MAIN CHECKOUT'S HOOKS RATHER THAN
+#   ITS OWN — a seat committing in its worktree was gated by whatever main
+#   happened to carry at that moment. Set to the relative `.githooks`. It is a
+#   config value, not a tracked file, so it needs setting once per clone and
+#   belongs in the runbook.
+#
+# S1 static route / D-50 — THE CRITICAL-PATH BLOCKER. Unblocks T2 (S4 -> T2 -> H3)
+#   and clears one of F1's two blockers. S1's own accept re-run verbatim and
+#   unchanged at 8/8; new tests/acceptance/static.test.mjs 7/7; suite 69/69.
+#   pageRoot is a PARAMETER rather than a hardcoded path, so the tests run against
+#   an injected fixture instead of waiting on F1. Traversal refused plain AND
+#   %2e%2e-encoded; /api/ proven unshadowed even when a same-named file exists on
+#   disk. Test 7 DOCUMENTS that GET / is still 404 until F1 lands index.html and
+#   names itself as the assertion to flip — a gap recorded as an assertion rather
+#   than left as an absence.
+#
+# OPEN FOR PM, raised not waived: the D-50 scope addition produced an UNDECLARED
+#   OUTPUT. tests/acceptance/static.test.mjs is DENIED — it matches tests/** -> QA
+#   and no node lists it, so clause (a) is empty. Scope was added to S1 without
+#   adding the file that scope produces to S1.outputs. Fourth instance of the
+#   D-31/D-37 shape: the model is right and a declaration is short.
