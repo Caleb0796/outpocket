@@ -18,9 +18,15 @@
 > fake.
 >
 > **Any change after this commit requires a PM deviation ticket referenced in the commit body.**
-> One node is already licensed to move a line: `S5` edits
+> One node is already licensed to move a line without a ticket: `S5` edits
 > `erp/contracts/signature.schema.json` and RE-RECORDS its sha256 here in the same commit. That
 > is a re-record, not a waiver — the manifest never goes stale silently.
+>
+> **`erp/contracts/eval-case.schema.json` moved once, under a ticket.** `S5` flips
+> `examples[1].controlStatus` from `known-open` to `enforced` once the confirm_token ships
+> (R-27; `refused` is not in the frozen enum) — see
+> `.team/deviations/DEV-E3-eval-case-known-open.md`, referenced in the commit body that made
+> this edit, and this line's sha256 is the re-record it authorises.
 
 ## What is frozen, and why these ten
 
@@ -44,7 +50,7 @@ forever. This manifest hashes the path, which is why that had to settle before a
 ## The manifest
 
 413a563e2425fae70b949f8792f983c72b88849a83827e2e2f3420c7c3dea398  erp/contracts/canonical-vectors.json
-c0b6362fcd068b5b3eb2c4914d3e3813359cfc6cb9d20262d09b7e2d8111dbfd  erp/contracts/eval-case.schema.json
+8c7d72dc9a137d9075f3b1391c71eec14bd189738e09dae2b7ebe9f8aa4a5360  erp/contracts/eval-case.schema.json
 8dc6404d22a0671bc963f122851c48ac9c79ab61a5f9e85f55937378b36c2411  erp/contracts/policy-versions.json
 a9413096bd65c6c3b699dfa55b262b7bcd5a247d7b03cc4834e215f60c6410ed  erp/contracts/policy.schema.json
 4f839c13dd6d07758b1ef74138ad632be0fb4f7fbb4ced552e7ed489103b1485  erp/contracts/probe-verdict.schema.json
