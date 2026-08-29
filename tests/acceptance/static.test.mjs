@@ -3,6 +3,12 @@
 // always assumed one. Proven here against an injected fixture root rather
 // than depending on F1's src/page/index.html having landed: createApp()
 // takes { pageRoot } so this test never depends on F1's page existing.
+//
+// D-66, PM 2026-08-29: the served root widened from src/page/ to src/, and
+// GET / is now routed explicitly to page/index.html — so the fixture root
+// mirrors that one level of nesting (root/page/index.html, not
+// root/index.html), matching the real topology instead of the pre-widening
+// one.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
@@ -12,7 +18,8 @@ import { createHttpServer } from "../../server/index.mjs";
 
 function makeFixtureRoot() {
   const root = mkdtempSync(join(tmpdir(), "outpocket-static-"));
-  writeFileSync(join(root, "index.html"), "<!doctype html><title>outpocket</title>");
+  mkdirSync(join(root, "page"));
+  writeFileSync(join(root, "page", "index.html"), "<!doctype html><title>outpocket</title>");
   mkdirSync(join(root, "sub"));
   writeFileSync(join(root, "sub", "app.js"), "console.log('hi');");
   writeFileSync(join(root, "style.css"), "body{margin:0}");
@@ -89,6 +96,19 @@ test("path traversal outside the page root is refused, not served", async () => 
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+
+  // D-66: the guard is now anchored at src/, and server/ is a real sibling
+  // directory one level up — confirm the guard's own test refuses it rather
+  // than assuming a re-anchored guard still holds. Plain ".." segments get
+  // collapsed by the URL parser before reaching our code (proving nothing
+  // about the guard), so this uses the same %2e%2e encoding as above to
+  // reach the traversal check with a target that actually exists on disk.
+  await withServer(undefined, async (base) => {
+    const escaped = await fetch(`${base}/%2e%2e/server/index.mjs`);
+    assert.equal(escaped.status, 404, "server/, a sibling of src/, must stay unreachable at the widened root");
+    const personas = await fetch(`${base}/%2e%2e/server/personas.json`);
+    assert.equal(personas.status, 404);
+  });
 });
 
 test("/api/ routes are never shadowed by static serving, even when a same-named file exists on disk", async () => {
@@ -119,9 +139,25 @@ test("without an index.html, GET / falls through to the JSON 404 rather than thr
   }
 });
 
-test("the default page root is src/page — F1's index.html has landed and GET / serves it", async () => {
+test("the default served root is src/ (D-66) — GET / serves page/index.html and the page's module graph resolves", async () => {
   await withServer(undefined, async (base) => {
     const res = await fetch(`${base}/`);
     assert.equal(res.status, 200);
+
+    // index.html's one script tag: <script type="module" src="./ui/shell.js">.
+    // Resolved against page/index.html, that lands at page/ui/shell.js.
+    const shell = await fetch(`${base}/page/ui/shell.js`);
+    assert.equal(shell.status, 200, "./ui/shell.js must resolve inside the served root");
+
+    // src/page/tools/compile.js imports "../../erp.js" and
+    // src/page/tools/defs.js imports "../../policy.js" — both resolve one
+    // segment above src/page/, i.e. to src/erp.js and src/policy.js, which
+    // must now be servable since the root widened to src/ (D-66). This is
+    // the module-graph-under-the-serving-topology check D-67 named: proven
+    // by fetching from a running server, not by reading the paths.
+    const erp = await fetch(`${base}/erp.js`);
+    assert.equal(erp.status, 200, "../erp.js must resolve inside the widened root");
+    const policy = await fetch(`${base}/policy.js`);
+    assert.equal(policy.status, 200, "../../policy.js must resolve inside the widened root");
   });
 });

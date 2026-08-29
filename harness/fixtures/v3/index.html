@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>V3 — cookie carriage on an agent-initiated execute</title>
+</head>
+<body>
+<h1>V3 fixture</h1>
+<p>Served by the REAL server (server/index.mjs, node S1) through its
+   parameterized <code>pageRoot</code>. Not product code; nothing here ships.</p>
+<pre id="out">…</pre>
+
+<script>
+// ---------------------------------------------------------------------------
+// V3 asks: does a fetch made INSIDE an agent-initiated tool execute carry the
+// page's session cookie?
+//
+// The experiment is only sound if the two arms differ in ONE variable: who
+// initiated the call. So there is exactly ONE fetch in this file. The tool's
+// execute calls it, and the driver's page-side arm calls the SAME function
+// through Runtime.evaluate. Neither arm gets its own copy of the fetch options,
+// because a second copy is a second thing to drift — and a drifted
+// `credentials:` would produce a cookie difference that has nothing to do with
+// the question being asked.
+//
+// S1's session cookie is `sid`, HttpOnly + SameSite=Lax (server/index.mjs).
+// HttpOnly means no JS on this page can read it, so `document.cookie` proves
+// nothing here; the only way to observe carriage is to make the request and
+// read what the server says back. That is exactly what /api/me is:
+//   200 {"persona":"chen","role":"employee"}  — the cookie arrived
+//   401 {"error":"E_NO_SESSION"}              — it did not
+// and a DIFFERENT session answers 200 with a different persona. Three distinct
+// bodies for the three verdicts in this node's enum, which is why /api/me is a
+// sharper instrument than the V5 probe's /whoami (that one answers 200 in every
+// case and differs only in a boolean).
+// ---------------------------------------------------------------------------
+async function whoami() {
+  var r = await fetch("/api/me", { credentials: "same-origin", cache: "no-store" });
+  // The RAW body text, not a parsed-and-restringified object. The accept is
+  // stated over "the response body", and re-serializing a parse can normalize
+  // key order or spacing — turning two genuinely different bodies into one
+  // equal string.
+  var body = await r.text();
+  return { status: r.status, body: body };
+}
+
+// The driver's page-side arm calls this. Same function, same options, same
+// origin — the only difference from the tool arm is who initiated it.
+window.__v3_whoami = whoami;
+
+// Recorded to DEMONSTRATE the HttpOnly point, never to grade anything: this is
+// expected to be empty of `sid` even while the cookie is present and being sent.
+window.__v3_documentCookie = function () { return document.cookie; };
+
+var present = typeof document.modelContext !== "undefined" && document.modelContext !== null;
+var registrationError = null;
+
+if (present) {
+  try {
+    // Top-level document only; sole entry point registerTool(def).
+    // No outputSchema. Annotations limited to readOnlyHint.
+    document.modelContext.registerTool({
+      name: "v3_whoami",
+      description: "Fetch this origin's /api/me and return the HTTP status and the raw response body. Reveals whether this call carried the signed-in browsing session.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async function () {
+        var r = await whoami();
+        return { content: [{ type: "text", text: JSON.stringify(r) }] };
+      }
+    });
+  } catch (e) {
+    registrationError = String((e && e.message) || e);
+  }
+}
+
+document.getElementById("out").textContent = JSON.stringify({
+  modelContextPresent: present,
+  registrationError: registrationError,
+  isSecureContext: window.isSecureContext,
+  origin: location.origin
+}, null, 2);
+</script>
+</body>
+</html>

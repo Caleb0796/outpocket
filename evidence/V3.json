@@ -1,21 +1,206 @@
 {
-  "question": "Does an agent-initiated tool execute carry the page session cookie?",
+  "node": "V3",
+  "question": "Does a fetch made inside an agent-initiated tool execute carry the page's session cookie?",
   "verdict": "same-session",
-  "origin": "http://localhost:8795",
-  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
-  "chromiumMajor": 151,
-  "rawResult": {
-    "cookiePresent": true,
-    "cookieMatches": true,
-    "cookieValue": "v5-probe-fixed-value",
-    "sawCookieHeader": true,
-    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
-    "secFetchSite": "same-origin",
-    "secFetchMode": "cors",
-    "at": "2026-08-29T07:55:25.814Z"
+  "verdictBasis": "A1: the agent-initiated execute and the page received byte-identical 200 bodies naming chen. A2: with no session both sides got 401, so A1's equality is not equality-by-construction. A3: a ruiz session yields a DIFFERENT body, so the comparison can see a difference when there is one.",
+  "grade": "MEASURED",
+  "observedAt": "2026-08-29T22:42:54.420Z",
+  "instrument": {
+    "how": "CDP WebMCP.invokeTool against a page served by the real server (server/index.mjs, node S1).",
+    "whatAgentInitiatedMeansHere": "Initiation from OUTSIDE the page script, over the CDP WebMCP domain — the same channel an embedder drives. NO agent is connected and this is NOT the ChatGPT built-in browser.",
+    "whatIsAndIsNotBeingClaimed": "The tool's `execute` is PAGE JavaScript in both arms, and its fetch runs in the page's own context either way. What differs between the arms is only WHO TRIGGERED IT. So the mechanism carrying the cookie is ordinary same-origin fetch, and the finding is a NEGATIVE one about the browser: on this engine, triggering an execute through the WebMCP channel does NOT cause the credentials to be stripped, the cookie jar to be partitioned, or the request to be re-attributed to a third party. That is not a foregone conclusion — an embedder-triggered invocation is exactly where a browser COULD choose to partition — but it is a narrower claim than \"the agent has the session\", and it is the only one this run supports.",
+    "whatWouldFalsifyIt": "A client that partitions or strips credentials for invocations it originates. The ChatGPT built-in browser is such a candidate and is UNTESTED against this server — openItems[0]. It is already known to differ from plain CDP in a related respect: it interposes an action-time human consent prompt that CDP invocation does not (evidence/V6-consent-gate.json).",
+    "doesNotCover": [
+      "the built-in browser's action-time consent gate — that is a CLIENT policy and this is not that client (evidence/V6-consent-gate.json)",
+      "any claim about WHICH agent acted; at the tool boundary our own caller is indistinguishable from a third party"
+    ],
+    "chromeVersion": "Google Chrome 152.0.7977.64",
+    "builtInBrowserChromiumMajor": 151,
+    "note": "The installed Chrome is 152; the ChatGPT built-in browser is Chromium 151. Two engines."
   },
-  "caveat": "Measured on localhost, a secure context but NOT the plain remote HTTPS origin V1/V3 specify. Re-run against the Render origin before treating as final.",
-  "consequence": "Kernel 3 (session as credential) survives; contingencies[2] ('V3 reports NO cookie') does NOT fire and contingencies[3] ('V3 reports it DOES') FIRES. R-44 corrects the index — a previous revision said contingencies[0], which is the V1-absent branch. And this is also the answer that makes the sign gate worse: an agent whose fetch carries the cookie can POST /respond itself, which is the surviving forgery vector (D-19). BUT THE VECTOR HAS TWO PRECONDITIONS AND THIS MEASURES ONE: cookie carriage, yes; read access to the rendered dialog's DOM, NOT MEASURED HERE OR ANYWHERE. No run rendered a dialog or queried a DOM. Write it as 'open for any caller that ALSO obtains DOM read access'.",
-  "observedAt": "2026-08-29T07:55:25.814Z",
-  "remoteConfirmation": "evidence/V6-consent-gate.json — the same result on https://webmcp-probe.onrender.com, after a human approval."
+  "accept": {
+    "probeWhoami": {
+      "endpoint": "GET /whoami on https://webmcp-probe.onrender.com",
+      "responseBodyFromAgentInitiatedExecute": "{\"cookiePresent\":true,\"cookieMatches\":true,\"cookieValue\":\"v5-probe-fixed-value\",\"sawCookieHeader\":true,\"userAgent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36\",\"secFetchSite\":\"same-origin\",\"secFetchMode\":\"cors\",\"at\":\"2026-08-29T22:42:54.211Z\"}",
+      "responseBodyThePageItselfReceives": "{\"cookiePresent\":true,\"cookieMatches\":true,\"cookieValue\":\"v5-probe-fixed-value\",\"sawCookieHeader\":true,\"userAgent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36\",\"secFetchSite\":\"same-origin\",\"secFetchMode\":\"cors\",\"at\":\"2026-08-29T22:42:54.108Z\"}",
+      "equal": false,
+      "equalIgnoringTimestamp": true,
+      "equalIsFalseAndThatIsNotACookieFinding": "The two bodies differ ONLY in `at`, a per-request ISO timestamp the probe stamps into every response. Raw-body equality is therefore unsatisfiable on this endpoint no matter what the cookie did, and `equal:false` here must not be read as a negative result: the same pair agrees on cookiePresent, cookieMatches, cookieValue and sawCookieHeader, all true. This is a defect in the INSTRUMENT, not a finding about the browser, and it is the reason the headline below is bound to /api/me instead."
+    },
+    "realServerApiMe": {
+      "endpoint": "GET /api/me on the real server (server/index.mjs, node S1), session chen",
+      "responseBodyFromAgentInitiatedExecute": "{\"persona\":\"chen\",\"role\":\"employee\"}",
+      "responseBodyThePageItselfReceives": "{\"persona\":\"chen\",\"role\":\"employee\"}",
+      "equal": true
+    },
+    "whyTwo": "I1's charter makes any positive V3 result provisional until re-confirmed against the real server (S1), so the headline is bound to /api/me. /api/me is also the sharper instrument: it answers 200 {persona,role}, 401 {\"error\":\"E_NO_SESSION\"}, or 200 with a DIFFERENT persona — three distinct bodies for this node's three verdicts, where the probe's /whoami answers 200 in every case and differs only in a boolean. The probe arm is still run, and run REMOTE, because the accept names it and because a green localhost run is not evidence.",
+    "canThisAcceptPassOnAnEmptyInput": "YES, and arm A2 is the demonstration. With NO session at all, the page-side and agent-side bodies are BOTH 401 {\"error\":\"E_NO_SESSION\"} and therefore byte-equal — so a run that proved nothing whatsoever would satisfy \"the bodies are equal\" just as well as A1 does. Equality alone is not the finding. What makes A1 a finding is A1 ∧ A2 ∧ A3: equal AND non-empty (200, naming a persona) AND the comparison demonstrably able to come out unequal (A3). Any future reader checking only `equal` is reading a check that can discover nothing."
+  },
+  "session": {
+    "server": "server/index.mjs (S1), imported not reimplemented",
+    "pageRoot": "harness/fixtures/v3/ — S1's parameterized pageRoot (D-50), so V3 neither waits on F1 nor touches src/page/",
+    "cookie": "sid; HttpOnly; SameSite=Lax; Path=/",
+    "httpOnlyNote": "HttpOnly means no page JS can read the cookie, so document.cookie proves nothing here and is recorded per-arm only to demonstrate that. Carriage is observable ONLY through what the server answers. SameSite=Lax does not bear on this measurement: every fetch is same-origin."
+  },
+  "arms": {
+    "A1": {
+      "ok": true,
+      "persona": "chen",
+      "origin": "http://127.0.0.1:53739",
+      "launch": {
+        "flag": "--enable-features=WebMCP",
+        "headless": true,
+        "cdpDomainEnabled": true
+      },
+      "toolNames": [
+        "v3_whoami"
+      ],
+      "anonymousBefore": {
+        "status": 401,
+        "body": "{\"error\":\"E_NO_SESSION\"}"
+      },
+      "login": {
+        "status": 200,
+        "body": "{\"persona\":\"chen\",\"role\":\"employee\"}"
+      },
+      "pageSide": {
+        "status": 200,
+        "body": "{\"persona\":\"chen\",\"role\":\"employee\"}"
+      },
+      "agentSide": {
+        "status": 200,
+        "body": "{\"persona\":\"chen\",\"role\":\"employee\"}"
+      },
+      "bodiesEqual": true,
+      "statusesEqual": true,
+      "documentCookie": "",
+      "invocationId": "82E5B946CF3CCAB721503D4280BD87B2",
+      "toolResponseStatus": "Completed"
+    },
+    "A2": {
+      "ok": true,
+      "persona": null,
+      "origin": "http://127.0.0.1:53739",
+      "launch": {
+        "flag": "--enable-features=WebMCP",
+        "headless": true,
+        "cdpDomainEnabled": true
+      },
+      "toolNames": [
+        "v3_whoami"
+      ],
+      "anonymousBefore": {
+        "status": 401,
+        "body": "{\"error\":\"E_NO_SESSION\"}"
+      },
+      "login": null,
+      "pageSide": {
+        "status": 401,
+        "body": "{\"error\":\"E_NO_SESSION\"}"
+      },
+      "agentSide": {
+        "status": 401,
+        "body": "{\"error\":\"E_NO_SESSION\"}"
+      },
+      "bodiesEqual": true,
+      "statusesEqual": true,
+      "documentCookie": "",
+      "invocationId": "AF9E58C74BC549B98161071EAB3B101E",
+      "toolResponseStatus": "Completed"
+    },
+    "A3": {
+      "ok": true,
+      "persona": "ruiz",
+      "origin": "http://127.0.0.1:53739",
+      "launch": {
+        "flag": "--enable-features=WebMCP",
+        "headless": true,
+        "cdpDomainEnabled": true
+      },
+      "toolNames": [
+        "v3_whoami"
+      ],
+      "anonymousBefore": {
+        "status": 401,
+        "body": "{\"error\":\"E_NO_SESSION\"}"
+      },
+      "login": {
+        "status": 200,
+        "body": "{\"persona\":\"ruiz\",\"role\":\"auditor\"}"
+      },
+      "pageSide": {
+        "status": 200,
+        "body": "{\"persona\":\"ruiz\",\"role\":\"auditor\"}"
+      },
+      "agentSide": {
+        "status": 200,
+        "body": "{\"persona\":\"ruiz\",\"role\":\"auditor\"}"
+      },
+      "bodiesEqual": true,
+      "statusesEqual": true,
+      "documentCookie": "",
+      "invocationId": "0272FE22957FD44384054231874808AA",
+      "toolResponseStatus": "Completed"
+    },
+    "B": {
+      "ok": true,
+      "origin": "https://webmcp-probe.onrender.com",
+      "launch": {
+        "flag": "--enable-features=WebMCP",
+        "headless": true
+      },
+      "pageSide": {
+        "body": "{\"cookiePresent\":true,\"cookieMatches\":true,\"cookieValue\":\"v5-probe-fixed-value\",\"sawCookieHeader\":true,\"userAgent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36\",\"secFetchSite\":\"same-origin\",\"secFetchMode\":\"cors\",\"at\":\"2026-08-29T22:42:54.108Z\"}"
+      },
+      "agentSide": {
+        "body": "{\"cookiePresent\":true,\"cookieMatches\":true,\"cookieValue\":\"v5-probe-fixed-value\",\"sawCookieHeader\":true,\"userAgent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36\",\"secFetchSite\":\"same-origin\",\"secFetchMode\":\"cors\",\"at\":\"2026-08-29T22:42:54.211Z\"}"
+      },
+      "bodiesEqualRaw": false,
+      "bodiesEqualIgnoringTimestamp": true,
+      "rawInequalityExplained": "The probe's /whoami body embeds `at`, a per-request ISO timestamp, so two calls milliseconds apart differ regardless of cookie carriage. bodiesEqualIgnoringTimestamp is the meaningful comparison here; the raw pair is recorded unaltered so nothing is hidden."
+    }
+  },
+  "openItems": [
+    {
+      "item": "Re-confirm cookie carriage in the ChatGPT BUILT-IN BROWSER against the real server (S1), not the V5 probe.",
+      "status": "OPEN",
+      "why": "Every S1 arm here is plain Chrome 152 driven over CDP with no agent attached. The built-in browser (Chromium 151) has been observed carrying the cookie ONLY on the V5 probe origin, and only after a human approved an action-time consent prompt (evidence/V6-consent-gate.json). Nobody has yet watched the built-in browser call a tool on the real server.",
+      "closesWhen": "a human drives the built-in browser against the D1 deploy and reads /api/me back through a tool call",
+      "doNotCloseEarly": true
+    },
+    {
+      "item": "The consent gate is unmeasured on the real server.",
+      "status": "OPEN",
+      "why": "V6-consent-gate measured a prompt for one cookie-bearing call on one remote origin in the built-in browser. Whether the same prompt appears for D1's tools is not known, and this run cannot tell — CDP invocation is not gated by that client policy at all.",
+      "closesWhen": "the same human session that closes the item above records whether a prompt appeared",
+      "doNotCloseEarly": true
+    }
+  ],
+  "consequence": "Kernel 3 (the browsing session is the credential) SURVIVES on the real server: an agent-initiated execute reached /api/me with the signed-in session and got back the same body the page gets. contingencies[2] (\"V3 reports NO cookie\") does NOT fire; S1 does not grow the ~1.0 h page-held bearer token. contingencies[3] (\"V3 reports it DOES\") FIRES, and it is the unfavourable branch: an agent whose fetch carries the cookie can POST as the signed-in user, which is the surviving forgery vector (D-19). THAT VECTOR HAS TWO PRECONDITIONS AND THIS MEASURES ONE. Cookie carriage: measured. Read access to the rendered dialog's DOM: NOT measured here or anywhere — no run in this repo has rendered a sign dialog or queried its DOM. Write it as \"open for any caller that ALSO obtains DOM read access\".",
+  "supersedes": {
+    "file": "evidence/V3.json, as it stood before this run — preserved verbatim under `priorReading`",
+    "what": "The prior reading was `same-session` measured on the V5 throwaway probe over http://localhost:8795 — a secure context, but neither the real server nor a remote origin. Its own caveat asked for exactly this re-run. The VERDICT is unchanged; what changes is that it is now bound to S1's real HttpOnly session, and the remote-origin arm has been re-run here rather than cited from V6.",
+    "whatIsNotSuperseded": "The prior file was the only record of a BUILT-IN BROWSER observation of cookie carriage. Nothing in this run replaces that — see openItems[0]. This run is plain Chrome over CDP."
+  },
+  "priorReading": {
+    "question": "Does an agent-initiated tool execute carry the page session cookie?",
+    "verdict": "same-session",
+    "origin": "http://localhost:8795",
+    "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+    "chromiumMajor": 151,
+    "rawResult": {
+      "cookiePresent": true,
+      "cookieMatches": true,
+      "cookieValue": "v5-probe-fixed-value",
+      "sawCookieHeader": true,
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+      "secFetchSite": "same-origin",
+      "secFetchMode": "cors",
+      "at": "2026-08-29T07:55:25.814Z"
+    },
+    "caveat": "Measured on localhost, a secure context but NOT the plain remote HTTPS origin V1/V3 specify. Re-run against the Render origin before treating as final.",
+    "consequence": "Kernel 3 (session as credential) survives; contingencies[2] ('V3 reports NO cookie') does NOT fire and contingencies[3] ('V3 reports it DOES') FIRES. R-44 corrects the index — a previous revision said contingencies[0], which is the V1-absent branch. And this is also the answer that makes the sign gate worse: an agent whose fetch carries the cookie can POST /respond itself, which is the surviving forgery vector (D-19). BUT THE VECTOR HAS TWO PRECONDITIONS AND THIS MEASURES ONE: cookie carriage, yes; read access to the rendered dialog's DOM, NOT MEASURED HERE OR ANYWHERE. No run rendered a dialog or queried a DOM. Write it as 'open for any caller that ALSO obtains DOM read access'.",
+    "observedAt": "2026-08-29T07:55:25.814Z",
+    "remoteConfirmation": "evidence/V6-consent-gate.json — the same result on https://webmcp-probe.onrender.com, after a human approval."
+  }
 }

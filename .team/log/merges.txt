@@ -644,3 +644,44 @@ MERGED G2  ab4831b pits:PENDING accept:PASS
 #   of 4b01533 — V2 was re-run on the REMOTE origin on Chrome 152. The row still
 #   ends MEASURED so tools/check-unknowns.mjs stays green; it is wording, not a
 #   broken gate, and UNKNOWNS.md is a V6 output and PM's.
+
+MERGED E1  90dc51f pits:kb/pits/E1.md accept:PASS
+
+# EXPOSURE I INTRODUCED BY SPLITTING THE TRIO, PINNED HERE SO IT CANNOT BE
+# FORGOTTEN. src/page/index.html:182 is on main carrying
+# <script type="module" src="./register.js"> while src/page/register.js is NOT on
+# main. Every browser load 404s that module. Found by mcp-6d.
+#
+#   npm test stays green (114/114) because node tests never load the page — THE
+#   EXACT GREEN-BUT-NEVER-RUNS GAP THAT PRODUCED SEVEN INSTANCES TODAY, and I
+#   introduced an eighth with the fix for the seventh.
+#   No accept catches it. D6.accept verifies the live URL returns 200 and the
+#   first screen shows the env banner; both hold, because a 404 on one module
+#   script does not stop the others evaluating — measured, F1's accept is 2/2 and
+#   the banner mounts with register.js 404ing.
+#   The real cost is a CONSOLE ERROR A JUDGE SEES IF THEY OPEN DEVTOOLS, on a
+#   project whose pitch is that the page is honest about its own state.
+#
+#   WHY THE SPLIT WAS STILL RIGHT, and it is a trade rather than a free win: the
+#   unmounted banner was a LIVE D6 FAILURE in an accept — the first screen would
+#   have shown the literal placeholder through the demo and the video. This is
+#   not in any accept. But "not caught by a gate" is exactly the reasoning this
+#   project spent the day dismantling, so it is contained rather than argued
+#   away: UX asked for a guard on the tag (its file, not mine), and the whole
+#   thing is moot the moment T2 lands. I2 is working T2 now.
+#
+#   WHAT I DID NOT DO: revert the mount, which would reopen the D6 failure; or
+#   edit src/page/index.html myself, which is UX's declared F1 output.
+
+MERGED V3  dd6d662 pits:PENDING accept:PASS
+
+MERGED T4  da68e78 pits:PENDING accept:PASS
+# --check-modes CAUGHT THE NEXT INSTANCE AT THE MOMENT THE PRODUCER LANDED, which
+#   is precisely what PM bought it for. E2, E3 and E5 all name
+#   `webmcp-eval-kit/bin/eval.mjs --suite`; E1 shipped eval.mjs WITHOUT --suite,
+#   and E1's own accept never asked for it (it asked for --version and --selftest).
+#   Before E1 merged, the check correctly DEFERRED — the script did not exist and
+#   the E1 -> E2/E3 hard edges were present. The instant the file appeared, the
+#   flag's absence became visible. Ninth instance of consumer-specifies-producer,
+#   and the first one caught at merge time rather than when a downstream seat was
+#   dispatched into it.

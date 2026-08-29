@@ -156,6 +156,29 @@
 
 </main>
 
+<!--
+  THE ORDER OF THESE TWO TAGS IS LOAD-BEARING. Both are module scripts, so both
+  are deferred and they evaluate in DOCUMENT ORDER.
+
+  src/page/ui/shell.js publishes `globalThis.outpocketShell` at module
+  evaluation. src/page/register.js (node T2, seat I2) reads that global in its
+  own mount block, ALSO at module evaluation, and subscribes to the session if
+  it finds it — falling back to compiling the signed-out surface if it does not.
+  It reads the global rather than importing the shell on purpose, so that it
+  carries no dependency on the shell's evaluation order; honouring that means
+  the shell has to be evaluated first, and this file is where that is decided.
+
+  Reverse these two lines and nothing throws: register.js takes its fallback
+  branch, the surface compiles as S0 and never adopts a session, and the state
+  walk T2 exists to prove is silently dead while the page looks correct.
+
+  register.js is loaded HERE, by a <script src> in the top-level document, and
+  never from an iframe or a worker — tools registered inside a frame are not
+  discovered at all, so that failure does not degrade, it disappears.
+  tools/check-toplevel.mjs proves it statically; register.js asserts the same
+  rule again at run time.
+-->
 <script type="module" src="./ui/shell.js"></script>
+<script type="module" src="./register.js"></script>
 </body>
 </html>
