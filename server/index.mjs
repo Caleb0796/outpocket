@@ -21,7 +21,17 @@ import { createStateDigestHandler } from "./routes/state-digest.mjs";
 // server to serve the page under test"; F1 -> D1 "something to serve").
 // Default root is src/page/ — F1's output. Parameterized (not hardcoded) so
 // tests can point it at a fixture without depending on F1 having landed.
-const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/page/", import.meta.url));
+//
+// D-66, PM 2026-08-29: widened from src/page/ to src/. Three files under
+// src/page/ import above the page root (register.js -> ../erp.js,
+// tools/compile.js -> ../../erp.js, tools/defs.js -> ../../policy.js) —
+// src/policy.js and src/erp.js are shared by server/, tests/, harness/ AND
+// the page, so re-homing or duplicating them was rejected on architecture,
+// not cost. server/ is a SIBLING of src/, not a descendant, so it stays
+// unreachable through this root at any depth — see the traversal guard
+// below, unchanged, now anchored one level higher. GET / is routed
+// explicitly to page/index.html since there is no src/index.html.
+const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/", import.meta.url));
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -43,13 +53,23 @@ function makeStaticHandler(pageRoot) {
     if (url.pathname.startsWith("/api/")) return false;
 
     let reqPath;
+    let isRootAlias = false;
     try {
-      reqPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+      // D-66: GET / is routed to page/index.html explicitly — there is no
+      // src/index.html now that the root is src/, not src/page/.
+      if (url.pathname === "/") {
+        reqPath = "/page/index.html";
+        isRootAlias = true;
+      } else {
+        reqPath = decodeURIComponent(url.pathname);
+      }
     } catch {
       return false;
     }
     const resolved = normalize(join(root, reqPath));
-    // Traversal guard: the resolved path must stay inside root.
+    // Traversal guard: the resolved path must stay inside root. Anchored at
+    // whatever root is passed in, so widening the root (D-66) re-anchors the
+    // guard for free — server/, a sibling of src/, stays unreachable.
     if (!resolved.startsWith(root)) return false;
 
     let info;
@@ -61,8 +81,24 @@ function makeStaticHandler(pageRoot) {
     if (!info.isFile()) return false;
 
     const contentType = MIME_TYPES[extname(resolved).toLowerCase()] ?? "application/octet-stream";
+    let body = await readFile(resolved);
+    if (isRootAlias && contentType.startsWith("text/html")) {
+      // D-66 regression, found post-merge: this document is served AT "/",
+      // one level above where the file actually lives (page/index.html).
+      // Browsers resolve its relative references — `<script src="./ui/
+      // shell.js">`, `<link href="./skin.css">` — against the DOCUMENT URL,
+      // not the file's location on disk, so without a base they resolve to
+      // /ui/shell.js and 404, shell.js never loads, and no click handler
+      // ever attaches (F1's --smoke-login: element exists, not wired).
+      // Inject <base href="/page/"> into the served BYTES so every relative
+      // reference in the document lands where the files actually live,
+      // without editing src/page/index.html — F1/UX's file, not ours.
+      const html = body.toString("utf8");
+      const withBase = html.replace(/<head[^>]*>/i, (tag) => `${tag}\n<base href="/page/">`);
+      body = Buffer.from(withBase, "utf8");
+    }
     res.writeHead(200, { "Content-Type": contentType });
-    res.end(req.method === "HEAD" ? undefined : await readFile(resolved));
+    res.end(req.method === "HEAD" ? undefined : body);
     return true;
   };
 }
