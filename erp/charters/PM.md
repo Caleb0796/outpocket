@@ -132,7 +132,9 @@ and "fire ranks 1–3" meant different things in different documents at the hour
 when nobody re-reads a disclaimer.
 
 Know before you fire: **the ladder shortens the critical path by exactly zero at
-every rank** — every node on the path is cut 0, so graph depth stays 29.0 h —
+every rank** — every node on the path is cut 0, so graph depth stays 29.5 h
+(MEASURED 2026-08-29 by `node tools/ready.mjs --path`; the 29.0 figure this line
+carried predates the `V5 → S10` edge and is retired) —
 and it frees **exactly zero human-gated hours**. It is a review-overhead
 instrument only. If the deadline is the problem, cutting is the wrong tool.
 Firing rank 2 also deletes E4, E8 and E9, which removes **two of the four

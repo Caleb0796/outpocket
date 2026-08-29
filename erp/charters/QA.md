@@ -59,11 +59,18 @@ Accept predicates are in `graph.json`; L1 copies them verbatim into
   `package-lock.json`**, and without one it fails with `EUSAGE` — the lockfile
   comes from **L0**, which is why L0 is a hard input here. G3 does not create
   `package.json`; it verifies that a stranger's clean clone is green, which is the
-  only thing it was ever able to assert. **`G1` is now a hard input too (R-19).**
-  Your predicate clones `https://github.com/Caleb0796/outpocket` over anonymous
-  HTTPS and that repository is **private today (MEASURED)** — without `G1` the
-  clone fails on **authentication**, not on tests, and you would spend the morning
-  debugging a green tree. `G1` and `G3` share Day 1; `G1` runs first.
+  only thing it was ever able to assert. **`G3.inputs` is `[T6, L0]`. `G1` is NOT
+  an input and you must never ask for it.** R-19 made `G1` a hard input on the
+  belief that your clone runs over *anonymous* HTTPS against a private repo;
+  **R-42/D-30 deleted that edge on 2026-08-29, MEASURED: an authenticated `git
+  clone` of a PRIVATE repo succeeds** (52 files cloned from `Caleb0796/outpocket`
+  while private). What you need is **L0's PUSH**, not the visibility flip — which
+  is why `T6` is a hard input, per R-26(c): zero failures is a property of
+  `origin/main` only after T6's fix is merged **and L1 has pushed that merge**.
+  If your clone fails on authentication, the fix is `gh auth status`, never a
+  request to run `G1`. **`G1` is scheduled DAY 6** and flipping the repos public
+  early is a real publish event the user ruled against; a request from you is one
+  of the few things that could still cause it.
 - **G6 — contracts conformance runner** (cut 1, 2.0 h). ajv-2020-12-validates every
   file in `erp/contracts/` against its own `$schema`, validates each schema's
   `examples` against itself, recomputes every published digest in

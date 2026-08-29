@@ -707,8 +707,11 @@ it is `tools/ready.mjs` telling you the graph is stuck**, and it is the cheapest
 system.
 
 **Cross-check T0 against T1 while both are fresh.** The nodes L1 says it booted seats for should
-be the nodes PM says are ready, minus the ones L1 owns itself (`G0`) and your two human-gated ones
-(`G1`, `V1`). A ready node with no seat booted is the Day-1 failure this manual exists to prevent.
+be the nodes PM says are ready, minus the ones L1 owns itself (`G0`), your Day-1 human-gated one
+(`V1`), and the ones that are **ready but not scheduled today** — on Day 1 that is `G1` (Day 6,
+R-42/D-30) and `H5` (Day 2). A ready node with no seat booted is the Day-1 failure this manual
+exists to prevent; a *scheduled-later* node with a seat booted is the other one, and for `G1` it
+publishes both repositories five days early.
 
 **08:35 — you decide the one thing Day 1 asks of you.** `ASK` carries at most one item; on Day
 1 it is likely the scheduling of your own two human-gated nodes. Answer in one line.
