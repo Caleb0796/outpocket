@@ -1,0 +1,7 @@
+NODE:      S11
+OWNER:     I3
+INPUTS:    L0
+DO:        Build the ONE canonicaliser this system has (R-11) and its seven-vector suite. Sort object keys recursively by CODEPOINT — never localeCompare, which is ICU-dependent and can sort differently in a stranger's clean clone. NFC-normalise strings, accept integers only, and expose digest(kind, value) = sha256(kind + newline + canon(value)). Carry the OCF-1 carve-out permitting dollar-prefixed keys ($schema, $ref, $defs) inside an inputSchema subtree and the numeric carve-out for JSON Schema keywords, or no real tool definition is canonicalisable at all. All seven vectors in erp/contracts/canonical-vectors.json must reproduce byte-for-byte, v6 and v7 included — they are the standing provenance regression case.
+ACCEPT:    `node --test tests/canonical.test.mjs` exits 0: all SEVEN vectors in erp/contracts/canonical-vectors.json reproduce byte-for-byte, including the two provenance vectors v6 and v7 which are the standing regression case. The implementation sorts object keys recursively by CODEPOINT (never localeCompare, which is ICU-dependent and can sort differently in a stranger's clean clone), NFC-normalises strings, accepts integers only, and exposes `digest(kind, value) = sha256(kind + '\n' + canon(value))`. It carries the OCF-1 carve-out permitting $-prefixed keys ($schema, $ref, $defs) inside an inputSchema subtree, and a numeric carve-out for JSON Schema keywords, so a real tool definition is canonicalisable at all.
+BRANCH:    seat/I3-S11
+DEADLINE:  2026-08-29T23:59-07:00

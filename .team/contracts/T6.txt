@@ -1,0 +1,7 @@
+NODE:      T6
+OWNER:     I2
+INPUTS:    L0
+DO:        Fix the one RED test L0 deliberately shipped. R-9 option (B) is ratified: open_expense_report mutates openReportId and appends to the day book, so REMOVE it from the auditor surface and ADD a genuinely side-effect-free get_report(report_id). Read-only must be constructive, not a hint to the model. Distinct-tool count is 15 before this node and 16 after. Touch only src/tools.js and tests/surface.test.mjs — they are this node's declared outputs and nothing else in the tree is yours.
+ACCEPT:    `node --test tests/surface.test.mjs` reports 0 failures, and specifically the named test 'auditor surface: read-only by construction' passes with the auditor set equal to {get_day_book, get_expense_policy, get_open_report, get_report, get_session_scope, list_expense_reports}.
+BRANCH:    seat/I2-T6
+DEADLINE:  2026-08-29T23:59-07:00
