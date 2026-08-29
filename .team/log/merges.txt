@@ -106,3 +106,52 @@ MERGED G0  1af3dc3 pits:kb/pits/G0.md  accept:PASS
 #   COMMITS them; PM AUTHORS them. The rule rejects the author of the authority
 #   in favour of the seat that committed it once on Day 0. Merged, raised, not
 #   waived.
+
+MERGED T1  7e60d6d pits:kb/pits/T1.md accept:PASS
+MERGED G5  d70c28d pits:kb/pits/G5.md accept:PASS
+
+# CORRECTION TO THE T1 MERGE COMMIT (7e60d6d), AND IT IS OWED TO I2.
+# That commit calls T1's second clause VACUOUS. That word is too strong and it
+# reads as a defect in I2's node when the opposite is true. The peer session
+# mcp-6d, which raised the finding, withdrew the characterisation itself after
+# reading the tool rather than only running it, and it is right to.
+#
+# tools/check-toplevel.mjs carries a section headed VACUITY, in I2's own words:
+# "The failure this checker exists to prevent is a green light over nothing
+# scanned, so it prints its own coverage and refuses to report success when it
+# examined no JavaScript at all." The run I quoted DOES print its coverage —
+# 26 js/mjs scanned, 1 html — so it scanned real code and found zero call
+# sites, which is CORRECT: T1 ports the compiler and T2 adds the registration.
+# Its --selftest runs fixtures that DO contain violations, plus two decoys: prose
+# that merely mentions the name, and a regex literal designed to desynchronise
+# the blanker. I2 built the guard against the exact failure the word accused it
+# of, and it is the most careful thing in the file.
+#
+# WHAT ACTUALLY SURVIVES, and it is narrower and still worth PM's ruling:
+#   - T1's accept clause 2 does NOT invoke --selftest. The tool's own
+#     "is this zero a real zero" arm exists and no predicate exercises it.
+#   - T1 is the ONLY node whose accept invokes tools/check-toplevel.mjs.
+#   - T2, where registerTool call sites first appear, mentions check-toplevel
+#     0 times and iframe 0 times.
+# So: the invariant is checked once, before it can fail, with the tool's vacuity
+# arm switched off, and never again after T2 makes it falsifiable.
+#
+# AND THE FIX I FORWARDED TO PM AS OPTION (b) IS WRONG. "Make check-toplevel
+# exit 1 on zero call sites" is wrong precisely BECAUSE the tool already
+# distinguishes a real zero from an unexamined one, and a zero is legitimate
+# today. The better shapes are: add --selftest to T1's clause so the arm runs,
+# and put the find/check-toplevel clause into T2's accept where the call sites
+# first exist. Still PM's ruling; still not mine.
+#
+# G5 — the accept passes and the product is INERT. git invokes hooks only by
+#   canonical name; there is no pre-commit-ownership hook, and .githooks/pre-commit
+#   is G4's and does not chain. Proven by committing a path L1 may not write and
+#   watching it succeed. Filed for PM.
+#
+# COSTS I INCURRED TODAY, recorded here because W files on evidence and this is
+#   the evidence: (a) I ran `claude rm` on a BUSY UX seat to re-dispatch it and
+#   DESTROYED F0's uncommitted outputs — ~1 h of UX work, re-done, no permanent
+#   loss. Never rm a seat that is not idle/done. (b) Enabling core.hooksPath for
+#   G5 switched G4's lint hook on for every seat at once and blocked QA's G6
+#   commit on a pre-existing failure. QA diagnosed it correctly against a clean
+#   HEAD and recommended the fix that shipped.
