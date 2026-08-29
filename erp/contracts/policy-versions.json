@@ -1,0 +1,24 @@
+{
+  "schema": "outpocket.policy_versions/1",
+  "note": "Version lock for the expense policy document. Each entry pins one version string to the OCF-1 digest of the document that carried it: sha256(utf8(\"outpocket/policy/1\" + U+000A + canonical form)). tests/policy-lock.test.mjs recomputes the digest of the shipped document and asserts the pair is present here. Effect: a limit cannot move without the version moving, the version cannot move without the document moving, and a retired version number cannot be reused for different content. This is the mechanical half of demo beat 1.",
+  "digest_prefix": "outpocket/policy/1",
+  "versions": [
+    {
+      "version": "2026-08.1",
+      "effective_from": "2026-08-01",
+      "digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+      "canonical_bytes": 2458,
+      "status": "shipped",
+      "note": "The document in policy.schema.json examples[0]. Ported from countinghouse/src/policy.js with two required changes: FX rates become integer micro-USD, and every fix string is rewritten to pass violation.schema.json x-fixLint."
+    },
+    {
+      "version": "2026-08.2",
+      "effective_from": "2026-08-29",
+      "digest": "sha256:d024607ef7d8597e4d403f97c0ebe9fadf69a8196f6ba16cb60c10292df1f362",
+      "canonical_bytes": 2457,
+      "status": "demo_bump",
+      "derivation": "Byte-identical to 2026-08.1 except three values: version becomes \"2026-08.2\", effective_from becomes \"2026-08-29\", and limits_cents.transport_per_line becomes 5000 (from 15000). Nothing else changes. The implementer MUST produce exactly this document; if the recomputed digest differs, something else moved too. Changing the limit ALONE gives sha256:17bc4b2d1031b63e07a3983b067c8485316e8c16b53454e481680f65b7962e92; if your recomputation lands there, you did not bump the version. The byte count is 2457, one LESS than 2026-08.1's 2458: version and effective_from keep their lengths and 15000 shortens to 5000. It was published as 2458 until 2026-08-28, which would have failed tests/policy-lock.test.mjs on the demo policy - that is, on demo beat 1 itself.",
+      "note": "This is the policy finance switches to during demo beat 1. Dropping the transport cap from $150 to $50 makes a line that validated a moment ago fail, which is why the same agent's next attempt is refused without anything about the agent changing."
+    }
+  ]
+}

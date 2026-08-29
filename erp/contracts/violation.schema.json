@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/violation.schema.json",
+  "title": "outpocket violation envelope",
+  "description": "One deterministic validation finding. Produced by node S4 (owner I3) on every write tool and by node T3 (owner I2) for the absence register. The same record shape is rendered by T1 into tool output, by F2 into the editor, and asserted by E2/E3. A violation is a fact about the current state under a named policy version; it is never advice about how to restructure a claim.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "code",
+    "rule_id",
+    "severity",
+    "entity",
+    "entity_id",
+    "field",
+    "message",
+    "fix",
+    "fix_class",
+    "candidates",
+    "policy_version"
+  ],
+  "properties": {
+    "schema": { "const": "outpocket.violation/1" },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,39}$",
+      "description": "Stable machine identifier. Consumers MUST NOT enumerate codes exhaustively; new codes are added without a schema bump. Branch on severity and fix_class instead."
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[RS][0-9]{2,3}$",
+      "description": "R-prefixed: the rules[].id in the policy document that emitted this, so every expense finding traces to one versioned policy rule. S-prefixed: a surface rule, defined by the surface compiler (T1/T3) rather than by the policy document, used only when entity is `surface`. The two namespaces are kept apart so that a policy version bump changes expense validation and nothing else."
+    },
+    "severity": {
+      "enum": ["block", "warn"],
+      "description": "block prevents the submit tool from existing on the surface. warn does not. Closed enum: adding a third value is a BREAKING change."
+    },
+    "entity": {
+      "enum": ["report", "line", "receipt", "surface"],
+      "description": "surface is the absence register (T3): the entity_id is then a tool name that is not currently registered."
+    },
+    "entity_id": {
+      "type": ["string", "null"],
+      "maxLength": 64,
+      "description": "RP-1018 / ln_3 / rc_2 / a tool name. null only when entity is report and the finding is about the report as a whole."
+    },
+    "field": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,39}$",
+      "description": "The canonical field name the finding attaches to. F2 anchors the marker to this field; E3 asserts on it."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "What is wrong, in the state's own numbers. Renderers may clip at the 1500-character tool output budget; the record itself is never clipped."
+    },
+    "fix": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "What to do about it. Constrained by x-fixLint below: it may ask for missing data, a corrected transcription, evidence, or a human exception. It may NOT describe a restructuring of the claim that leaves the claimed total unchanged."
+    },
+    "fix_class": {
+      "enum": [
+        "provide_missing_data",
+        "correct_transcription",
+        "attach_evidence",
+        "human_exception_required",
+        "not_reimbursable",
+        "informational"
+      ],
+      "description": "Closed enum. Consumers switch on this, so adding a member is a BREAKING change. human_exception_required and not_reimbursable MUST carry an empty candidates array - there is no self-service path out of a cap or a non-reimbursable item."
+    },
+    "candidates": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Values the caller may legitimately choose from. Deliberately narrow: only closed-set enum members, entities that already exist in the employee's own state, and the policy threshold that was crossed. There is no origin for a value derived from the disputed claim, which is what makes this array unable to propose an evasive rewrite.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["value", "label", "origin"],
+        "properties": {
+          "value": { "type": ["string", "integer", "null"] },
+          "label": { "type": "string", "maxLength": 80 },
+          "origin": {
+            "enum": ["enum_member", "existing_entity", "policy_threshold"],
+            "description": "enum_member: a category or currency from the policy. existing_entity: an id already in this session's state (receipt, project, line). policy_threshold: the integer cent limit that was crossed. Nothing else is a legal origin."
+          }
+        }
+      }
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}\\.[0-9]+$",
+      "description": "The policy document version this finding was computed under. A violation carried across a policy bump is stale and MUST be recomputed."
+    },
+    "observed": {
+      "type": ["integer", "string", "null"],
+      "description": "Optional. The observed value in canonical form (integer cents for money). Present so E3 can assert on a number rather than on prose."
+    },
+    "limit": {
+      "type": ["integer", "null"],
+      "description": "Optional. The integer-cent threshold that was crossed, when one applies."
+    }
+  },
+  "x-fixLint": {
+    "rule": "The `fix` string MUST NOT teach a restructuring of the claim that leaves the claimed total unchanged. Splitting one over-cap line into two under-cap lines makes every line compliant while the report is still fraud. The lint is a substring scan, case-insensitive, over `fix` only.",
+    "appliesTo": ["fix"],
+    "bannedSubstrings": [
+      "split",
+      "separate line",
+      "separate lines",
+      "two lines",
+      "multiple lines",
+      "one line per",
+      "per line instead",
+      "break it into",
+      "break into",
+      "spread across",
+      "spread over",
+      "reclassify",
+      "re-file as",
+      "refile as",
+      "file it as",
+      "use category",
+      "another category",
+      "a different category",
+      "change the category"
+    ],
+    "knownExistingViolationOfThisRule": "countinghouse/src/policy.js:133 CAP_TRANSPORT fix = \"Split legitimate multi-trip charges into one line per trip.\" This exact string is why the rule exists. The port (node S3) MUST replace it.",
+    "residualRisk": "The caps are published on purpose - get_expense_policy serves them, and that is mechanism 2. A filer therefore always knows where the cliff is. This lint does not remove the incentive to split a claim; it only stops the product from naming the evasive edit for a specific claim at the moment the claim is refused. The remaining control is downstream and human: the commit artifact carries violation_history, and the signature dialog (F4) prints the count of blocking rules this report has tripped above the signature line, so the person signing sees that the clean report in front of them was not clean an hour ago. Eval case neg-cap-split-visible asserts that this history survives into the artifact."
+  },
+  "examples": [
+    {
+      "schema": "outpocket.violation/1",
+      "code": "CAP_TRANSPORT",
+      "rule_id": "R07",
+      "severity": "block",
+      "entity": "line",
+      "entity_id": "ln_4",
+      "field": "amount",
+      "message": "$212.40 is above the $150.00 per-trip transport limit.",
+      "fix": "A trip above the limit needs a written exception from your approver before it can be filed.",
+      "fix_class": "human_exception_required",
+      "candidates": [],
+      "policy_version": "2026-08.1",
+      "observed": 21240,
+      "limit": 15000
+    },
+    {
+      "schema": "outpocket.violation/1",
+      "code": "RECEIPT_REQUIRED",
+      "rule_id": "R14",
+      "severity": "block",
+      "entity": "line",
+      "entity_id": "ln_3",
+      "field": "receipt_id",
+      "message": "Lines at or above $25.00 need a linked receipt file.",
+      "fix": "The employee attaches the file in the page; then link an id from list_receipts to this line.",
+      "fix_class": "attach_evidence",
+      "candidates": [
+        { "value": "rc_2", "label": "cafe-bruno-0814.pdf (unlinked)", "origin": "existing_entity" },
+        { "value": "rc_5", "label": "hotel-folio.pdf (unlinked)", "origin": "existing_entity" }
+      ],
+      "policy_version": "2026-08.1",
+      "observed": 18640,
+      "limit": 2500
+    },
+    {
+      "schema": "outpocket.violation/1",
+      "code": "TOOL_ABSENT",
+      "rule_id": "S01",
+      "severity": "warn",
+      "entity": "surface",
+      "entity_id": "submit_expense_report",
+      "field": "surface",
+      "message": "submit_expense_report is not registered right now because the open report has 2 blocking findings.",
+      "fix": "Clear the blocking findings; the tool is registered again the moment the report validates clean.",
+      "fix_class": "provide_missing_data",
+      "candidates": [],
+      "policy_version": "2026-08.1"
+    }
+  ],
+  "x-invalidExamplesNote": "BOTH CAP_MEALS instances below were keyed to `ln_3` at \"$186.40 ... for 2 attendees\" until 2026-08-28. They are RE-KEYED TO ln_7 AT $214.00, and the change is not cosmetic. `ln_3` at 18640 cents for 2 attendees is the exact line in signature.schema.json examples[0].snapshot - the canonical SIGNED, CLEAN snapshot the whole C4 layer is built on - and that snapshot carried verdict {blocking:0, violations:[]} while these two instances documented a BLOCKING CAP_MEALS on the same line id under the same policy version, with the same rule_id and the same message. Two frozen contract files asserted opposite things about one line; the audit that found it was right to call it the one finding that costs real hours. The snapshot is repaired (attendees is 3, see signature.schema.json x-knownDigests.repairOfTheSignedFixture) and these instances are moved off ln_3 so no reader can pair them with it again. The ILLUSTRATION is unchanged and the arithmetic still works: 21400 over 2 attendees is 10700 per attendee against a 8000 cap, and 21400 over 3 is 7133, so `3 attendees clears the cap` remains true and remains the thing the schema forbids the product from SAYING.",
+  "x-invalidExamples": [
+    {
+      "why": "fix_class human_exception_required with a non-empty candidates array - offers a self-service route past a cap",
+      "instance": {
+        "schema": "outpocket.violation/1",
+        "code": "CAP_MEALS",
+        "rule_id": "R05",
+        "severity": "block",
+        "entity": "line",
+        "entity_id": "ln_7",
+        "field": "amount",
+        "message": "$214.00 is above $80.00 per attendee for 2 attendees.",
+        "fix": "Ask your approver for a written exception.",
+        "fix_class": "human_exception_required",
+        "candidates": [{ "value": 3, "label": "3 attendees", "origin": "policy_threshold" }],
+        "policy_version": "2026-08.1"
+      }
+    },
+    {
+      "why": "candidate origin outside the closed set",
+      "instance": {
+        "schema": "outpocket.violation/1",
+        "code": "CAP_MEALS",
+        "rule_id": "R05",
+        "severity": "block",
+        "entity": "line",
+        "entity_id": "ln_7",
+        "field": "attendees",
+        "message": "$214.00 is above $80.00 per attendee for 2 attendees.",
+        "fix": "If more people were on the receipt, correct the attendee count to match it.",
+        "fix_class": "correct_transcription",
+        "candidates": [{ "value": 3, "label": "3 attendees clears the cap", "origin": "derived_from_claim" }],
+        "policy_version": "2026-08.1"
+      }
+    }
+  ],
+  "x-lintFailingExamples": [
+    {
+      "why": "banned fix wording - names the evasive edit. This instance is SCHEMA-VALID on purpose and it is filed here, not in x-invalidExamples, because no JSON Schema keyword can catch it: it is caught by the substring lint in x-fixLint, asserted by tests/fix-lint.test.mjs. CONTRACTS.md section 11 check 1 asserts that every x-invalidExamples instance FAILS validation; this one would have passed, so a green check 1 would have been a lie. Check 4 owns it instead, and must fail if this instance is not rejected by the lint. The string is verbatim from countinghouse/src/policy.js:133 - a live defect in the spike, not a hypothetical.",
+      "lintedBy": "tests/fix-lint.test.mjs (CONTRACTS.md section 11 check 4)",
+      "instance": {
+        "schema": "outpocket.violation/1",
+        "code": "CAP_TRANSPORT",
+        "rule_id": "R07",
+        "severity": "block",
+        "entity": "line",
+        "entity_id": "ln_4",
+        "field": "amount",
+        "message": "$212.40 is above the $150.00 per-trip transport limit.",
+        "fix": "Split legitimate multi-trip charges into one line per trip.",
+        "fix_class": "correct_transcription",
+        "candidates": [],
+        "policy_version": "2026-08.1"
+      }
+    }
+  ],
+  "allOf": [
+    {
+      "if": { "properties": { "fix_class": { "enum": ["human_exception_required", "not_reimbursable"] } }, "required": ["fix_class"] },
+      "then": { "properties": { "candidates": { "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "entity": { "const": "surface" } }, "required": ["entity"] },
+      "then": {
+        "properties": {
+          "entity_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$" },
+          "rule_id": { "pattern": "^S[0-9]{2,3}$" }
+        },
+        "required": ["entity_id"]
+      },
+      "else": { "properties": { "rule_id": { "pattern": "^R[0-9]{2,3}$" } } }
+    }
+  ]
+}

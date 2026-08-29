@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/policy.schema.json",
+  "title": "outpocket versioned expense policy document",
+  "description": "The machine-readable expense policy. Produced by node S3 (owner I3) as the port of countinghouse/src/policy.js. Consumed by T1 (get_expense_policy), S4 (every write validates against it), F5 (the version indicator), E2 and E5. This document is the only place a rule exists: no threshold is duplicated in a tool description, in page copy, or in a prompt, so swapping the model can never change what counts as valid.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "ocf", "version", "effective_from", "reimbursement_currency", "categories", "fx_micros_per_unit_usd", "limits_cents", "non_reimbursable_labels", "rules"],
+  "properties": {
+    "kind": { "const": "outpocket.policy" },
+    "ocf": { "const": 1 },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}\\.[0-9]+$",
+      "description": "YYYY-MM.N. Every byte change to this document requires a new version - see x-versionDiscipline."
+    },
+    "effective_from": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "reimbursement_currency": { "const": "USD" },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z]{3,20}$" },
+      "description": "Sorted ascending. The closed set of line categories."
+    },
+    "fx_micros_per_unit_usd": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "INTEGER micro-USD per one unit of the currency. USD is 1000000. Integers, not floats, because OCF-1 forbids non-integer numbers: a float rate cannot be canonicalised without picking a float-to-string algorithm, and picking one is exactly the class of disagreement that makes two implementations produce different digests. Conversion is usd_cents = round_half_up(amount_cents * micros / 1000000), computed once at the edge. THIS IS A REQUIRED CHANGE FROM THE SPIKE: countinghouse/src/policy.js:28 holds FX as floats (EUR 1.09, JPY 0.0067). Node S3 must port it to micros - EUR 1090000, JPY 6700 - and node QA must add a test that no float appears anywhere in the policy document.",
+      "patternProperties": { "^[A-Z]{3}$": { "type": "integer", "minimum": 1 } },
+      "additionalProperties": false
+    },
+    "limits_cents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meal_per_attendee", "lodging_per_night", "transport_per_line", "supplies_per_line", "airfare_review_above", "receipt_required_at", "meals_itemize_at", "report_review_above"],
+      "description": "All money everywhere in this system is integer cents. There is no decimal money type.",
+      "patternProperties": { "^[a-z][a-z0-9_]{2,39}$": { "type": "integer", "minimum": 0 } }
+    },
+    "filing_window_days": { "type": "integer", "minimum": 1 },
+    "non_reimbursable_labels": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z]{2,20}$" },
+      "description": "Matched, whole-word and case-insensitively, against the itemisation labels the agent declared. It is never matched against receipt file contents: the page does not read receipts, because there is no binary channel to give a third-party agent an image in the first place (MEASURED, HANDOVER S3 rule 6) and because reading them would make the product responsible for OCR errors it cannot show the human."
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Every rule that can emit a violation. rules[].id is the rule_id carried by violation.schema.json, so every finding traces to one line of one version of this document.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "code", "severity", "fix_class"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^R[0-9]{2,3}$" },
+          "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,39}$" },
+          "severity": { "enum": ["block", "warn"] },
+          "fix_class": { "enum": ["provide_missing_data", "correct_transcription", "attach_evidence", "human_exception_required", "not_reimbursable", "informational"] }
+        }
+      }
+    }
+  },
+  "x-versionDiscipline": {
+    "rule": "Any change to this document, of any size, requires a new `version`. There is no such thing as an editorial change to a policy that is enforced on every write.",
+    "mechanism": "erp/contracts/policy-versions.json maps each version to the OCF-1 digest of the document that carried it. A test recomputes the digest of the shipped document and asserts that the lock file contains that exact (version, digest) pair. Changing a limit without bumping the version fails. Bumping the version without changing anything fails. Re-using a retired version number with different content fails.",
+    "lockRunsAtLoadNotOnlyInATest": "Ruling R-33, 2026-08-28. The server MUST recompute the digest of the policy document when it loads it and MUST REFUSE TO SERVE a document whose (version, digest) pair is not in erp/contracts/policy-versions.json. As a test-only check the lock guarded the repository and nothing else: a document swapped on the running server under an unchanged version string was served, enforced, and attested against, because the only thing comparing versions at commit time was E_POLICY_VERSION_MOVED, which compares NAMES. That is the same-version content swap written up in signature.schema.json x-policyBinding, together with its honest scope - it needs write access to the served policy, which is arguably outside the declared curl-and-cookie threat model, and it fires just as readily on an honest operator hot-editing a limit without bumping the version. The load-time lock closes the swap performed BEFORE a sign request; signature.schema.json's snapshot.policy_digest plus E_POLICY_DIGEST_MOVED closes the swap performed BETWEEN sign and commit. Neither half is sufficient alone, and the digest a stored signature carries is what makes an old artifact say which RULES the human was judged against rather than what that ruleset was called.",
+    "check": "node --test tests/policy-lock.test.mjs",
+    "demoBeat": "This is what makes demo beat 1 real rather than theatrical: finance edits the policy, the version and digest both move, F5's indicator changes, the surface recompiles, and the same agent's next attempt is refused. The lock file is the proof that the version moved because the rules moved."
+  },
+  "x-agentView": {
+    "note": "get_expense_policy does NOT serve this whole document. The canonical form of the v1 document is 2458 bytes, over the 1500-character official per-tool output budget (PUBLISHED, HANDOVER S3 rule 4). The tool serves a projection - caps, thresholds, categories, currencies, window - plus `version` and the first 12 hex characters of `policy_digest`, so an agent or an eval can bind what it read to what is enforced without receiving the whole document.",
+    "mustInclude": ["version", "policy_digest_prefix", "limits_cents", "categories", "fx_micros_per_unit_usd", "filing_window_days"],
+    "mustNotInclude": ["rules"]
+  },
+  "examples": [
+    {
+      "kind": "outpocket.policy",
+      "ocf": 1,
+      "version": "2026-08.1",
+      "effective_from": "2026-08-01",
+      "reimbursement_currency": "USD",
+      "categories": ["airfare", "lodging", "meals", "other", "supplies", "transport"],
+      "fx_micros_per_unit_usd": { "CNY": 140000, "EUR": 1090000, "GBP": 1280000, "JPY": 6700, "USD": 1000000 },
+      "limits_cents": {
+        "airfare_review_above": 120000,
+        "lodging_per_night": 26000,
+        "meal_per_attendee": 8000,
+        "meals_itemize_at": 7500,
+        "receipt_required_at": 2500,
+        "report_review_above": 200000,
+        "supplies_per_line": 20000,
+        "transport_per_line": 15000
+      },
+      "filing_window_days": 90,
+      "non_reimbursable_labels": ["alcohol", "ale", "beer", "bourbon", "champagne", "cocktail", "gin", "ipa", "lager", "liquor", "martini", "prosecco", "rum", "sake", "spirits", "stout", "tequila", "vodka", "whiskey", "wine"],
+      "rules": [
+        { "id": "R01", "code": "MISSING_FIELD", "severity": "block", "fix_class": "provide_missing_data" },
+        { "id": "R02", "code": "DATE_FUTURE", "severity": "block", "fix_class": "correct_transcription" },
+        { "id": "R03", "code": "DATE_STALE", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R04", "code": "CURRENCY_UNSUPPORTED", "severity": "block", "fix_class": "not_reimbursable" },
+        { "id": "R05", "code": "CAP_MEALS", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R06", "code": "CAP_LODGING", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R07", "code": "CAP_TRANSPORT", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R08", "code": "CAP_SUPPLIES", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R09", "code": "AIRFARE_REVIEW", "severity": "warn", "fix_class": "informational" },
+        { "id": "R10", "code": "ITEMIZATION_REQUIRED", "severity": "block", "fix_class": "provide_missing_data" },
+        { "id": "R11", "code": "ITEMIZATION_GAP", "severity": "warn", "fix_class": "correct_transcription" },
+        { "id": "R12", "code": "ALCOHOL", "severity": "block", "fix_class": "not_reimbursable" },
+        { "id": "R13", "code": "DESC_REQUIRED", "severity": "block", "fix_class": "provide_missing_data" },
+        { "id": "R14", "code": "RECEIPT_REQUIRED", "severity": "block", "fix_class": "attach_evidence" },
+        { "id": "R15", "code": "RECEIPT_DUP", "severity": "block", "fix_class": "not_reimbursable" },
+        { "id": "R16", "code": "EMPTY_REPORT", "severity": "block", "fix_class": "provide_missing_data" },
+        { "id": "R17", "code": "PROJECT_SCOPE", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R18", "code": "PROJECT_INACTIVE", "severity": "block", "fix_class": "human_exception_required" },
+        { "id": "R19", "code": "REPORT_REVIEW", "severity": "warn", "fix_class": "informational" }
+      ]
+    }
+  ],
+  "x-invalidExamples": [
+    {
+      "why": "float FX rate - cannot be canonicalised under OCF-1, and is the exact shape the spike ships today",
+      "instance": {
+        "kind": "outpocket.policy",
+        "ocf": 1,
+        "version": "2026-08.1",
+        "effective_from": "2026-08-01",
+        "reimbursement_currency": "USD",
+        "categories": ["meals"],
+        "fx_micros_per_unit_usd": { "EUR": 1.09 },
+        "limits_cents": {
+          "airfare_review_above": 120000,
+          "lodging_per_night": 26000,
+          "meal_per_attendee": 8000,
+          "meals_itemize_at": 7500,
+          "receipt_required_at": 2500,
+          "report_review_above": 200000,
+          "supplies_per_line": 20000,
+          "transport_per_line": 15000
+        },
+        "non_reimbursable_labels": ["wine"],
+        "rules": [{ "id": "R01", "code": "MISSING_FIELD", "severity": "block", "fix_class": "provide_missing_data" }]
+      }
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/tool-export.schema.json",
+  "title": "outpocket blind tool-surface export",
+  "description": "The complete model-visible tool surface of the application, one entry per application state. Produced by node T5 (owner I2) as tools.export.json. This is the ONLY artifact seat C1 receives - C1 has no repository access on purpose, because a verifier who can read the source systematically overestimates a tool surface that the judge's model only ever sees as name + description + inputSchema + annotations. It is also the input to eval nodes E2 (capability suite) and E5 (surface accounting, zero model calls). The export is generated, never hand-edited.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "app_commit", "policy_version", "states", "totals"],
+  "properties": {
+    "schema": { "const": "outpocket.tool_export/1" },
+    "app_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The git commit the export was generated from. E6 asserts that this equals the commit actually deployed, so that a green eval run cannot describe a build nobody can visit."
+    },
+    "policy_version": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}\\.[0-9]+$" },
+    "policy_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Digest of the policy document under OCF-1 with prefix outpocket/policy/1. Present so the surface and the policy cannot drift apart silently."
+    },
+    "states": {
+      "type": "array",
+      "minItems": 6,
+      "items": { "$ref": "#/$defs/state" },
+      "description": "One entry per reachable application state. The SIX states that MUST be present are listed in x-requiredStates, keyed by the canonical state ids in erp/PATHS.md section 5."
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state_count", "distinct_tool_count", "max_description_bytes"],
+      "properties": {
+        "state_count": { "type": "integer", "minimum": 6 },
+        "distinct_tool_count": { "type": "integer", "minimum": 1, "description": "15 before node T6 lands, 16 after: under ruling R-9, T6 removes open_expense_report from the auditor surface and adds a genuinely side-effect-free get_report(report_id), so the auditor tool COUNT is unchanged at 6 while the distinct set grows by one." },
+        "max_description_bytes": { "type": "integer", "minimum": 1, "maximum": 500 }
+      }
+    }
+  },
+  "$defs": {
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state_id", "label", "preconditions", "tools", "accounting", "surface_digest"],
+      "properties": {
+        "state_id": {
+          "type": "string",
+          "pattern": "^S[0-9]-[a-z][a-z0-9-]{2,40}$",
+          "enum": ["S0-anon", "S1-emp-home", "S2-emp-draft-clean", "S3-emp-draft-dirty", "S4-emp-submitted", "S5-aud"],
+          "description": "The canonical application state ids, defined once in erp/PATHS.md section 5 and used verbatim in lanes E, T, S, F and H, in x-requiredStates, in surface_digest keys, in evals/surfaces.expected.json and in every suite. This schema previously carried a second vocabulary - signed_out, employee.no_report, employee.draft.dirty, employee.draft.clean, auditor - which shared no spelling with the ids seven other documents already used, so E2's set equality could not be written against both and E6's 'the deployed surface digest equals the frozen one' was undefined. That vocabulary is dead. Never write a bare S1 or S5 for a state: those are server-lane NODE ids in erp/graph.json."
+        },
+        "label": { "type": "string", "maxLength": 120 },
+        "preconditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["role", "open_report", "verdict"],
+          "properties": {
+            "role": { "enum": ["none", "employee", "auditor", "approver"] },
+            "open_report": { "enum": ["none", "draft", "submitted"] },
+            "verdict": { "enum": ["n_a", "dirty", "clean"] }
+          }
+        },
+        "tools": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
+        "surface_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Digest of this state's tools array under OCF-1 with prefix outpocket/surface/1, computed with src/canonical.js (node S11) - the ONE canonicaliser. There is no second definition: webmcp-eval-kit/src/canon.mjs is a PORT of it, verified against all seven vectors in erp/contracts/canonical-vectors.json, and the previous independent definition (JSON.stringify over an array sorted by localeCompare, no kind prefix, nested key order untouched) is deleted. It produced different bytes for the same surface always, which made every 'the deployed digest equals the frozen digest' assertion unsatisfiable by construction; localeCompare is additionally ICU-dependent, so a stranger's clean clone could sort differently. Sort by CODEPOINT. E2 asserts one string per state, which is how the 1 -> 5 -> 12 -> 13 registration flips become a single mechanical check."
+        },
+        "accounting": { "$ref": "#/$defs/accounting" }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Exactly the fields a client agent's model can see. additionalProperties is false and stays false: any extra key here would give C1 information the judge's model does not have, which destroys the point of the blind seat.",
+      "required": ["name", "description", "inputSchema"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$" },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "500 is the official budget. Evidence: PUBLISHED (Chrome guidance, recorded in HANDOVER S3 rule 4) - it is guidance, not enforcement, so this maxLength is our enforcement of it. G4's layer-0 lint applies the same bound at commit time."
+        },
+        "inputSchema": { "$ref": "#/$defs/inputSchema" },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Only the two hints that exist. Evidence: MEASURED (HANDOVER S3 rule 3). consequentialHint appears in the WPT webmcp.idl but not in the specification text, and is therefore forbidden here; the WPT IDL and the spec prose disagree in at least three places (HANDOVER S3 rule 9), so we bind to the spec prose and record the disagreement rather than shipping against the union.",
+          "properties": {
+            "readOnlyHint": { "type": "boolean" },
+            "untrustedContentHint": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "inputSchema": {
+      "type": "object",
+      "description": "A JSON-Schema-shaped object. The browser does NOT validate arguments against it - it parses the JSON string, checks that the result is an Object, and hands it to the page callback (MEASURED, HANDOVER S3 rule 5). So this is documentation for the model, and every constraint expressed here MUST also be enforced in page code. Restricted to the subset below so the export stays canonicalisable under OCF-1: no floats anywhere, therefore no non-integer default, minimum, maximum or multipleOf. OCF-1 additionally grants an explicit carve-out for this subtree, permitting $-prefixed keys ($schema, $ref, $defs) inside an inputSchema; without it OCF-1 rule 1 would raise E_CANON_KEY on any real JSON Schema and no surface digest would be computable at all. The carve-out is scoped to the inputSchema subtree and nowhere else, and it is asserted by node S11's vector suite.",
+      "additionalProperties": false,
+      "required": ["type", "properties"],
+      "properties": {
+        "type": { "const": "object" },
+        "properties": { "type": "object" },
+        "required": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_count", "description_bytes", "schema_bytes", "total_bytes", "estimated_tokens"],
+      "description": "Deterministic surface accounting for node E5. Zero model calls are involved.",
+      "properties": {
+        "tool_count": { "type": "integer", "minimum": 0 },
+        "description_bytes": { "type": "integer", "minimum": 0, "description": "Sum of UTF-8 byte lengths of every description in this state." },
+        "schema_bytes": { "type": "integer", "minimum": 0, "description": "Sum of UTF-8 byte lengths of the OCF-1 canonical form of every inputSchema in this state." },
+        "total_bytes": { "type": "integer", "minimum": 0, "description": "description_bytes + schema_bytes + sum of name byte lengths." },
+        "estimated_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "ceil(total_bytes / 4). This is an OUR-ESTIMATE comparability metric, NOT a tokenizer output, and the export must say so wherever it is published. Calibration note: the four token figures recorded as measured in HANDOVER S3 rule 10 (395->99, 1947->487, 6682->1671, 2070->518) are each exactly ceil(bytes/4), so those figures are this same estimate rather than independent tokenizer measurements. Citing them as measured token counts would be circular; the byte counts are the measured part."
+        }
+      }
+    }
+  },
+  "x-requiredStates": {
+    "note": "E2 asserts that these SIX state_ids exist and that their tool_count matches. All six counts are MEASURED by reading the countinghouse spike surface compiler (countinghouse/src/tools.js:343-354), which produces six distinct surfaces, not five: the previous revision omitted the submitted state entirely (`if (open.status !== \"draft\") return [...base, t_get_open]`). That omission mattered, because S4-emp-submitted and S5-aud both carry 6 tools and differ by exactly one name (create_expense_report vs get_day_book) - which is precisely why E2 asserts SET EQUALITY over the tool names and never count equality. A count assertion passes even if the auditor is handed the employee's surface, and a five-state export cannot express the state that motivates the assertion.",
+    "S0-anon": 1,
+    "S1-emp-home": 5,
+    "S2-emp-draft-clean": 13,
+    "S3-emp-draft-dirty": 12,
+    "S4-emp-submitted": 6,
+    "S5-aud": 6
+  },
+  "x-forbiddenKeys": {
+    "note": "A generated export must never leak anything the client agent cannot see. The generator and the E5 checker both scan every object in the file for these keys and fail on any hit.",
+    "keys": ["execute", "handler", "outputSchema", "consequentialHint", "endpoint", "url", "cookie", "session", "token", "generated_at", "timestamp"],
+    "outputSchemaNote": "outputSchema does not exist in the API (MEASURED, HANDOVER S3 rule 3). Its appearance in an export means somebody wrote against an old tutorial."
+  },
+  "x-determinism": {
+    "rule": "The export contains no wall-clock value and no environment-dependent value, so generating it twice from the same commit yields identical bytes.",
+    "check": "node tools/export-surface.mjs > /tmp/a.json && node tools/export-surface.mjs > /tmp/b.json && cmp /tmp/a.json /tmp/b.json",
+    "serialisation": "The committed file is JSON with 2-space indentation and keys in ascending order, so a human can read the diff. Its digest, wherever one is taken, is over the OCF-1 canonical form of the parsed value, not over the pretty-printed bytes."
+  },
+  "x-elidedExample": {
+    "why": "This instance carries ONE state, and the schema requires six, so it deliberately does not validate and it is NOT filed under `examples`. CONTRACTS.md section 11 check 1 asserts that every examples[*] validates against its own schema; a one-state excerpt sitting there would have failed that check on day one. Inlining all six states would mean hand-writing forty-odd tool definitions that no node has produced yet, i.e. inventing the artifact this schema exists to constrain. The real conformance assertion for C2 is that the GENERATED artifacts/tools.export.json (node T5) validates against this schema, which is what E2 and E5 run.",
+    "instance": {
+      "schema": "outpocket.tool_export/1",
+      "app_commit": "0000000000000000000000000000000000000000",
+      "policy_version": "2026-08.1",
+      "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+      "states": [
+        {
+          "state_id": "S0-anon",
+          "label": "Nobody is signed in",
+          "preconditions": { "role": "none", "open_report": "none", "verdict": "n_a" },
+          "tools": [
+            {
+              "name": "get_signin_status",
+              "description": "Read whether an employee is signed in to this expense desk. Sign-in is the employee's own act, done in the page via company SSO; agents never see or present credentials. Returns the current sign-in state and what this page is for.",
+              "inputSchema": { "type": "object", "properties": {} },
+              "annotations": { "readOnlyHint": true }
+            }
+          ],
+          "surface_digest": "sha256:630daf558b002f3db938bc3abfd873b4c68b6fc99084b681de1026fe9fe95ecc",
+          "accounting": {
+            "tool_count": 1,
+            "description_bytes": 230,
+            "schema_bytes": 33,
+            "total_bytes": 280,
+            "estimated_tokens": 70
+          }
+        }
+      ],
+      "totals": { "state_count": 6, "distinct_tool_count": 15, "max_description_bytes": 307 }
+    },
+    "accountingCheck": "The one state shown is arithmetically exact and reproduces: description_bytes 230 + schema_bytes 33 (the OCF-1 canonical form of {\"properties\":{},\"type\":\"object\"}) + name bytes 17 = total_bytes 280, estimated_tokens = ceil(280/4) = 70, and surface_digest = digest(\"outpocket/surface/1\", tools) = sha256:630daf55... Verified 2026-08-28 against the OCF-1 reference canonicaliser.",
+    "distinctToolCountNote": "15 is the count BEFORE node T6. Under ruling R-9 T6 removes open_expense_report from the auditor surface and adds a side-effect-free get_report(report_id), taking this to 16 while S5-aud stays at 6 tools."
+  },
+  "x-invalidExamples": [
+    {
+      "why": "outputSchema does not exist in the API; a tool object carrying one means the code was written against a stale tutorial",
+      "instance": {
+        "name": "add_expense_line",
+        "description": "Add one line.",
+        "inputSchema": { "type": "object", "properties": {} },
+        "outputSchema": { "type": "object" }
+      }
+    },
+    {
+      "why": "annotations carries consequentialHint, which appears in the WPT webmcp.idl but not in the specification text; we bind to the spec prose",
+      "instance": {
+        "name": "add_expense_line",
+        "description": "Add one expense line to the open draft report.",
+        "inputSchema": { "type": "object", "properties": {} },
+        "annotations": { "consequentialHint": true }
+      }
+    }
+  ]
+}

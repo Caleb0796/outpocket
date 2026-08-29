@@ -1,0 +1,1149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/signature.schema.json",
+  "title": "outpocket sign gate: request, response, commit, snapshot and chain",
+  "description": "The five messages of the human-sign gate plus the two digested structures they bind to. Produced by nodes S5 (sign gate: server-owned decision state, snapshot-digest binding) and S6 (server re-canonicalisation) - owner I3 - with S12 (report revision counter and atomic sign lock, I3) and S11 (the OCF-1 canonicaliser, I3). Node identity, ownership, hours, cut rank and accept predicates for all of these live in erp/graph.json, which is the authority; this file never restates them. Consumed by F4 (the signature dialog), by T1/T2 (the submit tool, which suspends inside execute while the dialog is open), by S7 (the hash chain), by E3 (negative controls), by X3 and by D3. Root validates any one of the five messages by its `schema` discriminator. REVISION 2026-08-28, ruling R-1: the sign decision is now recorded by the SERVER, and the old client-authored sign_response was a working forgery - see x-signRequestState.priorForgery. REVISION 2026-08-28, ruling R-13: the claim this layer makes is NARROWED to the one sentence it can prove - 'a commit cannot be made without a POST from the authenticated session to /api/sign/{request_id}/respond' - because a SECOND forgery survives R-1 and commits today. Read x-signRequestState.provableClaim, .survivingVector and .whatR1BoughtAndWhatItCost before writing a single sentence about this gate anywhere.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/sign_request"
+    },
+    {
+      "$ref": "#/$defs/sign_respond_request"
+    },
+    {
+      "$ref": "#/$defs/sign_response"
+    },
+    {
+      "$ref": "#/$defs/commit_request"
+    },
+    {
+      "$ref": "#/$defs/commit_result"
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The complete, fully specified projection that the digest covers. Every field listed here is always present; a value that does not apply is emitted as null, never omitted, so that absent and null can never be confused. Array order is PRESERVED and never sorted: line order is what the human read down the page, so a reordering must change the digest. (The spike's canonicalDigest at countinghouse/src/erp.js:387 sorted lines by merchant+date, which would let an agent reorder a signed report invisibly.)",
+      "required": [
+        "kind",
+        "ocf",
+        "policy_digest",
+        "policy_version",
+        "report",
+        "request_id",
+        "verdict"
+      ],
+      "properties": {
+        "kind": {
+          "const": "outpocket.snapshot"
+        },
+        "ocf": {
+          "const": 1
+        },
+        "policy_digest": {
+          "$ref": "#/$defs/digest",
+          "description": "The OCF-1 digest of the FULL policy document in force when this snapshot was built - digest(\"outpocket/policy/1\", the policy document), the same value policy-versions.json pins for policy_version. ADDED 2026-08-28 under ruling R-33. Per the section 10 rule this is a BREAKING projection change, the second one this contract has taken; every digest published before it is void and all of them are recomputed and republished in x-knownDigests. The canonical byte count moved 1480 -> 1570.\n\nWHY IT IS HERE. Before R-33 the snapshot bound policy_version, which is a NAME, while policy_digest sat in the artifact - OUTSIDE the signed projection. Serving different policy content under an unchanged version string therefore left the verdict unmoved, so the snapshot digest was unmoved, so E_POLICY_VERSION_MOVED could not fire, and the artifact attested `clean under 2026-08.1` against content whose digest was no longer the pinned one. The signature bound the version's name and not the rules the human was actually judged against. With the digest inside the projection the signature binds the CONTENT: any byte of the policy that moves, moves this value, moves the snapshot digest, and the commit is refused. See x-policyBinding for the attack, its honest scope and its negative control."
+        },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}\\.[0-9]+$"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sg_[0-9a-f]{16}$",
+          "description": "The sign request this snapshot was built for. It is INSIDE the digest so that a snapshot digest is meaningless outside the request that produced it: a digest can never be presented against a different sign request, and a digest harvested from one report's dialog cannot be replayed into another's commit. ADDED 2026-08-28 under ruling R-1. Per the section 10 rule this is a BREAKING projection change - it changed what every stored signature means, so it had to land BEFORE the C4 freeze, and every digest published before that date is void. All of them were recomputed with src/canonical.js and republished in x-knownDigests; the canonical byte count moved 1445 -> 1480."
+        },
+        "report": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "lines",
+            "owner",
+            "project",
+            "revision",
+            "status",
+            "title",
+            "total_usd_cents"
+          ],
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/line"
+              }
+            },
+            "owner": {
+              "type": "string"
+            },
+            "project": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "status": {
+              "enum": [
+                "draft",
+                "submitted"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "total_usd_cents": {
+              "type": "integer"
+            }
+          }
+        },
+        "verdict": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blocking",
+            "violations",
+            "warning"
+          ],
+          "description": "The verdict is inside the digest on purpose. If the policy moves between signing and committing, the verdict moves, the digest moves, and the commit is refused - which is the behaviour we want, because the human signed a report that was clean under a named policy version. Only the identifying quadruple of each violation is included; message and fix are prose derived from code, field and the values already in the digest, so including them would add churn without adding meaning.",
+          "properties": {
+            "blocking": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "warning": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "code",
+                  "field",
+                  "line_id",
+                  "severity"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "field": {
+                    "type": "string"
+                  },
+                  "line_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "severity": {
+                    "enum": [
+                      "block",
+                      "warn"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amount_cents",
+        "attendees",
+        "category",
+        "currency",
+        "date",
+        "description",
+        "id",
+        "itemization",
+        "merchant",
+        "nights",
+        "provenance",
+        "receipt_id",
+        "receipt_sha256",
+        "usd_cents"
+      ],
+      "properties": {
+        "amount_cents": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "attendees": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "itemization": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "amount_cents",
+              "label"
+            ],
+            "properties": {
+              "amount_cents": {
+                "type": "integer"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "merchant": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nights": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The compact map derived from the provenance ledger (provenance.schema.json x-derivation). Every one of the ten line fields is present with exactly one source. THIS IS THE FIELD THAT MUST BE IN THE DIGEST. Vectors v6/v7 in canonical-vectors.json are the regression test: they differ only in provenance.amount and their digests differ.",
+          "required": [
+            "amount",
+            "attendees",
+            "category",
+            "currency",
+            "date",
+            "description",
+            "itemization",
+            "merchant",
+            "nights",
+            "receipt_id"
+          ],
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,39}$": {
+              "enum": [
+                "human",
+                "agent",
+                "seed",
+                "unset"
+              ]
+            }
+          }
+        },
+        "receipt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The real SHA-256 of the receipt file bytes. Binding it means a signature cannot be carried onto a different file."
+        },
+        "usd_cents": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "sign_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Created by the SERVER, in one atomic step that also takes the report's sign lock. Any write ordered before it is inside the snapshot the human is about to read; any write ordered after it is refused with E_SIGN_IN_PROGRESS. See x-freeze. THIS MESSAGE DELIBERATELY HAS NO confirm_token PROPERTY, and additionalProperties:false means one cannot be added by accident: the token is minted with this request but is delivered ONLY into the rendered dialog's DOM, never into this body, never into a tool-call result, and never into any /api/sign/{request_id} response. A confirm_token appearing here would hand it to exactly the caller it exists to slow down. See x-signRequestState.confirmToken.",
+      "required": [
+        "schema",
+        "request_id",
+        "report_id",
+        "revision",
+        "policy_version",
+        "snapshot",
+        "snapshot_digest",
+        "worst_case",
+        "violation_history_count",
+        "created_at",
+        "expires_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "outpocket.sign_request/1"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sg_[0-9a-f]{16}$"
+        },
+        "report_id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "worst_case": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "The worst-case consequence, printed above the signature line by F4. Not a disclaimer and not a summary of the report: the single worst thing that follows from signing this if it is wrong."
+        },
+        "violation_history_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many distinct blocking rules this report has tripped since it was created. F4 prints it. This is the human-visible half of the mitigation for the fix/candidates evasion oracle described in violation.schema.json x-fixLint: a report that is clean now but tripped four caps on the way here looks different to the person signing it."
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "sign_respond_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The body of POST /api/sign/{request_id}/respond - the ONLY transition out of state `open`, and the only thing the page sends when the human clicks. Written by F4. It carries exactly what the client legitimately knows: which request, which way the human decided, why (if declined), what the dialog had on screen, and the confirm_token the server planted in that dialog's DOM. It carries NEITHER signed_by NOR at. The server takes the signer from the authenticated session cookie and the time from its own clock, and there is no key here for a client to put them in: a body that carries either one fails additionalProperties. acknowledged_digest and acknowledged_revision are still echoed, but they are now a consistency check on the RENDER, not evidence of a decision - THE DECISION IS THE ARRIVAL OF THIS REQUEST on an open record from an authenticated session, which is the whole of what the sign gate proves (x-signRequestState.provableClaim) and is strictly weaker than 'a human decided'. EIGHT FIELDS, ALL REQUIRED, additionalProperties:false. ANY DOCUMENT ASSERTING THAT THE DIALOG POSTS 'ONLY {decision, reason}' IS WRONG and contradicts this frozen shape - a body of that form fails validation and carries no acknowledged_digest for E_DIGEST_ACK_MISMATCH to check. The true and narrower point that sentence was reaching for is that the body carries NO signed_by and NO at, and has no key for either.",
+      "required": [
+        "schema",
+        "request_id",
+        "decision",
+        "reason",
+        "method",
+        "acknowledged_digest",
+        "acknowledged_revision",
+        "confirm_token"
+      ],
+      "properties": {
+        "schema": {
+          "const": "outpocket.sign_respond_request/1"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sg_[0-9a-f]{16}$"
+        },
+        "decision": {
+          "enum": [
+            "signed",
+            "declined"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "method": {
+          "enum": [
+            "click"
+          ],
+          "description": "Closed enum with one member on purpose. This is a click, recorded and bound to a digest. It is not a cryptographic signature and the product must never call it one - no key exists on the human's side. AND NOTE WHAT THIS FIELD IS NOT: it is a self-report by the caller, so it is a label on the record, never evidence. x-signRequestState.survivingVector sends method:'click' from curl."
+        },
+        "acknowledged_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "acknowledged_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confirm_token": {
+          "type": "string",
+          "pattern": "^ct_[0-9a-f]{32}$",
+          "description": "R-13(c), DEFENCE IN DEPTH AND NOT A PROOF. Minted by the server together with the sign request and written ONLY into the rendered sign dialog's DOM; F4 reads it back out of the dialog at click time and puts it here. It is NEVER returned in any tool-call result, never in the sign_request message, never in any /api/sign/{request_id} response body, and never in a readable header - which is why sign_request has no confirm_token property at all. A respond body without it, or with a token that does not match this request's, is 403 E_NO_CONFIRM_TOKEN and the record stays `open`. WHAT IT BUYS: the cost of x-signRequestState.survivingVector rises from copying two values out of a JSON response to rendering the dialog and reading its DOM. WHAT IT DOES NOT BUY: personhood. Its value is a direct function of OPEN UNKNOWN V3 - a caller that carries the page session cookie AND can read the DOM reaches the token, and survivingVector is open again for that caller. Do not describe this field in any other terms."
+        }
+      }
+    },
+    "sign_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "THE SERVER'S OWN RECORD OF THE ANSWER IT RECEIVED. Call it that and not 'the record of the human decision': what the server witnessed is a POST arriving on an open record from an authenticated session, and R-13 forbids upgrading that to personhood anywhere - see x-signRequestState.provableClaim and .survivingVector. The server creates it while handling POST /api/sign/{request_id}/respond and returns it as that endpoint's response body; F4 renders it. It is never accepted as input - it does not appear in commit_request, and no route parses one from a client. signed_by is the session subject as the server knows it (e.g. `chen`), copied from the authenticated session cookie and resolved to a display name server-side from server/personas.json; at is the server clock. Neither can be influenced by anything the client sends. THIS IS THE R-1 REPAIR. The previous shape was entirely client-authored - request_id, decision, signed_by, method, at, acknowledged_digest and acknowledged_revision were all either constants, attacker-chosen, or copied out of the sign_request the server had just returned - and was POSTed to commit as commit_request.signature. Every code in x-rejectionCodes passed, so a POST carrying the session cookie and a copy of the server's own digest committed a report attesting a human signature, under a client-chosen name at a client-chosen time, with no human in the loop. A digest comparison cannot distinguish 'a human signed and nothing changed' from 'nobody signed and nothing changed'. The server therefore owns the decision instead of verifying a claim about it.",
+      "required": [
+        "schema",
+        "request_id",
+        "state",
+        "decision",
+        "reason",
+        "signed_by",
+        "method",
+        "at",
+        "acknowledged_digest",
+        "acknowledged_revision"
+      ],
+      "properties": {
+        "schema": {
+          "const": "outpocket.sign_response/1"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sg_[0-9a-f]{16}$"
+        },
+        "state": {
+          "enum": [
+            "answered",
+            "committed",
+            "expired"
+          ],
+          "description": "The state of the sign request AFTER this record was written. See x-signRequestState. A record only ever exists in these three states, because it is created by the answer itself."
+        },
+        "decision": {
+          "enum": [
+            "signed",
+            "declined"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "signed_by": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "SERVER-SET, from the session cookie. Never read from a request body. In the previous revision this was a free 120-character client string, which meant an agent could commit as anyone."
+        },
+        "method": {
+          "enum": [
+            "click"
+          ],
+          "description": "Closed enum with one member on purpose. This is a click, recorded and bound to a digest. It is not a cryptographic signature and the product must never call it one - no key exists on the human's side."
+        },
+        "at": {
+          "$ref": "#/$defs/timestamp",
+          "description": "SERVER-SET, from the server clock. Never read from a request body."
+        },
+        "acknowledged_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "acknowledged_revision": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "commit_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "POST /api/reports/{report_id}/commit. It carries NO signature: the server looks up its own sign record by request_id and refuses with E_NOT_SIGNED unless that record is in state `answered` with decision `signed`. There is nothing here for a client to forge. The server then rebuilds the snapshot from its own state, canonicalises under OCF-1, digests, and compares against the digest it issued in the sign request; the revision compared is the one in its own record, not one the caller supplied.",
+      "required": [
+        "schema",
+        "request_id",
+        "report_id"
+      ],
+      "properties": {
+        "schema": {
+          "const": "outpocket.commit_request/1"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^sg_[0-9a-f]{16}$"
+        },
+        "report_id": {
+          "type": "string",
+          "description": "Must match the report_id on the server's sign record; a mismatch is E_SIGN_REQUEST_UNKNOWN."
+        }
+      }
+    },
+    "commit_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "status",
+        "http_status"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "committed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "confirmation",
+              "committed_revision",
+              "chain_entry",
+              "artifact"
+            ]
+          },
+          "else": {
+            "required": [
+              "error"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "schema": {
+          "const": "outpocket.commit_result/1"
+        },
+        "status": {
+          "enum": [
+            "committed",
+            "rejected"
+          ]
+        },
+        "http_status": {
+          "type": "integer"
+        },
+        "confirmation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^CH-[0-9]{4}$"
+        },
+        "committed_revision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "chain_entry": {
+          "$ref": "#/$defs/chain_entry"
+        },
+        "artifact": {
+          "$ref": "#/$defs/artifact"
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "description": "All THIRTEEN codes of x-rejectionCodes, carried here as one closed enum because the sign-flow error body has one shape whichever endpoint produced it - the endpoint that raises each code is recorded in x-rejectionCodes[code].endpoint, and E_DIGEST_ACK_MISMATCH and E_NO_CONFIRM_TOKEN are raised at /respond, not at commit.",
+              "enum": [
+                "E_NOT_SIGNED",
+                "E_SNAPSHOT_MISMATCH",
+                "E_REVISION_MISMATCH",
+                "E_DIGEST_ACK_MISMATCH",
+                "E_NO_CONFIRM_TOKEN",
+                "E_SIGN_REQUEST_UNKNOWN",
+                "E_SIGN_REQUEST_EXPIRED",
+                "E_SIGN_IN_PROGRESS",
+                "E_POLICY_VERSION_MOVED",
+                "E_POLICY_DIGEST_MOVED",
+                "E_NOT_CLEAN",
+                "E_FORBIDDEN",
+                "E_DECLINED"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "expected_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "actual_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "diff_paths": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "description": "Canonical paths that differ, e.g. report.lines[0].amount_cents. Included for debuggability. It does leak which field the server saw differently, but the caller already controls the write it made, so this adds nothing an attacker does not have."
+            }
+          }
+        }
+      }
+    },
+    "chain_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One link of the day-book hash chain (node S7). entry_digest = sha256(utf8(\"outpocket/chain/1\" + LF + OCF-1 canonical form of this object WITHOUT entry_digest)). The canonical form includes `source` and `actor`, which is exactly what the spike's dayBookDigest dropped (countinghouse/src/erp.js:366).",
+      "required": [
+        "seq",
+        "at",
+        "kind",
+        "source",
+        "actor",
+        "label",
+        "detail",
+        "payload_digest",
+        "prev",
+        "entry_digest"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "kind": {
+          "enum": [
+            "boot",
+            "session",
+            "tool",
+            "human",
+            "commit",
+            "policy"
+          ]
+        },
+        "source": {
+          "enum": [
+            "human",
+            "agent",
+            "server"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "payload_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "prev": {
+          "$ref": "#/$defs/digest"
+        },
+        "entry_digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What is stored on a committed report. Rendered by F5 and asserted by E3.",
+      "required": [
+        "policy_version",
+        "policy_digest",
+        "snapshot_digest",
+        "chain_head",
+        "provenance_summary",
+        "violation_history"
+      ],
+      "properties": {
+        "policy_version": {
+          "type": "string"
+        },
+        "policy_digest": {
+          "$ref": "#/$defs/digest",
+          "description": "Equal to snapshot.policy_digest, always. It is carried here for READING - F5 renders it and E3 asserts on it without re-deriving the snapshot - and it is no longer where the binding lives. Until R-33 this was the ONLY place the policy digest appeared, outside the signed projection, which is precisely why the same-version content swap in x-policyBinding moved nothing: a value in the artifact is a record of what the server chose to write down, not something a signature covers. A verifier that finds this field disagreeing with snapshot.policy_digest must treat the artifact as untrustworthy and rebuild from the snapshot."
+        },
+        "snapshot_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "chain_head": {
+          "$ref": "#/$defs/digest"
+        },
+        "provenance_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "agent_fields",
+            "human_fields",
+            "seed_fields",
+            "total_fields"
+          ],
+          "properties": {
+            "agent_fields": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "human_fields": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "seed_fields": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "total_fields": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "violation_history": {
+          "type": "array",
+          "maxItems": 200,
+          "description": "Every blocking violation this report ever emitted, with the revision at which it happened. This is what makes a cap-split visible after the fact: the CAP_TRANSPORT at revision 9 sits in the record next to the two agent-authored lines created at revision 10.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "entity_id",
+              "revision"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entity_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-freeze": {
+    "title": "What freezing the write tools during the sign dialog does and does not do",
+    "does": [
+      "Layer 1, in the page: while a sign request is open, every WRITE tool is revoked by aborting its AbortController. The next execute of any of them cannot happen because the tool is not on the surface. R-20: THE REVOKED SET IS COMPUTED, NEVER HARD-CODED - it is exactly the tools whose `annotations.readOnlyHint !== true` on the surface being revoked, and both the implementation and any document describing it must derive it that way. Evaluated against S2-emp-draft-clean as the surface stands today that predicate selects SEVEN tools, not five: the previous revision of this sentence enumerated five names and silently omitted submit_expense_report and open_expense_report, which is precisely the failure mode a hard-coded list has. erp/graph.json is the authority for the count; this file states the rule.",
+      "Layer 2, on the server: the sign request and the report's sign lock are taken in the same synchronous step. Every mutating request for that report_id is refused with HTTP 423 and E_SIGN_IN_PROGRESS until the lock is released by a commit, a decline, or expiry.",
+      "Layer 3, at commit: the server rebuilds the snapshot from its own state, canonicalises under OCF-1, digests, and compares against the digest it issued in the sign request. Any difference is HTTP 409 E_SNAPSHOT_MISMATCH.",
+      "Layer 0, underneath all three: the sign request is a server-held record with a state machine, and commit refuses anything the server did not itself record as answered-and-signed (HTTP 409 E_NOT_SIGNED). Layers 1-3 answer 'did the report change?'. LAYER 0 ANSWERS EXACTLY ONE QUESTION AND IT IS NARROWER THAN THE ONE THIS ENTRY USED TO CLAIM: 'did a POST from the authenticated session reach /api/sign/{request_id}/respond before the commit?' It does NOT answer 'did a human decide?', and R-13 deletes that sentence from this schema and forbids its restoration anywhere. See x-signRequestState.provableClaim and x-signRequestState.survivingVector."
+    ],
+    "doesNot": [
+      "Revocation does not cancel a call that is already executing. From Chrome 153, aborting a tool's signal stops the NEXT execute; it does not unwind the one already inside its handler (MEASURED, HANDOVER S3 rule 12 / gatehouse BUILD.md rule 10). We must not write or say 'revoking the tool blocks the write'.",
+      "Layer 1 alone therefore guarantees nothing. It is there so the agent sees an honest surface, not because it is a control.",
+      "IT DOES NOT ESTABLISH THAT A HUMAN DECIDED. A caller holding the session cookie can POST /api/sign/{request_id}/respond itself, echoing the digest and revision the server issued moments earlier, and then commit. Every one of the rejection codes in x-rejectionCodes was walked against that sequence and none fires. This is x-signRequestState.survivingVector, it is open on the build as specified, and negative control neg-respond-without-click records it as such rather than asserting a refusal that does not happen.",
+      "None of this defends against script execution in the page. Anything that can run JavaScript on the origin can call the same endpoints the page calls, with the same cookie. The sign gate defends against an agent whose only reach is the tool surface. Say that, do not overclaim it. NOTE what this sentence does NOT excuse: it was offered as cover for the R-1 forgery described in x-signRequestState.priorForgery, and it did not cover it - and it does not cover survivingVector either. Neither attack needs script execution; both need only a POST carrying the session cookie, which is exactly the over-the-wire vector the negative-control suite exists to test."
+    ],
+    "loadBearingPrecondition": {
+      "claim": "Layer 2 closes the time-of-check-to-time-of-use window completely, because taking the lock and computing the snapshot are one synchronous step and nothing else can interleave.",
+      "grade": "OUR-ESTIMATE, true by construction of a single-process Node server with synchronous state mutation inside each request handler.",
+      "breaksIf": "The deploy runs more than one instance, or state mutation becomes asynchronous. Node D1 MUST deploy exactly one instance; a second instance silently reintroduces the race and no test in this repository would notice. Write it in the deploy notes, not only here.",
+      "residual": "An in-flight write whose fetch reaches the server BEFORE the sign request is created is included in the snapshot the human reads. That is correct behaviour, not a hole - but it means the human can be shown a report the agent modified a few hundred milliseconds ago. The provenance map in the snapshot is what makes that visible: the field says agent."
+    }
+  },
+  "x-signRequestState": {
+    "note": "The sign request is a SERVER-HELD record with a state machine. Ruling R-1. What this buys is stated exactly once, in provableClaim, and nowhere in this project may it be restated more strongly.",
+    "machine": "open -> answered(signed) -> committed | expired ; open -> answered(declined) ; open -> expired",
+    "open": "Created by the server, in the SAME synchronous step that takes the report's sign lock (node S12). Carries report_id, revision, policy_version, the snapshot, its digest and expires_at. No client input creates it and no client input can move it.",
+    "answered": "Entered ONLY by POST /api/sign/{request_id}/respond arriving on an `open` record from the authenticated session that owns it. The server writes a sign_response record: decision and reason from the body, signed_by from the session cookie, at from the server clock, state `answered`. A second respond on an already-answered record is refused with E_ALREADY_ANSWERED (409, R-34, 2026-08-28); the machine is one-shot and the FIRST respond to arrive wins. Until R-34 this sentence was the only condition in the machine that no rejection code claimed, which broke x-rejectionCodes' own rule from the other side - that rule forbids two entries claiming one condition, and it equally forbids a condition claiming zero. See x-rejectionCodes.E_ALREADY_ANSWERED for the decline-to-unlock attack this exposes and for why it is a nuisance-grade denial and NOT a forgery. READ THIS SENTENCE AS WHAT IT IS: the admission test for `answered` is the ARRIVAL OF THE REQUEST, not the occurrence of a click. Nothing in it requires a browser, a rendered dialog, a user activation, or a person. See survivingVector.",
+    "committed": "Entered by POST /api/reports/{report_id}/commit. The server requires state `answered` AND decision `signed`; anything else is E_NOT_SIGNED. It then rebuilds the snapshot, re-canonicalises under OCF-1 and compares. Commit is one-shot: a second commit on the same request_id is E_NOT_SIGNED, because the record is no longer `answered`.",
+    "expired": "now > expires_at, from `open` or from `answered`. Releases the sign lock.",
+    "provableClaim": "R-13. THE ONLY SENTENCE THIS MACHINE PROVES IS: 'a commit cannot be made without a POST from the authenticated session to /api/sign/{request_id}/respond.' Every stronger headline is DELETED and may not be restored in this schema, in erp/**, in the README, in the video script or in the Devpost text. Specifically deleted and banned: 'a commit cannot be made without a human decision'; 'Layer 0 answers did a human decide'; and any flag, key or table cell asserting that the sign-gate forgery is CLOSED. The key `forgeryClosed` that used to sit here is removed for that reason; what replaced it is priorForgery (what R-1 fixed) and survivingVector (what it did not). AND THE SENTENCE CARRIES A DATE, WHICH IS THE OTHER HALF OF SAYING IT HONESTLY (R-34): survivingVector's two-request forgery commits on the build as it stands, BEFORE the confirm_token ships with node S5 on Day 3; from Day 3 that exact body is refused 403 E_NO_CONFIRM_TOKEN at /respond, which is a SCHEDULED, DOCUMENTED change and not a discovery. The provable sentence above is unchanged by it either way - the token raises the cost, and a caller that can read the dialog's DOM still answers the request itself (open unknown V3). Anyone quoting 'it commits' without 'before the confirm_token ships' is quoting half of it, and anyone reading the Day-3 refusal as proof that the gate now establishes personhood is restoring a banned headline.",
+    "priorForgery": "What R-1 DID close. Before R-1 there was no state at all, and it showed: the ten-code table had no code for 'this sign request was never answered'. commit_request carried a client-authored `signature`, so the attack was three lines - call submit_expense_report, never render the dialog, POST a synthesised sign_response echoing the digest the server had just handed out. Every rejection code passed by construction, because the tamper defence works precisely BECAUSE nothing changed between sign request and commit, and so does the forgery. The report committed, attesting a human signature by a CLIENT-CHOSEN name at a CLIENT-CHOSEN time. What closed that one-request form is not a stronger check on the payload but the deletion of the payload: commit carries only request_id, and the server consults its own record. Negative control neg-commit-without-human (N-15) is the standing regression test for it, and it is a genuine one - it is red on today's build and can only go green once S5 lands this machine.",
+    "survivingVector": "WHAT R-1 DID NOT CLOSE, AND THIS IS WRITTEN DOWN ON PURPOSE. A TWO-REQUEST forgery still commits BEFORE THE confirm_token SHIPS (node S5, Day 3) - READ THE TEMPORAL QUALIFIER, IT IS PART OF THE CLAIM AND IT TRAVELS WITH IT EVERYWHERE (R-34). The walk below is written against the build as it stands TODAY, which is the empty build: no confirm_token is minted, nothing at /respond demands one. (1) call submit_expense_report; the server returns a sign_request carrying snapshot_digest D and revision R. (2) NEVER render the dialog; POST /api/sign/{request_id}/respond with {schema, request_id, decision:'signed', reason:null, method:'click', acknowledged_digest:D, acknowledged_revision:R} - every field either a constant or copied verbatim out of the response the server itself just issued. (3) POST the commit with {schema, request_id, report_id}. Walk the whole of x-rejectionCodes against that sequence: E_DIGEST_ACK_MISMATCH no (D was echoed), E_NOT_SIGNED no (the record IS answered+signed), E_SNAPSHOT_MISMATCH no (nothing changed), E_REVISION_MISMATCH no (the server's own R), E_SIGN_REQUEST_UNKNOWN no, E_SIGN_REQUEST_EXPIRED no (inside 300 s), E_SIGN_IN_PROGRESS no, E_POLICY_VERSION_MOVED no, E_POLICY_DIGEST_MOVED no (the policy did not move; R-33 closes a different attack and is no defence against this one), E_NOT_CLEAN no, E_FORBIDDEN no (the filer's own session), E_DECLINED no, E_ALREADY_ANSWERED no (this record is answered exactly once, by the attacker, and nobody responds twice), E_NO_CONFIRM_TOKEN NO TODAY AND YES FROM DAY 3 - and that last one is the whole of the temporal qualifier, so it is spelled out here rather than left to a sibling key. The body in step (2) carries seven fields; $defs.sign_respond_request requires EIGHT under additionalProperties:false, and the eighth is confirm_token, minted by the server into the rendered dialog's DOM alone. Until S5 ships that token there is nothing to send and nothing to check, so the walk holds and IT COMMITS. Once S5 has landed (Day 3) this exact body is refused 403 E_NO_CONFIRM_TOKEN at /respond - see confirmToken and x-rejectionCodes.E_NO_CONFIRM_TOKEN - the negative control neg-respond-without-click flips from `known-open` to `enforced` under S5's scheduled deviation DEV-E3-eval-case-known-open, AND A RED TEAM THAT OBSERVES THAT REFUSAL HAS OBSERVED THE SCHEDULE, NOT AN UNDOCUMENTED CHANGE. What does NOT change on Day 3 is the claim in provableClaim: a caller that can read the dialog's DOM lifts the token and the walk holds again for that caller (open unknown V3), so the token is a cost and never a closure. This is inside our OWN threat model - the N-04 shape: curl, session cookie, no browser - and it needs no script execution on the origin. The codes above are walked as the table x-rejectionCodes, entry by entry; do not restate their count as a numeral.",
+    "whatR1BoughtAndWhatItCost": "BOUGHT: the attacker loses the ability to choose the NAME and the TIMESTAMP, because signed_by now comes from the session cookie and `at` from the server clock, and sign_respond_request has no key for either. COST: the resulting record is therefore a TRUE ATTRIBUTION OF A FALSE EVENT - signed `chen`, at a genuine server time, in a chain entry that is FORENSICALLY INDISTINGUISHABLE from a real click, in the day book, forever. Arguably that is worse than the old forgery, which at least left an implausible name or time behind. It is recorded here rather than omitted because a reviewer who finds it unaided concludes the whole layer is advocacy.",
+    "confirmToken": "DEFENCE IN DEPTH, NOT A PROOF. R-13(c). A confirm_token is minted by the server together with the sign request and is REQUIRED by /respond (sign_respond_request.confirm_token; a body without it is 403 E_NO_CONFIRM_TOKEN and the record stays `open`). Its whole value is in its DELIVERY CHANNEL: it is written ONLY into the rendered sign dialog's DOM - the server-rendered dialog fragment F4 mounts - and it is NEVER returned in any tool-call result, never in the sign_request message, never in any /api/sign/{request_id} response body, and never in any header a fetch can read without the DOM. That is why sign_request has no confirm_token property and additionalProperties:false makes its appearance there a validation failure rather than a review comment. WHAT IT DOES: it raises the cost of survivingVector from 'copy two values out of a JSON response' to 'render the dialog and read its DOM'. WHAT IT DOES NOT DO: it does not establish personhood, and it does not make provableClaim any stronger. ITS VALUE IS A DIRECT FUNCTION OF OPEN UNKNOWN V3: if an agent-initiated fetch carries the page session cookie AND the agent can read the DOM, the token is reachable and survivingVector is open again for that caller. State the residual risk in exactly those terms wherever the sign gate is described.",
+    "negativeControl": "neg-respond-without-click, scripted verbatim as survivingVector and carried in eval-case.schema.json x-requiredCases. It records the CURRENT outcome honestly and fails if that outcome changes silently in either direction: with no confirm_token required, the commit SUCCEEDS (HTTP 200, a chain entry attesting the session's own display name at a genuine server time) and the case is recorded controlStatus `known-open`; with the confirm_token required, a caller that cannot read the rendered dialog's DOM receives 403 E_NO_CONFIRM_TOKEN and the case is recorded controlStatus `enforced`. R-27: the frozen controlStatus enum is exactly [enforced, known-open, not-runnable]. `refused` IS NOT A MEMBER - any gate or deviation writing `refused` makes eval-case.schema.json fail its own schema, which CONTRACTS.md section 11 check 1 turns into a repo-wide red npm test. The enum's word for a case whose refusal is the required result is `enforced`. erp/graph.json's S5 accept calls this case N-16. NOTE THE NUMBERING COLLISION, DO NOT PAPER OVER IT: EVAL.md section 7.2 already uses N-16 for the anonymous-read control. The stable identifier is the CASE ID, neg-respond-without-click; the N-number needs one owner ruling from the EVAL.md writer.",
+    "provingNode": "S5 (server-owned decision state, the confirm_token, and this control) with S12 (atomic sign lock). Identity, hours and accept predicates are in erp/graph.json. The red-team instrument that must be pointed AT survivingVector is node E9, whose accept asserts that erp/charters/C3.md's standing target list has been rewritten to include 'POST /api/sign/{request_id}/respond yourself' and to drop the instruction to prove the closure rather than rediscover the hole.",
+    "declineToUnlock": "R-34, 2026-08-28. The audit's Invented D, CLAIMED AND CODED rather than left unwritten. An attacker holding the confirm_token declines first; the human's genuine click is then refused with E_ALREADY_ANSWERED and the commit returns 200 E_DECLINED. SEVERITY, honestly: a NUISANCE-GRADE DENIAL, not a forgery - nothing commits, nothing is attested, no false chain entry is written, and the attacker cannot produce a signature, only prevent one. Its precondition (DOM read access for the token) is strictly stronger than what survivingVector's forgery needs, so an attacker who can do this can already do worse. Negative control: neg-decline-to-unlock, in eval-case.schema.json x-requiredCases. Standing red-team target: erp/charters/C3.md. Recovery: the sign lock is released, the draft stays editable, the human opens a new sign request; F4 must say exactly that."
+  },
+  "x-policyBinding": {
+    "note": "Ruling R-33, 2026-08-28. What the signature binds about the POLICY. This entry exists because a red-team pass invented an attack this corpus did not have a name for, and the honest answer was that the snapshot bound the policy's NAME and not its CONTENT.",
+    "theAttack": "SAME-VERSION POLICY CONTENT SWAP. Serve a policy document whose bytes differ from the pinned 2026-08.1 document while leaving the `version` string at \"2026-08.1\". Under the pre-R-33 projection: the verdict computed under the swapped rules is whatever the swapped rules say, the snapshot carries only the unchanged version string, so the snapshot digest is unmoved; E_POLICY_VERSION_MOVED compares NAMES and correctly declines to fire; E_SNAPSHOT_MISMATCH compares a rebuild that is equally unmoved. The commit succeeds and the artifact attests `clean under 2026-08.1` against content whose digest is no longer the one policy-versions.json pins. The corpus already ships a document of exactly this shape: sha256:17bc4b2d1031b63e07a3983b067c8485316e8c16b53454e481680f65b7962e92 is 2026-08.1's document with transport_per_line dropped to 5000 and the version string NOT bumped - it exists in policy-versions.json as the trap a careless implementer of the 2026-08.2 demo bump lands on, and it is a ready-made swap payload.",
+    "honestScope": "STATE THIS WHEREVER THE ATTACK IS DESCRIBED, AND DO NOT INFLATE IT. The attack needs WRITE ACCESS TO THE SERVED POLICY DOCUMENT. That is arguably OUTSIDE the declared N-04 threat model, which is curl plus a session cookie and no browser - an attacker with that reach alone cannot change what the server serves. It is therefore a weaker vector than x-signRequestState.survivingVector, which needs nothing but the cookie. It is recorded and fixed anyway for two reasons, both narrower than `an attacker can do this today`: (1) it is not only an attack - the same hole fires on an honest operator hot-editing a policy file in place without bumping the version, which is the likeliest way it actually happens; (2) an attestation whose meaning can be changed after the fact by a party the attestation does not name is a defect in what the artifact MEANS, independent of who can reach it. Anyone describing this as a break of the curl-and-cookie model is overclaiming, and this key exists so nobody has to guess.",
+    "theFix": "TWO HALVES, AND NEITHER IS SUFFICIENT ALONE. (a) policy_digest joins the signed snapshot projection ($defs.snapshot.policy_digest), so a swap performed BETWEEN the sign request and the commit moves the rebuild's digest and is refused with E_POLICY_DIGEST_MOVED. (b) The swap performed BEFORE the sign request is NOT closed by (a) - the snapshot would simply be built with the swapped digest and would commit consistently. It is closed by the version lock, moved from a test into the server: policy.schema.json x-versionDiscipline now requires the server to recompute the digest of the policy document AT LOAD and refuse to serve a document whose (version, digest) pair is not in erp/contracts/policy-versions.json. What (a) then buys, even for the before-sign case, is FORENSIC: the artifact records the digest that was actually enforced, so a stored signature says which rules the human was judged against and not merely what that ruleset was called.",
+    "whatItStillDoesNotBuy": "A policy digest inside the snapshot does not make the policy correct, and it does not establish that a human read it. It binds the signature to a specific ruleset. An operator who bumps the version honestly and pins the new digest can still change every limit in the document - that is the intended workflow (demo beat 1), and the control on it is that the version moves, the indicator moves, and the surface recompiles in front of the user.",
+    "negativeControl": "neg-policy-content-swap, to be carried in eval-case.schema.json x-requiredCases. Scripted: seed the server with 2026-08.1, open a sign request, swap the served document for the 17bc4b2d trap under the unchanged version string, commit. Expected after R-33: HTTP 409 E_POLICY_DIGEST_MOVED, nothing committed, controlStatus `enforced` - it is red on the build as it stands, because before R-33 the code does not exist and the commit succeeds. brokenBy: drop policy_digest from the snapshot projection. Its provingNode is S5 with S3; the graph.json owner assigns the node and the N-number, and this file does not pick either."
+  },
+  "x-rejectionCodes": {
+    "note": "FOURTEEN codes. DO NOT CITE THIS AS A NUMBER IN PROSE - cite the table. Counts of this table have gone stale three times (eleven, twelve, thirteen all still appear in sibling documents); the stable reference is `signature.schema.json x-rejectionCodes`, and any document that needs the count derives it with `Object.keys(x-rejectionCodes).length - 1` rather than writing a numeral. Each entry carries the endpoint that raises it, because three of them (E_DIGEST_ACK_MISMATCH, E_NO_CONFIRM_TOKEN, E_ALREADY_ANSWERED) are raised at /respond and not at commit, and a table that does not say so reads as if every code were a commit-time check. NO TWO ENTRIES MAY CLAIM THE SAME CONDITION: the previous revision had E_NOT_SIGNED (409) and E_DECLINED (200) both claiming a commit against a DECLINED record, which gave that one request two contradictory correct answers. The declined condition now belongs to E_DECLINED alone and is explicitly carved out of E_NOT_SIGNED. AND THE DUAL OF THAT RULE ALSO BINDS: no condition may have ZERO entries. R-34, 2026-08-28: x-signRequestState.answered asserted 'a second respond on an already-answered record is refused; the machine is one-shot' and NO code claimed that condition, so the one rule this table states about itself was violated in both directions at once. E_ALREADY_ANSWERED closes it.",
+    "E_NOT_SIGNED": {
+      "http": 409,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "Commit was called for a sign request that is not in state `answered` with decision `signed`, EXCLUDING the declined case. Exactly three conditions: it is still `open` (nobody answered), it has already `committed`, or it `expired`. A record that is `answered` with decision `declined` is E_DECLINED and NEVER this code - the two are disjoint by construction and the server must branch on decision before it branches on state. This code exists because commit_request carries no signature object, so a synthesised client-side sign_response has nowhere to go and a commit the server did not itself record cannot be constructed; that is the one-request forgery of x-signRequestState.priorForgery and this closes it. IT DOES NOT CLOSE x-signRequestState.survivingVector, in which the record genuinely IS answered+signed because the attacker POSTed /respond itself, and this code correctly declines to fire. Added 2026-08-28 under ruling R-1; narrowed 2026-08-28 under R-13.",
+      "test": "E3 case neg-commit-without-human (N-15)"
+    },
+    "E_SNAPSHOT_MISMATCH": {
+      "http": 409,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "Server-recomputed snapshot digest differs from the digest the server issued in the sign request and the human acknowledged. THIS IS THE CODE for the demo beat 'agent edits the amount after the human signs'.",
+      "test": "E3 case neg-post-signature-tamper"
+    },
+    "E_REVISION_MISMATCH": {
+      "http": 409,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "The report's current revision differs from the acknowledged_revision on the server's own sign record. Checked before the digest, so the cheap check reports first. Note that the compared value is the server's, not a caller-supplied one - commit_request no longer carries a revision.",
+      "test": "E3 case neg-revision-moved"
+    },
+    "E_DIGEST_ACK_MISMATCH": {
+      "http": 409,
+      "endpoint": "POST /api/sign/{request_id}/respond",
+      "when": "Raised at /respond, not at commit: the acknowledged_digest in the respond body differs from the digest the server issued in the sign request, so the record stays `open`. This detects a client that echoed the wrong digest. It has never detected a substituted dialog and the schema must not claim it does: a substituted dialog renders content X and echoes the server's digest D unchanged, and the echo verifies only that the client can copy a number the server handed it - which is exactly why it does not fire against x-signRequestState.survivingVector either. What defends the render is that the human sees the report, and what defends the commit is that the server owns the record.",
+      "test": "E3 case neg-dialog-substitution"
+    },
+    "E_NO_CONFIRM_TOKEN": {
+      "http": 403,
+      "endpoint": "POST /api/sign/{request_id}/respond",
+      "when": "The respond body carried no confirm_token, or one that does not match the token the server minted with this sign request. The record stays `open` and nothing is committed. R-13(c). THIS CODE IS DEFENCE IN DEPTH AND MUST NEVER BE DESCRIBED AS PROOF OF A HUMAN: the token is delivered only into the rendered dialog's DOM, so it raises the cost of x-signRequestState.survivingVector from copying two JSON values to rendering the dialog and reading its DOM, and it establishes nothing about personhood. Its value is a direct function of open unknown V3 - a caller that both carries the page session cookie and can read the DOM reaches the token, and survivingVector is open again for that caller. Added 2026-08-28 under ruling R-13, taking the table from eleven codes to twelve.",
+      "test": "E3 case neg-respond-without-click (recorded KNOWN-OPEN until the token ships; see x-signRequestState.negativeControl)"
+    },
+    "E_SIGN_REQUEST_UNKNOWN": {
+      "http": 404,
+      "endpoint": "POST /api/sign/{request_id}/respond and POST /api/reports/{report_id}/commit",
+      "when": "No such request_id, it belongs to another session, or its report_id does not match the URL."
+    },
+    "E_SIGN_REQUEST_EXPIRED": {
+      "http": 410,
+      "endpoint": "POST /api/sign/{request_id}/respond and POST /api/reports/{report_id}/commit",
+      "when": "now > expires_at. Default lifetime 300 seconds. Open unknown V4 bears on this: we do not yet know whether a suspended execute has its own timeout in the ChatGPT built-in browser, so the expiry must be shorter than any plausible client timeout and the page must degrade legibly when the execute is torn down under us."
+    },
+    "E_SIGN_IN_PROGRESS": {
+      "http": 423,
+      "endpoint": "every mutating report route",
+      "when": "A mutating request arrived for a report that holds an open sign lock.",
+      "test": "E3 case neg-write-during-sign"
+    },
+    "E_POLICY_VERSION_MOVED": {
+      "http": 409,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "The policy version NAME changed between sign request and commit. Redundant with E_SNAPSHOT_MISMATCH because policy_version is inside the snapshot; reported separately because it is the one mismatch with an innocent explanation - finance published a new version while the dialog was open. IT DOES NOT FIRE ON A SAME-VERSION CONTENT SWAP, and before R-33 nothing did: that is E_POLICY_DIGEST_MOVED, and x-policyBinding is why it now exists."
+    },
+    "E_POLICY_DIGEST_MOVED": {
+      "http": 409,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "The OCF-1 digest of the policy document the server holds at commit time differs from snapshot.policy_digest - the digest of the document the snapshot was built under. Added 2026-08-28 under ruling R-33, taking the table from twelve codes to thirteen. This is the code for a SAME-VERSION CONTENT SWAP: policy_version is unchanged, so E_POLICY_VERSION_MOVED correctly declines to fire, and before policy_digest joined the projection the swapped content moved no digest at all. Like E_POLICY_VERSION_MOVED it is redundant with E_SNAPSHOT_MISMATCH now that policy_digest is inside the snapshot, and it is reported separately for the same reason: the operator needs to know the RULES moved rather than the report. READ x-policyBinding BEFORE DESCRIBING THIS CODE - it closes the swap between sign and commit, and the swap performed BEFORE the sign request is closed by the load-time lock check, not by this code.",
+      "test": "E3 case neg-policy-content-swap (see x-policyBinding.negativeControl)"
+    },
+    "E_NOT_CLEAN": {
+      "http": 422,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "The report has blocking violations at commit time."
+    },
+    "E_FORBIDDEN": {
+      "http": 403,
+      "endpoint": "every sign and commit route",
+      "when": "The session's role may not commit this report. Decided from the session cookie by S2, never from a tool argument.",
+      "test": "E3 case neg-auditor-write"
+    },
+    "E_DECLINED": {
+      "http": 200,
+      "endpoint": "POST /api/reports/{report_id}/commit",
+      "when": "SOLE OWNER OF THE DECLINED CONDITION: the record is `answered` with decision `declined`. Not an error condition - the draft stays editable, the sign lock is released and the tool returns the reason the human gave, which is why the status is 200 rather than a 4xx. E_NOT_SIGNED explicitly excludes this case; a commit against a declined record has exactly one correct answer and it is this one."
+    },
+    "E_ALREADY_ANSWERED": {
+      "http": 409,
+      "endpoint": "POST /api/sign/{request_id}/respond",
+      "when": "The sign request is already in state `answered` (either decision) or `committed`, and a second respond arrived for it. The machine is ONE-SHOT: the first respond to reach the server wins and nothing later can overwrite decision, reason, signed_by or at. Added 2026-08-28 under ruling R-34, taking the table from thirteen entries to fourteen. Until R-34 this condition was asserted in x-signRequestState.answered and claimed by NO code - the only condition in the machine with none, in a table whose own first rule is that no two entries may claim the same condition. Distinct from every neighbour, and the boundaries are the point: E_NOT_SIGNED is raised at COMMIT for a record that is not answered+signed; E_DECLINED is raised at COMMIT for an answered+declined record; E_SIGN_IN_PROGRESS is raised on a mutating REPORT route while a sign lock is held, and is not a /respond code at all; E_SIGN_REQUEST_EXPIRED is the expired record. This code is the /respond-time answer for a record that has already been answered.",
+      "test": "E3 case neg-decline-to-unlock",
+      "attack": "DECLINE-TO-UNLOCK, the audit's Invented D, and it SUCCEEDS. An attacker who holds the confirm_token - so, one who can already read the rendered dialog's DOM, open unknown V3 - POSTs decision:'declined' first. The record becomes answered+declined. The human's genuine click then arrives second and is refused with THIS code, and the subsequent commit returns 200 E_DECLINED. The human sees their own signature rejected and a report that will not commit.",
+      "severity": "NUISANCE-GRADE DENIAL OF SERVICE, NOT A FORGERY, AND IT MUST BE WRITTEN UP THAT WAY. Nothing is committed, nothing is attested, no false entry reaches the day book, and no signature is fabricated - the day book is strictly emptier than it would have been. It denies a signature; it does not manufacture one. It also requires the confirm_token, which means it requires DOM read access, which is the strictly stronger precondition already needed for the two-request forgery in survivingVector - an attacker who has it would forge rather than annoy. Do not promote it to a break of the sign gate, and do not let it be reported alongside neg-respond-without-click as if the two were comparable. The honest one-line statement is: 'an attacker who can already read the dialog can cancel a pending signature; they cannot produce one.' Recovery is trivial and must be specified rather than assumed: the draft stays editable, the sign lock is released by the declined answer, and the human opens a NEW sign request. F4's dialog therefore has to render E_ALREADY_ANSWERED as 'this signature request was already answered - start a new one', never as a generic failure."
+    }
+  },
+  "examples": [
+    {
+      "schema": "outpocket.sign_request/1",
+      "request_id": "sg_0a1b2c3d4e5f6071",
+      "report_id": "RP-1018",
+      "revision": 14,
+      "policy_version": "2026-08.1",
+      "snapshot": {
+        "kind": "outpocket.snapshot",
+        "ocf": 1,
+        "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+        "policy_version": "2026-08.1",
+        "request_id": "sg_0a1b2c3d4e5f6071",
+        "report": {
+          "id": "RP-1018",
+          "lines": [
+            {
+              "amount_cents": 18640,
+              "attendees": 3,
+              "category": "meals",
+              "currency": "USD",
+              "date": "2026-08-14",
+              "description": null,
+              "id": "ln_3",
+              "itemization": [
+                {
+                  "amount_cents": 14200,
+                  "label": "Prix fixe x2"
+                },
+                {
+                  "amount_cents": 2240,
+                  "label": "Service"
+                },
+                {
+                  "amount_cents": 2200,
+                  "label": "Sparkling water"
+                }
+              ],
+              "merchant": "Cafe Bruno",
+              "nights": null,
+              "provenance": {
+                "amount": "agent",
+                "attendees": "human",
+                "category": "agent",
+                "currency": "agent",
+                "date": "agent",
+                "description": "unset",
+                "itemization": "agent",
+                "merchant": "agent",
+                "nights": "unset",
+                "receipt_id": "human"
+              },
+              "receipt_id": "rc_2",
+              "receipt_sha256": "9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa",
+              "usd_cents": 18640
+            },
+            {
+              "amount_cents": 4210,
+              "attendees": null,
+              "category": "transport",
+              "currency": "USD",
+              "date": "2026-08-14",
+              "description": "Hotel to plant",
+              "id": "ln_4",
+              "itemization": null,
+              "merchant": "City Cab Co.",
+              "nights": null,
+              "provenance": {
+                "amount": "agent",
+                "attendees": "unset",
+                "category": "agent",
+                "currency": "agent",
+                "date": "agent",
+                "description": "agent",
+                "itemization": "unset",
+                "merchant": "agent",
+                "nights": "unset",
+                "receipt_id": "human"
+              },
+              "receipt_id": "rc_3",
+              "receipt_sha256": "4b0a1f6d2c93e8571ad0c4bb7e2f9013a6c85d47f0be1932c7a4d5e6f8091b2c",
+              "usd_cents": 4210
+            }
+          ],
+          "owner": "chen",
+          "project": "FALCON",
+          "revision": 14,
+          "status": "draft",
+          "title": "Boston client workshop",
+          "total_usd_cents": 22850
+        },
+        "verdict": {
+          "blocking": 0,
+          "violations": [],
+          "warning": 0
+        }
+      },
+      "snapshot_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+      "worst_case": "If any line here is wrong, you have certified a false expense claim in your own name. Recovery is a correction and a conversation with Internal Audit, not an undo button.",
+      "violation_history_count": 2,
+      "created_at": "2026-08-29T09:41:00.000Z",
+      "expires_at": "2026-08-29T09:46:00.000Z"
+    },
+    {
+      "schema": "outpocket.sign_respond_request/1",
+      "request_id": "sg_0a1b2c3d4e5f6071",
+      "decision": "signed",
+      "reason": null,
+      "method": "click",
+      "acknowledged_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+      "acknowledged_revision": 14,
+      "confirm_token": "ct_4f1e9c02a7b3486d95c0e1f7a2d84b63"
+    },
+    {
+      "schema": "outpocket.sign_response/1",
+      "request_id": "sg_0a1b2c3d4e5f6071",
+      "state": "answered",
+      "decision": "signed",
+      "reason": null,
+      "signed_by": "chen",
+      "method": "click",
+      "at": "2026-08-29T09:41:12.000Z",
+      "acknowledged_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+      "acknowledged_revision": 14
+    },
+    {
+      "schema": "outpocket.commit_request/1",
+      "request_id": "sg_0a1b2c3d4e5f6071",
+      "report_id": "RP-1018"
+    },
+    {
+      "schema": "outpocket.commit_result/1",
+      "status": "rejected",
+      "http_status": 409,
+      "confirmation": null,
+      "committed_revision": null,
+      "error": {
+        "code": "E_SNAPSHOT_MISMATCH",
+        "message": "The report changed after it was signed. Nothing was committed.",
+        "expected_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+        "actual_digest": "sha256:b4934bfc991a9b1022881407e8ca3e794b47a3e184c690208b765587c0cb4e93",
+        "diff_paths": [
+          "report.lines[0].amount_cents",
+          "report.lines[0].usd_cents",
+          "report.total_usd_cents"
+        ]
+      }
+    },
+    {
+      "schema": "outpocket.commit_result/1",
+      "status": "committed",
+      "http_status": 200,
+      "confirmation": "CH-0001",
+      "committed_revision": 14,
+      "chain_entry": {
+        "seq": 1,
+        "at": "2026-08-29T09:41:12.000Z",
+        "kind": "commit",
+        "source": "human",
+        "actor": "Chen Xiao",
+        "label": "signed & submitted RP-1018",
+        "detail": "CH-0001",
+        "payload_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+        "prev": "sha256:b0ab10c6375a5c6336ce72bab31ce273f1e017779855838146823515544369bb",
+        "entry_digest": "sha256:a25d6903b187cdabd98f504cf8bfe86164a8138cc8c046cfeafafe7d18666b04"
+      },
+      "artifact": {
+        "policy_version": "2026-08.1",
+        "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+        "snapshot_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+        "chain_head": "sha256:a25d6903b187cdabd98f504cf8bfe86164a8138cc8c046cfeafafe7d18666b04",
+        "provenance_summary": {
+          "agent_fields": 12,
+          "human_fields": 3,
+          "seed_fields": 0,
+          "total_fields": 20
+        },
+        "violation_history": [
+          {
+            "code": "RECEIPT_REQUIRED",
+            "entity_id": "ln_3",
+            "revision": 6
+          },
+          {
+            "code": "ITEMIZATION_REQUIRED",
+            "entity_id": "ln_3",
+            "revision": 8
+          }
+        ]
+      }
+    }
+  ],
+  "x-knownDigests": {
+    "note": "Real values, computed with the OCF-1 reference canonicaliser over the snapshot in examples[0], prefix outpocket/snapshot/1. RECOMPUTED AND REPUBLISHED 2026-08-28, the SECOND time, and every value published before this republication is void. Two changes landed together and both move every row: (1) ruling R-33 puts policy_digest inside the projection - a BREAKING projection change, byte count 1480 -> 1570, see x-policyBinding; (2) the defect repair below. E3 pins these so that a refactor of the projection cannot pass unnoticed.",
+    "repairOfTheSignedFixture": "READ THIS BEFORE `CORRECTING` examples[0] BACK. report.lines[0].attendees is 3, and it was 2 until 2026-08-28. At 2 attendees the line was NOT COMMITTABLE under the frozen policy and the whole signature layer was built on a snapshot that could not exist: 18640 cents over 2 attendees is 9320 per attendee against policy.schema.json examples[0] limits_cents.meal_per_attendee of 8000, so the frozen policy emits a BLOCKING CAP_MEALS (rule R05) on ln_3, the commit is 422 E_NOT_CLEAN, and the snapshot's own verdict of {blocking:0, violations:[], warning:0} was contradicted by the policy document sitting beside it in the same frozen directory. Two frozen contract files asserted opposite things about one line. THE REPAIR WAS THE ATTENDEE COUNT AND NOT THE AMOUNT, deliberately: at 3 attendees the line is 6213 per attendee (18640/3, under the cap) and NOTHING ELSE IN THE FIXTURE MOVES - the itemisation still sums to 18640 (14200 + 2240 + 2200), usd_cents is still 18640, the report total is still 22850 = 18640 + 4210, and violation.schema.json examples[1] still carries observed 18640 on ln_3. Moving the amount instead would have taken at least four numbers with it, would have left the itemisation summing to an amount it no longer matches (a WARN, R11 ITEMIZATION_GAP, which the verdict's warning:0 would then also contradict), and would have collided with two other frozen fixtures keyed to 18640: the `tampered_amount_consistent_retotal_18640_to_8640` row below, and eval-case.schema.json's neg-post-signature-tamper, which writes amount_cents 8640 onto ln_3. One integer, and the arithmetic all still reconciles. THE STANDING GUARD is CONTRACTS.md section 11 check 3b: run the frozen policy over the frozen snapshot and assert the verdict it produces equals the verdict the snapshot carries. That check did not exist, which is why this survived three review rounds.",
+    "snapshot": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+    "snapshot_canonical_bytes": 1570,
+    "tampered_amount_consistent_retotal_18640_to_8640": "sha256:b4934bfc991a9b1022881407e8ca3e794b47a3e184c690208b765587c0cb4e93",
+    "tampered_amount_note": "This row is a CONSISTENT RE-TOTAL, not a single-field edit: report.lines[0].amount_cents 18640 -> 8640, report.lines[0].usd_cents 18640 -> 8640 AND report.total_usd_cents 22850 -> 12850, all three moved together, which is the realistic attack. Editing amount_cents alone, or amount_cents together with usd_cents, produces a different digest; if your recomputation does not land on this value, check that you moved all three fields. (The row was previously labelled `tampered_amount_18640_to_8640` and described as a single edit, which no reviewer could reproduce.) The tampered snapshot is deliberately left internally inconsistent in one further respect - its itemization still sums to 18640 against an amount of 8640 - and tests/signature.test.mjs should say so in the fixture, because that inconsistency is not what the digest catches.",
+    "tampered_provenance_amount_agent_to_human": "sha256:f5fd3e7adf420d48ec1fa8b6209258dd62ea33dfe0276a76616fe27ebe365c18",
+    "tampered_line_order_reversed": "sha256:4b51c0c2fa22d5e822643f5e098e8260555358867784e6e884b235558d3fa7c4",
+    "replayed_under_a_different_sign_request": "sha256:5d55be339598b63ba0759f1dd05b5f97a7b102c38b36f62530dd746a7325f0d4",
+    "replayNote": "Byte-identical to the signed snapshot except request_id, which is sg_ffffffffffffffff instead of sg_0a1b2c3d4e5f6071. Different digest. This is what request_id-in-the-projection buys: a snapshot digest cannot be carried from one sign request to another.",
+    "swapped_policy_content_same_version": "sha256:7237591a7a6ae6e40f20c79977cf4d89d1d01403b7ec6c9f334e18ed58ec91ff",
+    "swapNote": "Byte-identical to the signed snapshot except policy_digest, which is the 17bc4b2d trap document instead of the pinned b7ccc1ff one. policy_version is UNCHANGED at 2026-08.1 in both, which is the whole point: this is the row that shows the same-version content swap now moves a digest. Before R-33 these two snapshots were the SAME BYTES and the swap was invisible. See x-policyBinding, including its honest scope - the attack needs write access to the served policy and is therefore arguably outside the declared curl-and-cookie threat model.",
+    "readsAs": "Five different tampers, five different digests, all different from the signed one. The provenance flip, the line reorder and the policy swap are single-field edits; the amount row is a consistent re-total across three fields; the replay is the same report under a different sign request. The provenance flip is the one a 32-bit checksum over a projection without `source` would have missed. The policy swap is the one that moved NO digest at all until 2026-08-28. And none of the five is what defends against a commit with no human in the loop, which is x-signRequestState's job, not the digest's."
+  },
+  "x-knownChain": {
+    "note": "The day-book chain from the worked example, PUBLISHED WITH ITS INPUTS so that both entries recompute. Until 2026-08-28 only the two entry_digest values were published and seq 0's input existed nowhere in the corpus, so seq 0 was the one published digest in this project that no reader could reproduce while CONTRACTS.md section 7.5 called the pair `verified`. The word was not withdrawn; the input was published instead, and both digests below were recomputed from these exact objects.",
+    "rule": "entry_digest = digest(\"outpocket/chain/1\", the entry object WITHOUT its own entry_digest). prev(0) = \"sha256:\" + sixty-four \"0\" characters.",
+    "entries": [
+      {
+        "seq": 0,
+        "at": "2026-08-29T09:00:00.000Z",
+        "kind": "boot",
+        "source": "server",
+        "actor": "server",
+        "label": "day book opened",
+        "detail": "policy 2026-08.1",
+        "payload_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+        "prev": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "entry_digest": "sha256:b0ab10c6375a5c6336ce72bab31ce273f1e017779855838146823515544369bb"
+      },
+      {
+        "seq": 1,
+        "at": "2026-08-29T09:41:12.000Z",
+        "kind": "commit",
+        "source": "human",
+        "actor": "Chen Xiao",
+        "label": "signed & submitted RP-1018",
+        "detail": "CH-0001",
+        "payload_digest": "sha256:535bb82f4258b38583d017c48986954e9aabcdffb3e8ea16cfe60f9b3e8515ff",
+        "prev": "sha256:b0ab10c6375a5c6336ce72bab31ce273f1e017779855838146823515544369bb",
+        "entry_digest": "sha256:a25d6903b187cdabd98f504cf8bfe86164a8138cc8c046cfeafafe7d18666b04"
+      }
+    ],
+    "seq0Note": "The boot entry's payload_digest is the OCF-1 digest of the policy document in force when the day book opened - policy.schema.json examples[0], prefix outpocket/policy/1, the same b7ccc1ff value policy-versions.json pins for 2026-08.1. That choice is not decoration: it makes seq 0 recomputable end to end from two files already in this directory, and it anchors the chain root to the ruleset the day began under, which is the same binding x-policyBinding puts inside the snapshot.",
+    "seq1Note": "seq 1's payload_digest is the signed snapshot digest, so it moved with the projection under both R-1 and R-33; its prev is seq 0's entry_digest, so seq 0's publication moved it a second time. Both are recomputed above rather than carried forward."
+  }
+}

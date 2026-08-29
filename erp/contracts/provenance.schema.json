@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/provenance.schema.json",
+  "title": "outpocket per-field provenance record",
+  "description": "One append-only record saying who set one field of one entity, and with what. Produced by node S8 (owner I3) on every accepted write. Consumed by F2 (the editor's agent-proposed vs human-edited diff), by S5/S6 (the snapshot projection derives its compact provenance map from this ledger), by S7 (the hash chain), by E3, and by X4. Records are never updated and never deleted; a correction is a new record with a higher seq that supersedes the previous one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "seq", "id", "at", "entity", "entity_id", "field", "source", "actor", "tool", "value_digest", "supersedes"],
+  "properties": {
+    "schema": { "const": "outpocket.provenance/1" },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing, gapless, assigned by the server. Ordering is by seq and never by `at`: two records can share a millisecond, and clock skew must never be able to reorder authorship."
+    },
+    "id": { "type": "string", "pattern": "^pv_[0-9]{1,9}$" },
+    "at": { "type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" },
+    "entity": { "enum": ["report", "line", "receipt"] },
+    "entity_id": { "type": "string", "maxLength": 64 },
+    "field": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$" },
+    "source": {
+      "enum": ["human", "agent", "seed", "unset"],
+      "description": "Closed enum; adding a member is BREAKING because this value enters the signed snapshot digest and consumers branch on it. human: typed or clicked by the signed-in person in the page. agent: written through a WebMCP tool execute. seed: created by the deterministic boot reseed (S9), which exists so that an unattended restart during the 2026-09-04..09-21 judging window is equivalent to a clean initial state. unset: the field has never been given a value; the record exists so that every field in the projection always has exactly one current source."
+    },
+    "actor": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Display identity of the writer: the person's name for human, or the string agent for agent. This is what F2 shows. It is NOT an authorization input - authorization is decided per request from the session cookie by S2, never from anything a tool argument carries."
+    },
+    "tool": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9_]{2,63}$",
+      "description": "The WebMCP tool name when source is agent; null otherwise."
+    },
+    "value_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "sha256(utf8(\"outpocket/value/1\" + LF + OCF-1 canonical form of the value written)). Lets an auditor prove which value a given source produced without the ledger storing the values twice. For source unset, the value is JSON null, whose digest is sha256:d3e05b98e8982e5a89ab448f95b938e5d12f52030e938247f4b81cad46aa9a42."
+    },
+    "supersedes": {
+      "type": ["string", "null"],
+      "pattern": "^pv_[0-9]{1,9}$",
+      "description": "The id of the record this one replaces for the same (entity_id, field), or null for the first record on that field."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional. The report revision counter after this write. Present on records whose entity is a line or a report, so that a violation and its remediation can be ordered against the same clock the signature binds to."
+    }
+  },
+  "x-derivation": {
+    "title": "How the snapshot's compact provenance map is derived",
+    "rule": "For a given entity_id, the current source of field F is the `source` of the record with the highest `seq` among records with that entity_id and that field. There is always exactly one, because a record with source `unset` is written for every field of an entity at creation time. The snapshot projection (signature.schema.json $defs.line) embeds that map as an object field -> source, and therefore the digest changes when and only when an authorship changes.",
+    "whyThisMatters": "The prior implementation got this wrong in two separate places, both readable in the spike: countinghouse/src/erp.js:366 computes dayBookDigest as fnv1a over dayBook.map(e => [e.kind, e.label]), which drops the `source` and `actor` of every entry; and countinghouse/src/erp.js:377-389 computes canonicalDigest over a line projection with no createdBy/lastEditedBy at all. Under either digest, flipping a field from agent to human left the digest unchanged. It also used a 32-bit FNV-1a, which is a checksum and not a digest: a 32-bit space is brute-forceable to a collision in seconds on a laptop, so it cannot bind a signature to anything. Both are replaced by SHA-256 over OCF-1, and vector pair v6/v7 in canonical-vectors.json is the standing regression test - the two values differ only in provenance.amount and their digests differ."
+  },
+  "x-fieldSets": {
+    "note": "The fixed field lists. Every field here always has exactly one current provenance record, and every field here appears in the snapshot projection. Adding a field to either list is BREAKING for the snapshot digest.",
+    "line": ["amount", "attendees", "category", "currency", "date", "description", "itemization", "merchant", "nights", "receipt_id"],
+    "report": ["project", "title"]
+  },
+  "examples": [
+    {
+      "schema": "outpocket.provenance/1",
+      "seq": 41,
+      "id": "pv_41",
+      "at": "2026-08-29T09:38:02.114Z",
+      "entity": "line",
+      "entity_id": "ln_3",
+      "field": "amount",
+      "source": "agent",
+      "actor": "agent",
+      "tool": "add_expense_line",
+      "value_digest": "sha256:7326867166d535636e1efcc825476239e5834ffee67ee70c6b59a125015a9b2e",
+      "supersedes": "pv_28",
+      "revision": 11
+    },
+    {
+      "schema": "outpocket.provenance/1",
+      "seq": 42,
+      "id": "pv_42",
+      "at": "2026-08-29T09:39:47.006Z",
+      "entity": "line",
+      "entity_id": "ln_3",
+      "field": "attendees",
+      "source": "human",
+      "actor": "Chen Xiao",
+      "tool": null,
+      "value_digest": "sha256:d3e05b98e8982e5a89ab448f95b938e5d12f52030e938247f4b81cad46aa9a42",
+      "supersedes": "pv_29",
+      "revision": 12
+    }
+  ],
+  "x-invalidExamples": [
+    {
+      "why": "source agent with tool null - an agent write must name the tool it came through",
+      "instance": {
+        "schema": "outpocket.provenance/1",
+        "seq": 43,
+        "id": "pv_43",
+        "at": "2026-08-29T09:40:00.000Z",
+        "entity": "line",
+        "entity_id": "ln_3",
+        "field": "merchant",
+        "source": "agent",
+        "actor": "agent",
+        "tool": null,
+        "value_digest": "sha256:4cc791b8bb3eeaccc99d4184365d93a5d953bba6f551b7b84dfca733ca85d98a",
+        "supersedes": null
+      }
+    }
+  ],
+  "allOf": [
+    {
+      "if": { "properties": { "source": { "const": "agent" } }, "required": ["source"] },
+      "then": { "properties": { "tool": { "type": "string" } } },
+      "else": { "properties": { "tool": { "type": "null" } } }
+    }
+  ]
+}

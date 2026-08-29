@@ -1,0 +1,1011 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://outpocket.example/contracts/eval-case.schema.json",
+  "title": "outpocket eval case",
+  "description": "One graded case. Produced by node E1 (owner C4, the Codex eval engineer) and consumed by E2, E3, E5, E6, by C1's blind rubric in E4, and by X6 when the harness is promoted into webmcp-eval-kit. A case is data: the runner is generic and nothing about a case is expressed as code.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "suite",
+    "title",
+    "setup",
+    "steps",
+    "expect"
+  ],
+  "properties": {
+    "schema": {
+      "const": "outpocket.eval_case/1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "pairsWith": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "REQUIRED on every required_failure case. The state id(s) and/or case id(s) this control pairs with. The runner BUILDS the pairing map from this field and fails the run if any state in evals/surfaces.expected.json has an empty pair set. It replaces the old arithmetic predicate count(mustFail) >= count(capability states), which was 14 >= 7 - trivially true of a suite in which two states had no dedicated control at all, which was the shipped situation. A case with controlStatus `not-runnable` carries an EMPTY array and is excluded from the map. Added 2026-08-28 under recheck NEW-1: EVAL.md section 7.1 and nodes E3/E10 already required this field while the frozen schema had root additionalProperties:false and did not permit it, so no conforming suite file could carry it and any file that did failed validation."
+    },
+    "provingNode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 8,
+      "description": "REQUIRED on every required_failure case. The erp/graph.json node id whose mechanism this case proves. If that node is cut, the case is reported `not-runnable`, never `refused` - a control that reports a refusal because its mechanism was never built is the vacuity this whole design exists to stop. null is legal ONLY with controlStatus `not-runnable`. This file does not restate the node's owner, hours or cut rank; erp/graph.json is the authority for all three."
+    },
+    "brokenBy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 300,
+      "description": "REQUIRED on every required_failure case. A ONE-LINE MUTATION THAT MAKES THIS CASE GO GREEN. If you cannot write one, the case is not a negative control and must be moved to the guards table. This is the string node E10 executes: `eval.mjs run --suite negative --verify-controls` applies each case's brokenBy against evals/mutants/, re-runs the case, and FAILS THE RUN if the case does not flip from refused to permitted. null is legal ONLY with controlStatus `not-runnable`."
+    },
+    "controlStatus": {
+      "enum": [
+        "enforced",
+        "known-open",
+        "not-runnable"
+      ],
+      "default": "enforced",
+      "description": "How to read this case's declared failure. R-27, READ THIS BEFORE WRITING A GATE: the enum is EXACTLY [enforced, known-open, not-runnable]. `refused` IS NOT A MEMBER of it, however natural the word reads in prose - EVAL.md section 7 uses `refused` to describe what a RUN did, never as a value of this field, and a predicate asserting controlStatus===`refused` makes this file fail its own schema and turns npm test red repo-wide via CONTRACTS.md section 11 check 1. When a known-open case is closed - as S5's scheduled deviation DEV-E3-eval-case-known-open closes examples[1] - the value it moves to is `enforced`. `enforced` (the default, and what every case without this key means): the refusal is the required result and the runner fails the case if it does not happen. `not-runnable`: no node produces the mechanism, so the case is reported not-runnable, carries an empty pairsWith, and never counts as `refused`. `known-open`: THE ATTACK SUCCEEDS ON THE BUILD AS SPECIFIED AND WE SAY SO. The runner asserts the outcome recorded in observedToday and fails if the behaviour moves in EITHER direction without that record being updated, so a silent fix is caught as loudly as a silent regression; the case is reported in its own row as an open vector and never inside a green must-fail count. Added 2026-08-28 under ruling R-13 for neg-respond-without-click, which commits today. NOTE FOR THE EVAL.md AND graph.json OWNERS: E3's accept reads `every must-fail case failed as required`, and `as required` for a known-open case means `matched observedToday`. If that is not written into the runner, adding this case turns E3 red for the wrong reason."
+    },
+    "observedToday": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 600,
+      "description": "REQUIRED when controlStatus is `known-open`. What the attack ACTUALLY does against the build as specified, in plain words, including the HTTP status and what lands in the day book. This is the assertion the runner makes for such a case. Writing a hoped-for refusal here instead of the observed outcome is the single dishonest thing this schema can be used for."
+    },
+    "suite": {
+      "enum": [
+        "capability",
+        "negative_control",
+        "surface_accounting"
+      ],
+      "description": "capability: the agent can do the thing. negative_control: the correct outcome is a refusal. surface_accounting: deterministic measurement over tools.export.json with zero model calls."
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "driver": {
+      "enum": [
+        "cdp",
+        "in_page",
+        "static"
+      ],
+      "description": "cdp: node H2 drives a real Chrome with --enable-features=WebMCP (the manual flag is WebMCPTesting - MEASURED, HANDOVER S3 rule 16). Every graded run is anchored to the INSTALLED Chrome major, 152 (ruling R-8); we build against the current version and demand an upgrade only if something actually breaks, and node V0 asks about the installed major rather than assuming a floor. in_page: node H3's fallback agent self-drives through getTools/executeTool. static: no browser at all, the case reads artifacts/tools.export.json. Default cdp."
+    },
+    "setup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "persona",
+        "state_id",
+        "seed"
+      ],
+      "properties": {
+        "persona": {
+          "enum": [
+            "none",
+            "chen",
+            "ruiz"
+          ],
+          "description": "Exactly TWO personas exist - chen (employee) and ruiz (auditor) - matching the spike and this frozen enum. There is no third persona; ruling R-5 deleted the placeholder that had reached F1's acceptance predicate, and F1's count is 2."
+        },
+        "state_id": {
+          "type": "string",
+          "enum": [
+            "S0-anon",
+            "S1-emp-home",
+            "S2-emp-draft-clean",
+            "S3-emp-draft-dirty",
+            "S4-emp-submitted",
+            "S5-aud"
+          ],
+          "description": "One of the six canonical application state ids defined in erp/PATHS.md section 5. The same strings key erp/contracts/tool-export.schema.json x-requiredStates, every surface_digest and evals/surfaces.expected.json. Never a bare S1 or S5 - those are server-lane NODE ids in erp/graph.json."
+        },
+        "seed": {
+          "type": "integer",
+          "description": "Passed to node S9's deterministic reseed. Same seed, same state, every run."
+        },
+        "fixture": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional fixture file under evals/fixtures/."
+        },
+        "policy_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "call"
+        ],
+        "properties": {
+          "call": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tool",
+              "args"
+            ],
+            "properties": {
+              "tool": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{2,63}$"
+              },
+              "args": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/tool_arg"
+                },
+                "description": "Tool arguments, recursively restricted to the OCF-1 value space: object, array, string, integer, boolean, null. A FLOAT IS A VALIDATION ERROR AT ANY DEPTH - see x-moneyBoundary. Money is integer cents in a `<thing>_cents` argument, always."
+              }
+            }
+          },
+          "as": {
+            "enum": [
+              "agent",
+              "human",
+              "raw_http"
+            ],
+            "description": "raw_http bypasses the tool surface entirely and hits the endpoint with curl-equivalent semantics. This is how a privilege-escalation case proves the boundary is on the server and not in the menu (node S2)."
+          },
+          "expect": {
+            "$ref": "#/$defs/assertion_list"
+          }
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "assertions"
+      ],
+      "properties": {
+        "outcome": {
+          "enum": [
+            "pass",
+            "required_failure"
+          ]
+        },
+        "assertions": {
+          "$ref": "#/$defs/assertion_list"
+        },
+        "failure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode"
+          ],
+          "description": "Required when outcome is required_failure. Names the SPECIFIC way the attempt must fail.",
+          "properties": {
+            "mode": {
+              "enum": [
+                "tool_absent",
+                "server_rejects",
+                "violation_returned",
+                "tool_gone_midflight"
+              ],
+              "description": "tool_absent: the tool is not on the surface at all. server_rejects: an HTTP status and error code. violation_returned: the write is accepted as a request but answered with a blocking violation. tool_gone_midflight: the call was captured while registered and must be refused because the surface moved (the double lock at countinghouse/src/tools.js:370)."
+            },
+            "tool": {
+              "type": "string"
+            },
+            "http_status": {
+              "type": "integer"
+            },
+            "error_code": {
+              "type": "string"
+            },
+            "violation_code": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 400,
+              "description": "Free prose about this failure block. Load-bearing on a `known-open` case, where this block describes the refusal that SHOULD happen while observedToday records the one that does."
+            }
+          }
+        },
+        "must_also": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/assertion"
+          },
+          "description": "Required when outcome is required_failure. At least one POSITIVE assertion that a working build satisfies and a broken build does not. Without it a negative-control suite is passed in full by an application that returns an error to everything, or by a blank page - which is the single most common way a green negative-control table means nothing."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "tool_present",
+            "tool_absent",
+            "tool_count",
+            "surface_digest",
+            "output_contains",
+            "output_not_contains",
+            "violation_code_present",
+            "violation_code_absent",
+            "http_status",
+            "error_code",
+            "artifact_field",
+            "chain_verifies",
+            "bytes_at_most",
+            "state_unchanged"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "string",
+            "integer",
+            "boolean",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "description": "Dotted path into the artifact or result, e.g. artifact.violation_history[0].code"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "assertion_list": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/assertion"
+      }
+    },
+    "tool_arg": {
+      "description": "One tool-argument value. The OCF-1 value space and nothing else: object, array, string, integer, boolean, null. NO FLOATS, at any depth - x-moneyBoundary explains why this is a schema keyword and not a comment.",
+      "anyOf": [
+        {
+          "type": [
+            "string",
+            "integer",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool_arg"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/tool_arg"
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "expect": {
+            "properties": {
+              "outcome": {
+                "const": "required_failure"
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          }
+        },
+        "required": [
+          "expect"
+        ]
+      },
+      "then": {
+        "properties": {
+          "expect": {
+            "required": [
+              "failure",
+              "must_also"
+            ]
+          }
+        },
+        "required": [
+          "pairsWith",
+          "provingNode",
+          "brokenBy"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "controlStatus": {
+            "const": "not-runnable"
+          }
+        },
+        "required": [
+          "controlStatus"
+        ]
+      },
+      "then": {
+        "properties": {
+          "pairsWith": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "if": {
+          "properties": {
+            "expect": {
+              "properties": {
+                "outcome": {
+                  "const": "required_failure"
+                }
+              },
+              "required": [
+                "outcome"
+              ]
+            }
+          },
+          "required": [
+            "expect"
+          ]
+        },
+        "then": {
+          "properties": {
+            "pairsWith": {
+              "minItems": 1
+            },
+            "provingNode": {
+              "type": "string",
+              "minLength": 1
+            },
+            "brokenBy": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "controlStatus": {
+            "const": "known-open"
+          }
+        },
+        "required": [
+          "controlStatus"
+        ]
+      },
+      "then": {
+        "required": [
+          "observedToday"
+        ],
+        "properties": {
+          "observedToday": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ],
+  "x-moneyBoundary": {
+    "rule": "MONEY CROSSES THE TOOL BOUNDARY AS INTEGER CENTS, AND NOWHERE IN THIS SYSTEM DOES A FLOAT EXIST. Every money argument on every write tool is named `<thing>_cents` and typed integer in the tool's own inputSchema; there is no dollars-to-cents conversion step, because there is no dollars representation to convert from. Dollars appear in exactly two places, both of them output: rendered page copy, and the `message` string of a violation envelope ('$212.40 is above the $150.00 per-trip transport limit'), neither of which is ever digested. FX is integer micro-USD, converted as usd_cents = round_half_up(amount_cents * micros / 1000000). See erp/CONTRACTS.md section 3.1 rule 3 (ruling R-6).",
+    "whyThisIsWrittenDown": "Added 2026-08-28 under recheck NEW-6. The examples in this file used to pass `amount: 86.4`, `212.4` and `106.2` - float dollars - while OCF-1 rule 3 forbids a non-integer number anywhere in a canonical form and negative control N-07 asserts that a NON-INTEGER AMOUNT must come back as a violation envelope. Under that combination neg-post-signature-tamper would be refused as a bad argument by N-07's own guard BEFORE it ever reached the snapshot comparison it exists to test, and it would still have shown green, because a required_failure case that fails for the wrong reason looks exactly like one that fails for the right reason. The boundary was specified in no document at all, which is how a low-severity typo became a silently vacuous control.",
+    "assertion": "No `args` object in any case in any suite carries a non-integer number. The runner rejects the suite file if one does, and it names the case and the argument. This is cheap and it is the only thing standing between a float and a digest."
+  },
+  "x-antiVacuity": {
+    "rule": "Every required_failure case carries must_also with at least one positive assertion. A suite where every case only checks that something failed is passed by a build that does nothing at all.",
+    "check": "The runner refuses to score a suite in which any required_failure case has an empty must_also, and E6 fails the CI job rather than reporting a lower score.",
+    "secondCheck": "E3 must include at least one MUTATION case: the same case run against a deliberately broken build (evals/mutants/) must FAIL. A negative control that passes on both the real and the broken build is measuring nothing. Node E10 owns this from the outside; see erp/graph.json for its accept predicate.",
+    "thirdCheck": "THE THREE PAIRING FIELDS ARE PART OF THE SCHEMA, NOT PART OF THE PROSE. Every required_failure case carries pairsWith, provingNode and brokenBy, and this file's own allOf enforces it. Until 2026-08-28 it did not: root additionalProperties:false permitted exactly eight keys and none of the three, so EVAL.md section 7.1 ('the suite file is invalid without them'), E3's accept ('every case declares provingNode and brokenBy') and E10's whole existence ('applies that case's declared one-line brokenBy') were unsatisfiable against the very contract they validate against - a conforming file could not carry the fields, and a file that carried them failed validation. Recheck NEW-1. It is a ten-second check for a hostile reviewer and it is now green.",
+    "genuineControl": "neg-commit-without-human (N-15) is the reference example of a real negative control: it is RED on the build as it stands today and can only go green once node S5 lands the server-held sign-request state machine. A control that is green before the mechanism exists is a regression guard, not a control, and the two must not appear in the same table.",
+    "honestControl": "neg-respond-without-click is the reference example of the OTHER honest case: a control whose attack SUCCEEDS on the build as specified. Its controlStatus is `known-open`, it carries the commit it actually produces in observedToday, and it is reported in its own row rather than inside a green must-fail count. Deleting a case because it does not refuse, or writing a hoped-for refusal into its expect block and calling the table green, is worse than having no control at all: it converts an open vector into a claimed closure. Ruling R-13."
+  },
+  "x-requiredCases": {
+    "note": "The minimum set is the negative_control array below, plus four capability and two accounting cases. CITE THE ARRAY, NEVER A NUMERAL: the negative-control count is negative_control.length and nothing else - a numeral here has already gone stale twice - most recently asserting a count one HIGHER than the array's own length, which is how neg-decline-to-unlock came to have a description key and no id in the list. Ids are fixed so that other documents can reference them. neg-respond-without-click (ruling R-13) is the one case in the set whose controlStatus is `known-open`: it COMMITS today and the suite records that instead of asserting a refusal that does not happen. Counting it inside a green must-fail total would be the exact dishonesty this file is built to prevent - it is reported in its own row. neg-policy-content-swap (ruling R-33), added 2026-08-28: it is `enforced` and red on the build as it stands, because the code it expects does not exist yet. neg-decline-to-unlock (ruling R-34, added 2026-08-28, id added to the array 2026-08-28 under R-32): it is `enforced` and RED on the build as it stands, because E_ALREADY_ANSWERED does not exist yet. Read its honestScope before writing it up - it is a nuisance-grade denial, not a forgery, and it must never be reported next to neg-respond-without-click as though the two were comparable findings.",
+    "neg_policy_content_swap": "Scripted: seed 2026-08.1, open a sign request, swap the SERVED policy document for the sha256:17bc4b2d... trap (2026-08.1's document with transport_per_line dropped to 5000 and the version string NOT bumped) while leaving `version` at \"2026-08.1\", then commit. Expected after R-33: HTTP 409 E_POLICY_DIGEST_MOVED, nothing committed. brokenBy: drop policy_digest from the snapshot projection. provingNode S5, with S3 for the load-time lock. HONEST SCOPE, and it must travel with the case: the attack needs WRITE ACCESS TO THE SERVED POLICY, which is arguably OUTSIDE the declared N-04 curl-and-cookie threat model - it is a weaker vector than neg-respond-without-click, which needs only the cookie. It is in the set anyway because the same hole fires on an honest operator hot-editing a limit without bumping the version, and because an attestation whose meaning can be changed afterwards by a party it does not name is a defect in what the artifact MEANS regardless of who can reach it. Do not let it be written up as a break of the curl-and-cookie model. Full statement in signature.schema.json x-policyBinding; the N-number is EVAL.md's and graph.json's to assign and this file does not pick one.",
+    "numberingCollision": "erp/graph.json's S5 accept calls neg-respond-without-click N-16. EVAL.md section 7.2 already uses N-16 for the anonymous-read control (neg-anon-read). The STABLE IDENTIFIER IS THE CASE ID in this list; the N-number is EVAL.md's to rule on and this schema does not pick one. Flagged rather than silently renumbered, because the two files are written by different seats.",
+    "negative_control": [
+      "neg-commit-without-human",
+      "neg-respond-without-click",
+      "neg-auditor-write",
+      "neg-post-signature-tamper",
+      "neg-write-during-sign",
+      "neg-revoked-tool-next-call",
+      "neg-tool-absent-submit-when-dirty",
+      "neg-cap-split-visible",
+      "neg-receipt-binary-upload",
+      "neg-policy-content-swap",
+      "neg-decline-to-unlock"
+    ],
+    "capability": [
+      "cap-file-clean-report-end-to-end",
+      "cap-surface-flips-1-5-12-13",
+      "cap-policy-bump-changes-surface",
+      "cap-absence-register-answers"
+    ],
+    "surface_accounting": [
+      "acct-bytes-per-state",
+      "acct-description-budget"
+    ],
+    "neg_decline_to_unlock": "Scripted, and it needs TWO actors: (1) the human submits a report, the server opens a sign request and renders the dialog, so a confirm_token exists in the DOM. (2) The ATTACKER, who can read that DOM (open unknown V3 - this is the same precondition survivingVector's forgery needs), POSTs /api/sign/{request_id}/respond first with decision:'declined'. (3) The HUMAN clicks Sign; their genuine respond arrives second. Expected after R-34: the human's respond is refused 409 E_ALREADY_ANSWERED, and the commit returns 200 E_DECLINED. The case asserts BOTH of those, because asserting only the 409 would pass against a server that simply lost the second request. brokenBy: remove the one-shot guard on /respond so a second respond overwrites the first - the case then flips to permitted, the human's signature lands, and the control goes green, which is exactly what a real negative control must do. provingNode S5 (the decision state machine and the one-shot guard), with S12 (the atomic sign lock). pairsWith the answered state in evals/surfaces.expected.json. HONEST SCOPE, AND IT MUST TRAVEL WITH THE CASE: this is a DENIAL, NOT A FORGERY. Nothing commits, nothing is attested, no false entry reaches the day book - the attacker cancels a pending signature and cannot manufacture one. Its precondition is strictly stronger than the cookie-only vector in neg-respond-without-click, so an attacker able to run it is already able to run the worse one. Report it in its own row with the word `denial`, never inside a forgery count. The N-number is EVAL.md's and graph.json's to assign; this file does not pick one, exactly as with neg-policy-content-swap."
+  },
+  "examples": [
+    {
+      "schema": "outpocket.eval_case/1",
+      "id": "neg-commit-without-human",
+      "suite": "negative_control",
+      "title": "A report cannot be committed unless the server itself recorded an answer to the sign request",
+      "driver": "cdp",
+      "pairsWith": [
+        "S2-emp-draft-clean",
+        "neg-post-signature-tamper"
+      ],
+      "provingNode": "S5",
+      "brokenBy": "let commit accept a sign request still in state `open`",
+      "controlStatus": "enforced",
+      "setup": {
+        "persona": "chen",
+        "state_id": "S2-emp-draft-clean",
+        "seed": 1018,
+        "fixture": "boston-workshop.json",
+        "policy_version": "2026-08.1"
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "submit_expense_report",
+            "args": {}
+          },
+          "as": "agent"
+        },
+        {
+          "call": {
+            "tool": "commit_expense_report",
+            "args": {
+              "request_id": "$sign_request.request_id"
+            }
+          },
+          "as": "raw_http",
+          "expect": [
+            {
+              "kind": "error_code",
+              "value": "E_NOT_SIGNED",
+              "note": "The record is never moved out of `open`. See signature.schema.json x-signRequestState.priorForgery, and .survivingVector for the two-request form this case does NOT cover."
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "required_failure",
+        "failure": {
+          "mode": "server_rejects",
+          "http_status": 409,
+          "error_code": "E_NOT_SIGNED"
+        },
+        "assertions": [
+          {
+            "kind": "error_code",
+            "value": "E_NOT_SIGNED"
+          },
+          {
+            "kind": "state_unchanged",
+            "note": "The report is still a draft, the sign request is still `open`, and no chain entry was written."
+          }
+        ],
+        "must_also": [
+          {
+            "kind": "tool_present",
+            "tool": "submit_expense_report",
+            "note": "The submit door really did exist - otherwise this case would pass on a build with no tools at all."
+          },
+          {
+            "kind": "chain_verifies",
+            "value": true,
+            "note": "The day-book chain still verifies end to end after the refusal."
+          },
+          {
+            "kind": "artifact_field",
+            "path": "sign_request.state",
+            "value": "open",
+            "note": "Positive proof the server holds decision state at all. Before R-1 there was no state machine, and the absence of E_NOT_SIGNED from the ten-code table was the evidence."
+          }
+        ]
+      }
+    },
+    {
+      "schema": "outpocket.eval_case/1",
+      "id": "neg-respond-without-click",
+      "suite": "negative_control",
+      "title": "KNOWN-OPEN: the caller answers the sign request itself and commits, with no dialog ever rendered",
+      "driver": "static",
+      "pairsWith": [
+        "S2-emp-draft-clean",
+        "neg-commit-without-human"
+      ],
+      "provingNode": "S5",
+      "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond - which is the state the build is in TODAY, and is why this case is known-open rather than enforced",
+      "controlStatus": "known-open",
+      "observedToday": "IT COMMITS - ON TODAY'S BUILD, BEFORE THE confirm_token SHIPS (S5, Day 3), and that qualifier is part of the claim (R-34). HTTP 200, a real confirmation number, a chain entry with source `human` and the session's own name at a genuine server time. Every code in the x-rejectionCodes TABLE - cite the table, never a numeral - was walked by hand and none fires today: the record IS answered and IS signed, because the attacker answered it. A TRUE ATTRIBUTION OF A FALSE EVENT, forever. From Day 3 this body is refused 403 E_NO_CONFIRM_TOKEN: scheduled, not a finding. Report as an open vector.",
+      "setup": {
+        "persona": "chen",
+        "state_id": "S2-emp-draft-clean",
+        "seed": 1018,
+        "fixture": "boston-workshop.json",
+        "policy_version": "2026-08.1"
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "submit_expense_report",
+            "args": {}
+          },
+          "as": "agent",
+          "expect": [
+            {
+              "kind": "artifact_field",
+              "path": "sign_request.state",
+              "value": "open",
+              "note": "Step 1. The server issues a sign_request carrying snapshot_digest D and revision R. Both are read straight out of this response."
+            }
+          ]
+        },
+        {
+          "call": {
+            "tool": "raw_post_sign_respond",
+            "args": {
+              "request_id": "$sign_request.request_id",
+              "decision": "signed",
+              "reason": null,
+              "method": "click",
+              "acknowledged_digest": "$sign_request.snapshot_digest",
+              "acknowledged_revision": "$sign_request.revision"
+            }
+          },
+          "as": "raw_http",
+          "expect": [
+            {
+              "kind": "http_status",
+              "value": 200,
+              "note": "Step 2 IS the whole vector: no dialog, every field copied out of the server's own response, curl plus the session cookie. See x-caseNotes.neg-respond-without-click.step2."
+            }
+          ]
+        },
+        {
+          "call": {
+            "tool": "commit_expense_report",
+            "args": {
+              "request_id": "$sign_request.request_id"
+            }
+          },
+          "as": "raw_http",
+          "expect": [
+            {
+              "kind": "http_status",
+              "value": 200,
+              "note": "Step 3. Commits today."
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "outcome": "required_failure",
+        "failure": {
+          "mode": "server_rejects",
+          "http_status": 403,
+          "error_code": "E_NO_CONFIRM_TOKEN",
+          "note": "THIS BLOCK DESCRIBES THE REFUSAL WE WANT, NOT THE ONE WE GET. controlStatus is known-open, so the runner asserts observedToday and fails if the behaviour moves in either direction without that record being updated. A silent fix is caught as loudly as a silent regression."
+        },
+        "assertions": [
+          {
+            "kind": "http_status",
+            "value": 403,
+            "note": "Only after the confirm_token ships, and only for a caller that cannot read the dialog's DOM."
+          },
+          {
+            "kind": "error_code",
+            "value": "E_NO_CONFIRM_TOKEN"
+          }
+        ],
+        "must_also": [
+          {
+            "kind": "tool_present",
+            "tool": "submit_expense_report",
+            "note": "The submit door really did exist - otherwise this case would report against a build with no tools at all."
+          },
+          {
+            "kind": "chain_verifies",
+            "value": true,
+            "note": "The chain verifies end to end either way. That is the uncomfortable part: a verifying chain is not evidence a human signed - only that what the server recorded is unaltered."
+          }
+        ]
+      }
+    },
+    {
+      "schema": "outpocket.eval_case/1",
+      "id": "neg-post-signature-tamper",
+      "suite": "negative_control",
+      "title": "An edit made after the signature cannot be committed under that signature",
+      "driver": "cdp",
+      "pairsWith": [
+        "S2-emp-draft-clean",
+        "neg-commit-without-human"
+      ],
+      "provingNode": "S6",
+      "brokenBy": "skip the re-canonicalisation in server/recanon.mjs and compare the stored digest to itself",
+      "controlStatus": "enforced",
+      "setup": {
+        "persona": "chen",
+        "state_id": "S2-emp-draft-clean",
+        "seed": 1018,
+        "fixture": "boston-workshop.json",
+        "policy_version": "2026-08.1"
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "submit_expense_report",
+            "args": {}
+          },
+          "as": "agent"
+        },
+        {
+          "call": {
+            "tool": "update_expense_line",
+            "args": {
+              "line_id": "ln_3",
+              "amount_cents": 8640
+            }
+          },
+          "as": "raw_http"
+        }
+      ],
+      "expect": {
+        "outcome": "required_failure",
+        "failure": {
+          "mode": "server_rejects",
+          "http_status": 409,
+          "error_code": "E_SNAPSHOT_MISMATCH",
+          "note": "Two notes on this case, both load-bearing: the integer-cents argument, and an OPEN question about which layer actually refuses. Both are in x-caseNotes.neg-post-signature-tamper."
+        },
+        "assertions": [
+          {
+            "kind": "error_code",
+            "value": "E_SNAPSHOT_MISMATCH"
+          },
+          {
+            "kind": "state_unchanged",
+            "note": "The report is still a draft; nothing was committed."
+          }
+        ],
+        "must_also": [
+          {
+            "kind": "tool_present",
+            "tool": "submit_expense_report",
+            "note": "The submit door really did exist before the tamper - otherwise this case would pass on a build with no tools at all."
+          },
+          {
+            "kind": "chain_verifies",
+            "value": true,
+            "note": "The day-book chain still verifies end to end after the rejection."
+          }
+        ]
+      }
+    },
+    {
+      "schema": "outpocket.eval_case/1",
+      "id": "neg-cap-split-visible",
+      "suite": "negative_control",
+      "title": "A cap-split remains visible in the committed artifact",
+      "driver": "cdp",
+      "pairsWith": [
+        "S3-emp-draft-dirty"
+      ],
+      "provingNode": "S4",
+      "brokenBy": "stop appending to violation_history when a line is removed, so the artifact records only the final clean state",
+      "controlStatus": "enforced",
+      "setup": {
+        "persona": "chen",
+        "state_id": "S3-emp-draft-dirty",
+        "seed": 1019,
+        "fixture": "over-cap-cab.json",
+        "policy_version": "2026-08.1"
+      },
+      "steps": [
+        {
+          "call": {
+            "tool": "add_expense_line",
+            "args": {
+              "date": "2026-08-14",
+              "merchant": "City Cab Co.",
+              "category": "transport",
+              "amount_cents": 21240
+            }
+          },
+          "as": "agent",
+          "expect": [
+            {
+              "kind": "violation_code_present",
+              "value": "CAP_TRANSPORT",
+              "note": "21240 cents against a 15000-cent per-trip cap. Integer cents, never 212.4 dollars - x-moneyBoundary. The same 21240 is the `observed` field of violation.schema.json examples[0]."
+            }
+          ]
+        },
+        {
+          "call": {
+            "tool": "remove_expense_line",
+            "args": {
+              "line_id": "ln_5"
+            }
+          },
+          "as": "agent"
+        },
+        {
+          "call": {
+            "tool": "add_expense_line",
+            "args": {
+              "date": "2026-08-14",
+              "merchant": "City Cab Co.",
+              "category": "transport",
+              "amount_cents": 10620
+            }
+          },
+          "as": "agent"
+        },
+        {
+          "call": {
+            "tool": "add_expense_line",
+            "args": {
+              "date": "2026-08-14",
+              "merchant": "City Cab Co.",
+              "category": "transport",
+              "amount_cents": 10620
+            }
+          },
+          "as": "agent"
+        }
+      ],
+      "expect": {
+        "outcome": "pass",
+        "assertions": [
+          {
+            "kind": "artifact_field",
+            "path": "artifact.violation_history[0].code",
+            "value": "CAP_TRANSPORT"
+          },
+          {
+            "kind": "output_not_contains",
+            "value": "split",
+            "note": "No violation the agent saw contained the banned fix wording - violation.schema.json x-fixLint."
+          }
+        ]
+      }
+    },
+    {
+      "schema": "outpocket.eval_case/1",
+      "id": "acct-bytes-per-state",
+      "suite": "surface_accounting",
+      "title": "Surface bytes per state are deterministic and within budget",
+      "driver": "static",
+      "setup": {
+        "persona": "none",
+        "state_id": "S2-emp-draft-clean",
+        "seed": 0
+      },
+      "steps": [],
+      "expect": {
+        "outcome": "pass",
+        "assertions": [
+          {
+            "kind": "tool_count",
+            "value": 13
+          },
+          {
+            "kind": "bytes_at_most",
+            "value": 8000
+          },
+          {
+            "kind": "surface_digest",
+            "path": "states[3].surface_digest"
+          }
+        ]
+      }
+    }
+  ],
+  "x-invalidExamples": [
+    {
+      "why": "required_failure with no must_also - a build that errors on everything passes it. Everything else about this case is well formed, including all three pairing fields, so it fails for exactly one reason and section 11 check 1 is a precise test rather than an accidental one.",
+      "instance": {
+        "schema": "outpocket.eval_case/1",
+        "id": "neg-auditor-write",
+        "suite": "negative_control",
+        "title": "An auditor cannot write",
+        "pairsWith": [
+          "S5-aud"
+        ],
+        "provingNode": "S2",
+        "brokenBy": "make server/authz.mjs fall through for the auditor role",
+        "setup": {
+          "persona": "ruiz",
+          "state_id": "S5-aud",
+          "seed": 1020
+        },
+        "steps": [
+          {
+            "call": {
+              "tool": "add_expense_line",
+              "args": {}
+            },
+            "as": "raw_http"
+          }
+        ],
+        "expect": {
+          "outcome": "required_failure",
+          "failure": {
+            "mode": "server_rejects",
+            "http_status": 403,
+            "error_code": "E_FORBIDDEN"
+          },
+          "assertions": [
+            {
+              "kind": "http_status",
+              "value": 403
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "required_failure with no brokenBy - the case cannot be shown to be non-vacuous, because node E10 has no mutation to apply and --verify-controls cannot flip it. This is the recheck NEW-1 mechanism made enforceable: before 2026-08-28 the three pairing fields were required by EVAL.md section 7.1 and executed by E3 and E10 while root additionalProperties:false forbade them outright, so a conforming file could not carry them and a file that carried them failed validation. Both halves are now checkable and this instance is the standing proof that the requirement bites.",
+      "instance": {
+        "schema": "outpocket.eval_case/1",
+        "id": "neg-write-during-sign",
+        "suite": "negative_control",
+        "title": "A write during an open sign request is refused",
+        "pairsWith": [
+          "S2-emp-draft-clean"
+        ],
+        "provingNode": "S12",
+        "setup": {
+          "persona": "chen",
+          "state_id": "S2-emp-draft-clean",
+          "seed": 1021
+        },
+        "steps": [
+          {
+            "call": {
+              "tool": "add_expense_line",
+              "args": {}
+            },
+            "as": "raw_http"
+          }
+        ],
+        "expect": {
+          "outcome": "required_failure",
+          "failure": {
+            "mode": "server_rejects",
+            "http_status": 423,
+            "error_code": "E_SIGN_IN_PROGRESS"
+          },
+          "assertions": [
+            {
+              "kind": "http_status",
+              "value": 423
+            }
+          ],
+          "must_also": [
+            {
+              "kind": "chain_verifies",
+              "value": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a FLOAT tool argument. 86.4 is not an integer, so it is outside the OCF-1 value space and outside $defs/tool_arg. See x-moneyBoundary: money crosses the tool boundary as integer cents in a `<thing>_cents` argument, and the reason this is a schema keyword rather than a style note is that a float argument gets a case refused by the argument guard before it reaches the mechanism it was written to test, while still reporting a green required_failure.",
+      "instance": {
+        "schema": "outpocket.eval_case/1",
+        "id": "neg-float-argument",
+        "suite": "negative_control",
+        "title": "A float argument must never appear in a suite file",
+        "pairsWith": [
+          "S2-emp-draft-clean"
+        ],
+        "provingNode": "S4",
+        "brokenBy": "accept a non-integer amount at the argument guard",
+        "setup": {
+          "persona": "chen",
+          "state_id": "S2-emp-draft-clean",
+          "seed": 1022
+        },
+        "steps": [
+          {
+            "call": {
+              "tool": "update_expense_line",
+              "args": {
+                "line_id": "ln_3",
+                "amount": 86.4
+              }
+            },
+            "as": "raw_http"
+          }
+        ],
+        "expect": {
+          "outcome": "required_failure",
+          "failure": {
+            "mode": "violation_returned",
+            "violation_code": "E_CANON_NUMBER"
+          },
+          "assertions": [
+            {
+              "kind": "violation_code_present",
+              "value": "E_CANON_NUMBER"
+            }
+          ],
+          "must_also": [
+            {
+              "kind": "chain_verifies",
+              "value": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "x-caseNotes": {
+    "note": "Prose that does not fit the deliberately short `note` fields on assertions (200 chars) and failure blocks (400). The short fields are what the runner prints in a report row; these are for the reader of the contract. Keyed by case id.",
+    "neg-respond-without-click": {
+      "step2": "THE WHOLE VECTOR. The dialog is never rendered. Every field of the respond body is either a constant or copied verbatim out of the sign_request the server itself just issued: acknowledged_digest is the server's D, acknowledged_revision is the server's R, method is the string 'click' sent from curl. The threat model is the one this project already declared in scope for N-04 - curl, session cookie, no browser - and it needs no script execution on the origin.",
+      "whatFlipsIt": "Once the confirm_token of signature.schema.json x-signRequestState.confirmToken is required, step 2 becomes 403 E_NO_CONFIRM_TOKEN FOR A CALLER THAT CANNOT READ THE RENDERED DIALOG'S DOM, and this case flips to controlStatus `enforced`. It does NOT flip for a caller that can read the DOM. That is open unknown V3 - does an agent-initiated fetch carry the page session cookie - and nothing in this contract closes it. The confirm_token raises cost; it does not establish personhood.",
+      "whyItIsInTheSuiteAtAll": "Because the alternative is worse. A suite that silently omits the one attack that works reports a green must-fail table and a closed sign gate, which is a claim this project cannot support. See x-antiVacuity.honestControl."
+    },
+    "neg-post-signature-tamper": {
+      "money": "The tamper argument is INTEGER CENTS and the argument is named amount_cents - x-moneyBoundary. It used to read `amount: 86.4`, a float, which OCF-1 rule 3 forbids and which N-07 asserts must come back as a violation envelope. The tamper would then have been refused as a BAD ARGUMENT before it ever reached the snapshot comparison this case exists to test, and it would still have shown green: a required_failure that fails for the wrong reason is indistinguishable from one that fails for the right reason.",
+      "openQuestionForTheE3Owner": "NOT RESOLVED HERE. signature.schema.json x-freeze layer 2 refuses EVERY mutating request for a report holding an open sign lock with 423 E_SIGN_IN_PROGRESS, and the lock is released only by commit, decline or expiry. On a correct single-instance build the tamper above is therefore refused 423 and this case never reaches the 409 it asserts. Layer 3 is defence in depth against layer 2 having a hole - the multi-instance deploy named in x-freeze.loadBearingPrecondition.breaksIf - so the case needs a delivery that bypasses the lock (the E10 mutant build is the obvious one) or an honest restatement of which layer it tests. Do NOT quietly change the asserted code to 423: that would test the lock and stop testing the digest."
+    }
+  }
+}

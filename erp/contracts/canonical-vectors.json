@@ -1,0 +1,144 @@
+{
+  "schema": "outpocket.canonical_vectors/1",
+  "ocf": "OCF-1",
+  "digest_prefix": "outpocket/ocf/1",
+  "note": "Frozen conformance vectors for the OCF-1 canonical form. digest = sha256(utf8(digest_prefix + U+000A + canonical)). Any implementation of canon()/digest() MUST reproduce every canonical string and every digest byte for byte. This file is pure ASCII on purpose: every non-ASCII character and every control character inside the input values is written as a \\uXXXX escape so that no editor can silently renormalise it. v6 and v7 differ only in provenance.amount and MUST produce different digests - that is the regression test for the bug where a 32-bit FNV-1a digest was taken over a projection that excluded the provenance source.",
+  "vectors": [
+    {
+      "id": "v1_empty_object",
+      "note": "empty object",
+      "value": {},
+      "canonical": "{}",
+      "digest": "sha256:d2f383128bd32dd8113e787e010651ee04c52d542109f09f6a3372a0cdb6aeb5"
+    },
+    {
+      "id": "v2_key_order",
+      "note": "keys sorted ascending by code point",
+      "value": {
+        "b": 1,
+        "a": 2,
+        "a_b": 3,
+        "ab": 4
+      },
+      "canonical": "{\"a\":2,\"a_b\":3,\"ab\":4,\"b\":1}",
+      "digest": "sha256:cd773403bd613ecc15fe3cdb22c601fd81cd7194a59f312450b93f1832958a1e"
+    },
+    {
+      "id": "v3_nfc_and_null",
+      "note": "string values are NFC-normalised: 'e' + U+0301 serialises as U+00E9",
+      "value": {
+        "a": null,
+        "b": [
+          1,
+          2
+        ],
+        "c": "cafe\u0301"
+      },
+      "canonical": "{\"a\":null,\"b\":[1,2],\"c\":\"caf\u00e9\"}",
+      "digest": "sha256:d840d0407afc54a6d253dccb47ec8cd7de789b32d7efc0e843ae04287ebf952a"
+    },
+    {
+      "id": "v4_negative_zero",
+      "note": "-0 normalises to 0; negative integers keep their sign",
+      "value": {
+        "amount_cents": 0,
+        "delta_cents": -1
+      },
+      "canonical": "{\"amount_cents\":0,\"delta_cents\":-1}",
+      "digest": "sha256:f6c47c5a8f805e9a8b48f2d795d65476565249dc24c6d8236b84764a25a8b1aa"
+    },
+    {
+      "id": "v5_escapes",
+      "note": "only quote, backslash and C0 controls are escaped; U+007F and non-ASCII stay literal",
+      "value": {
+        "s": "a\u0000b\tc\u001fd\ne\"f\\gh\u00e9"
+      },
+      "canonical": "{\"s\":\"a\\u0000b\\tc\\u001fd\\ne\\\"f\\\\gh\u00e9\"}",
+      "digest": "sha256:5431c421462252b75b755315e1e6f9b53ae38413a837d962e7fea74f9aaeb359"
+    },
+    {
+      "id": "v6_line_source_agent",
+      "note": "line projection, amount filled by the agent",
+      "value": {
+        "amount_cents": 18640,
+        "attendees": 2,
+        "category": "meals",
+        "currency": "USD",
+        "date": "2026-08-14",
+        "description": null,
+        "id": "ln_3",
+        "itemization": [
+          {
+            "amount_cents": 9200,
+            "label": "Prix fixe x2"
+          },
+          {
+            "amount_cents": 2240,
+            "label": "Service"
+          }
+        ],
+        "merchant": "Cafe Bruno",
+        "nights": null,
+        "provenance": {
+          "amount": "agent",
+          "attendees": "agent",
+          "category": "agent",
+          "currency": "agent",
+          "date": "agent",
+          "description": "unset",
+          "itemization": "agent",
+          "merchant": "agent",
+          "nights": "unset",
+          "receipt_id": "human"
+        },
+        "receipt_id": "rc_2",
+        "receipt_sha256": "9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa",
+        "usd_cents": 18640
+      },
+      "canonical": "{\"amount_cents\":18640,\"attendees\":2,\"category\":\"meals\",\"currency\":\"USD\",\"date\":\"2026-08-14\",\"description\":null,\"id\":\"ln_3\",\"itemization\":[{\"amount_cents\":9200,\"label\":\"Prix fixe x2\"},{\"amount_cents\":2240,\"label\":\"Service\"}],\"merchant\":\"Cafe Bruno\",\"nights\":null,\"provenance\":{\"amount\":\"agent\",\"attendees\":\"agent\",\"category\":\"agent\",\"currency\":\"agent\",\"date\":\"agent\",\"description\":\"unset\",\"itemization\":\"agent\",\"merchant\":\"agent\",\"nights\":\"unset\",\"receipt_id\":\"human\"},\"receipt_id\":\"rc_2\",\"receipt_sha256\":\"9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa\",\"usd_cents\":18640}",
+      "digest": "sha256:9b23b4a3eb2850436cfd4c80190ff6dc989b82532b15582b54f8adb82cda210a"
+    },
+    {
+      "id": "v7_line_source_human",
+      "note": "identical to v6 except provenance.amount; the digest MUST differ",
+      "value": {
+        "amount_cents": 18640,
+        "attendees": 2,
+        "category": "meals",
+        "currency": "USD",
+        "date": "2026-08-14",
+        "description": null,
+        "id": "ln_3",
+        "itemization": [
+          {
+            "amount_cents": 9200,
+            "label": "Prix fixe x2"
+          },
+          {
+            "amount_cents": 2240,
+            "label": "Service"
+          }
+        ],
+        "merchant": "Cafe Bruno",
+        "nights": null,
+        "provenance": {
+          "amount": "human",
+          "attendees": "agent",
+          "category": "agent",
+          "currency": "agent",
+          "date": "agent",
+          "description": "unset",
+          "itemization": "agent",
+          "merchant": "agent",
+          "nights": "unset",
+          "receipt_id": "human"
+        },
+        "receipt_id": "rc_2",
+        "receipt_sha256": "9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa",
+        "usd_cents": 18640
+      },
+      "canonical": "{\"amount_cents\":18640,\"attendees\":2,\"category\":\"meals\",\"currency\":\"USD\",\"date\":\"2026-08-14\",\"description\":null,\"id\":\"ln_3\",\"itemization\":[{\"amount_cents\":9200,\"label\":\"Prix fixe x2\"},{\"amount_cents\":2240,\"label\":\"Service\"}],\"merchant\":\"Cafe Bruno\",\"nights\":null,\"provenance\":{\"amount\":\"human\",\"attendees\":\"agent\",\"category\":\"agent\",\"currency\":\"agent\",\"date\":\"agent\",\"description\":\"unset\",\"itemization\":\"agent\",\"merchant\":\"agent\",\"nights\":\"unset\",\"receipt_id\":\"human\"},\"receipt_id\":\"rc_2\",\"receipt_sha256\":\"9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa\",\"usd_cents\":18640}",
+      "digest": "sha256:a82c3e7c229737432cb38d6cb077f5d82b5f54027163adeaad16cde6acb4b3bd"
+    }
+  ]
+}
