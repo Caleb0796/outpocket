@@ -5,8 +5,17 @@
 // Design rule (drift governance): the policy lives HERE, versioned, served to
 // agents via get_expense_policy and enforced on every write. Agents never need
 // it in a prompt, and swapping the model never changes what counts as valid.
+//
+// Node S3 (owner I3), the port of countinghouse/src/policy.js, with two
+// required changes (erp/CONTRACTS.md §8): FX becomes integer micro-USD —
+// OCF-1 forbids non-integer numbers, so a float rate could never be
+// canonicalised the same way by two implementations — and every `fix` string
+// is rewritten to pass the x-fixLint substring scan in
+// erp/contracts/violation.schema.json.
+import { canon, digest } from "./canonical.js";
 
 export const POLICY_VERSION = "2026-08.1";
+export const POLICY_EFFECTIVE_FROM = "2026-08-01";
 
 // All money is integer cents. Inputs arrive as decimal `amount` in the
 // receipt's currency and are converted once, at the edge.
@@ -24,14 +33,30 @@ export const LIMITS = {
 
 export const CATEGORIES = ["meals", "lodging", "transport", "airfare", "supplies", "other"];
 
-// USD per one unit of foreign currency (demo rates, part of the versioned policy).
-export const FX = { USD: 1, EUR: 1.09, GBP: 1.28, CNY: 0.14, JPY: 0.0067 };
+// Integer micro-USD per one unit of the currency (part of the versioned
+// policy). usd_cents = round_half_up(amount_cents * micros / 1_000_000),
+// computed once at the edge. Was float (EUR: 1.09, JPY: 0.0067) in the spike
+// — countinghouse/src/policy.js:28 — which cannot enter a canonical form two
+// implementations agree on.
+export const FX = { USD: 1_000_000, EUR: 1_090_000, GBP: 1_280_000, CNY: 140_000, JPY: 6_700 };
 
 // Non-reimbursable items, detected deterministically over the agent-declared
 // itemization labels (never over free text scanning of receipts — the page
-// does not read receipts by design; see threat model in README).
+// does not read receipts by design; see threat model in README). Broader than
+// the versioned document's non_reimbursable_labels (erp/contracts/policy.schema.json
+// examples[0]), which is the closed, published word list; this lexicon also
+// catches plurals and specific wine/liquor names the published list does not
+// enumerate.
 const ALCOHOL_RE =
   /\b(wine|beer|beers|ale|ipa|lager|stout|cocktail|cocktails|alcohol|liquor|whiskey|whisky|bourbon|vodka|gin|rum|tequila|sake|champagne|prosecco|chianti|merlot|cabernet|margarita|martini|spirits)\b/i;
+
+// Verbatim from erp/contracts/policy.schema.json examples[0].non_reimbursable_labels
+// — part of the frozen, digested document. Do not reorder or extend.
+const NON_REIMBURSABLE_LABELS = [
+  "alcohol", "ale", "beer", "bourbon", "champagne", "cocktail", "gin", "ipa",
+  "lager", "liquor", "martini", "prosecco", "rum", "sake", "spirits", "stout",
+  "tequila", "vodka", "whiskey", "wine",
+];
 
 export function toCents(amount) {
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return null;
@@ -39,9 +64,9 @@ export function toCents(amount) {
 }
 
 export function toUsdCents(cents, currency) {
-  const rate = FX[currency];
-  if (rate === undefined) return null;
-  return Math.round(cents * rate);
+  const micros = FX[currency];
+  if (micros === undefined) return null;
+  return Math.round((cents * micros) / 1_000_000);
 }
 
 export function fmtUsd(cents) {
@@ -130,7 +155,7 @@ export function validateLine(line, ctx) {
           "If the stay was longer, update `nights` to match the folio; otherwise reduce the claimed amount.");
     }
     if (line.category === "transport" && usd > LIMITS.TRANSPORT_PER_LINE)
-      push("CAP_TRANSPORT", "block", "amount", `${fmtUsd(usd)} exceeds the ${fmtUsd(LIMITS.TRANSPORT_PER_LINE)} per-trip transport cap.`, "Split legitimate multi-trip charges into one line per trip.");
+      push("CAP_TRANSPORT", "block", "amount", `${fmtUsd(usd)} exceeds the ${fmtUsd(LIMITS.TRANSPORT_PER_LINE)} per-trip transport cap.`, "A trip above the limit needs a written exception from your approver before it can be filed.");
     if (line.category === "supplies" && usd > LIMITS.SUPPLIES_PER_LINE)
       push("CAP_SUPPLIES", "block", "amount", `${fmtUsd(usd)} exceeds the ${fmtUsd(LIMITS.SUPPLIES_PER_LINE)} supplies cap.`, "Purchases above the cap go through procurement, not expenses.");
     if (line.category === "airfare" && usd > LIMITS.AIRFARE_REVIEW_ABOVE)
@@ -224,27 +249,88 @@ export function validateReport(report, session, ctx) {
   return { reportViolations, lineViolations, blocking, warnings, clean: blocking === 0, totalUsd };
 }
 
-// ── The policy as an agent-readable document ───────────────────────
-// Served by get_expense_policy. Compact by design: must fit the official
-// 1500-char tool output budget (enforced by tests/budgets.test.mjs).
+// ── The versioned policy document (erp/contracts/policy.schema.json) ──────
+// The only place a rule exists. Every rule that can emit a violation, with
+// its rule_id, so every finding traces to one line of one version of this
+// document. All money is integer cents; FX is integer micro-USD; there is no
+// decimal number anywhere in this document (OCF-1). 15 line-level codes plus
+// 4 report-level codes (EMPTY_REPORT, PROJECT_SCOPE, PROJECT_INACTIVE,
+// REPORT_REVIEW) — 19 rules, not 16.
+const RULES = [
+  { id: "R01", code: "MISSING_FIELD", severity: "block", fix_class: "provide_missing_data" },
+  { id: "R02", code: "DATE_FUTURE", severity: "block", fix_class: "correct_transcription" },
+  { id: "R03", code: "DATE_STALE", severity: "block", fix_class: "human_exception_required" },
+  { id: "R04", code: "CURRENCY_UNSUPPORTED", severity: "block", fix_class: "not_reimbursable" },
+  { id: "R05", code: "CAP_MEALS", severity: "block", fix_class: "human_exception_required" },
+  { id: "R06", code: "CAP_LODGING", severity: "block", fix_class: "human_exception_required" },
+  { id: "R07", code: "CAP_TRANSPORT", severity: "block", fix_class: "human_exception_required" },
+  { id: "R08", code: "CAP_SUPPLIES", severity: "block", fix_class: "human_exception_required" },
+  { id: "R09", code: "AIRFARE_REVIEW", severity: "warn", fix_class: "informational" },
+  { id: "R10", code: "ITEMIZATION_REQUIRED", severity: "block", fix_class: "provide_missing_data" },
+  { id: "R11", code: "ITEMIZATION_GAP", severity: "warn", fix_class: "correct_transcription" },
+  { id: "R12", code: "ALCOHOL", severity: "block", fix_class: "not_reimbursable" },
+  { id: "R13", code: "DESC_REQUIRED", severity: "block", fix_class: "provide_missing_data" },
+  { id: "R14", code: "RECEIPT_REQUIRED", severity: "block", fix_class: "attach_evidence" },
+  { id: "R15", code: "RECEIPT_DUP", severity: "block", fix_class: "not_reimbursable" },
+  { id: "R16", code: "EMPTY_REPORT", severity: "block", fix_class: "provide_missing_data" },
+  { id: "R17", code: "PROJECT_SCOPE", severity: "block", fix_class: "human_exception_required" },
+  { id: "R18", code: "PROJECT_INACTIVE", severity: "block", fix_class: "human_exception_required" },
+  { id: "R19", code: "REPORT_REVIEW", severity: "warn", fix_class: "informational" },
+];
+
+// erp/contracts/policy.schema.json properties.limits_cents — snake_case keys,
+// same integer-cent values as LIMITS above.
+const LIMITS_CENTS = {
+  meal_per_attendee: LIMITS.MEAL_PER_PERSON,
+  lodging_per_night: LIMITS.LODGING_PER_NIGHT,
+  transport_per_line: LIMITS.TRANSPORT_PER_LINE,
+  supplies_per_line: LIMITS.SUPPLIES_PER_LINE,
+  airfare_review_above: LIMITS.AIRFARE_REVIEW_ABOVE,
+  receipt_required_at: LIMITS.RECEIPT_REQUIRED_AT,
+  meals_itemize_at: LIMITS.MEALS_ITEMIZE_AT,
+  report_review_above: LIMITS.REPORT_REVIEW_ABOVE,
+};
+
+// The document itself — must reproduce erp/contracts/policy.schema.json
+// examples[0] byte-for-byte under OCF-1 (digest sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38,
+// 2458 canonical bytes, pinned in erp/contracts/policy-versions.json).
+export const POLICY_DOCUMENT = Object.freeze({
+  kind: "outpocket.policy",
+  ocf: 1,
+  version: POLICY_VERSION,
+  effective_from: POLICY_EFFECTIVE_FROM,
+  reimbursement_currency: "USD",
+  categories: [...CATEGORIES].sort(),
+  fx_micros_per_unit_usd: FX,
+  limits_cents: LIMITS_CENTS,
+  filing_window_days: LIMITS.DATE_WINDOW_DAYS,
+  non_reimbursable_labels: NON_REIMBURSABLE_LABELS,
+  rules: RULES,
+});
+
+// erp/contracts/policy-versions.json digest_prefix.
+export const POLICY_DIGEST_PREFIX = "outpocket/policy/1";
+export const POLICY_DIGEST = digest(POLICY_DIGEST_PREFIX, POLICY_DOCUMENT);
+export const POLICY_CANONICAL_BYTES = Buffer.byteLength(canon(POLICY_DOCUMENT), "utf8");
+
+// ── The policy as an agent-readable projection ─────────────────────
+// get_expense_policy does NOT serve POLICY_DOCUMENT: its canonical form is
+// over the 1500-character per-tool output budget. This serves caps,
+// thresholds, categories, currencies and window, plus `version` and the
+// first 12 hex of `policy_digest`, so an agent or an eval can bind what it
+// read to what is enforced (erp/contracts/policy.schema.json x-agentView).
+// `rules` is excluded. No decimal number anywhere — money stays integer
+// cents, FX stays integer micro-USD.
 export function policyForAgent() {
   return {
     version: POLICY_VERSION,
+    policy_digest_prefix: POLICY_DIGEST.slice("sha256:".length, "sha256:".length + 12),
     reimbursement_currency: "USD",
-    accepted_currencies_fx_to_usd: FX,
-    categories: CATEGORIES,
-    caps_usd: {
-      meals_per_attendee: LIMITS.MEAL_PER_PERSON / 100,
-      lodging_per_night: LIMITS.LODGING_PER_NIGHT / 100,
-      transport_per_trip: LIMITS.TRANSPORT_PER_LINE / 100,
-      supplies_per_line: LIMITS.SUPPLIES_PER_LINE / 100,
-    },
-    airfare_review_above_usd: LIMITS.AIRFARE_REVIEW_ABOVE / 100,
-    receipt_required_at_usd: LIMITS.RECEIPT_REQUIRED_AT / 100,
-    meals_itemization_required_at_usd: LIMITS.MEALS_ITEMIZE_AT / 100,
-    non_reimbursable: "itemized alcohol — exclude it and reduce the claimed amount",
+    categories: POLICY_DOCUMENT.categories,
+    fx_micros_per_unit_usd: FX,
+    limits_cents: LIMITS_CENTS,
     filing_window_days: LIMITS.DATE_WINDOW_DAYS,
-    report_second_approver_above_usd: LIMITS.REPORT_REVIEW_ABOVE / 100,
+    non_reimbursable: "itemized alcohol — excluded; reduce the claimed amount",
     notes: "Every write is validated against this document; violations return a code, severity (block|warn) and a fix hint. Blocking violations prevent submission.",
   };
 }
