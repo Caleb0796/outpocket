@@ -835,10 +835,12 @@ Required, and the arithmetic is shown rather than asserted:
 `0.05 ×` the full total and double-counted: the human does not review their own gated hours at
 5%. That correction is stated as a rule in `graph.json.conventions.hours`.
 
-**And the 10.5 h is not spread evenly — the schedule now makes that visible.** Human-gated work
-lands on three days and three only: **Day 1 = 2.5 h** (G1 0.5 + V1 2.0), **Day 5 = 4.0 h** (D4),
-**Day 6 = 4.0 h** (D5 2.0 + D6 2.0). Days 5 and 6 each need **1.5 h more than the 2.5 h/day
-average**, and Day 6 is the morning of a 13:00 PT deadline. **No rank of the ladder touches
+**And the 10.5 h is not spread evenly — the schedule now makes that visible.**
+**REGENERATED against `graph.json.capacity.schedule_A.days` (R-42/D-30 moved `G1` from Day 1 to
+Day 6 and these per-day splits were never regenerated; the 10.5 h TOTAL was right throughout).**
+Human-gated work lands on three days and three only: **Day 1 = 2.0 h** (V1),
+**Day 5 = 4.0 h** (D4), **Day 6 = 4.5 h** (D5 2.0 + D6 2.0 + **G1 0.5**). Against the **ruled
+3.0 h/day** (D-17) that is **1.0 h over on Day 5 and 1.5 h over on Day 6, 2.5 h in total**, and Day 6 is the morning of a 13:00 PT deadline. **No rank of the ladder touches
 this** — all five human-gated nodes are cut 0 — so if the user cannot give roughly half a day to
 the video on Day 5 and half a day to submission on Day 6, **the answer is to shorten D4's scope,
 not to fire a rank** (`capacity.human_hours_are_budgeted_in_total_not_per_day`).

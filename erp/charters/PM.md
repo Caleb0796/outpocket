@@ -79,9 +79,12 @@ fallback; a row with no named fallback is malformed and the node does not pass.
 2. **D-17's second half, and it is the one that will actually hurt: the human
    budget is a TOTAL, and the schedule does not spread it.** `capacity.schedule_A`
    makes this visible for the first time. Human-gated hours land on **three days
-   only**: **Day 1 = 2.5 h** (`G1` 0.5 + `V1` 2.0, exactly at budget), **Day 5 =
-   4.0 h** (`D4`), **Day 6 = 4.0 h** (`D5` 2.0 + `D6` 2.0). The other four days
-   carry **zero**. Two consecutive days at **60% over** the daily figure is not
+   only**. REGENERATED 2026-08-29 against `capacity.schedule_A.days`: R-42/D-30
+   moved `G1` from Day 1 to Day 6 and this split kept the pre-D-30 arithmetic; the
+   10.5 h TOTAL was right throughout, the per-day figures were not. **Day 1 =
+   2.0 h** (`V1`), **Day 5 = 4.0 h** (`D4`), **Day 6 = 4.5 h** (`D5` 2.0 + `D6`
+   2.0 + **`G1` 0.5**). The other four days carry **zero**. Against the ruled
+   3.0 h/day that is **1.0 h over on Day 5 and 1.5 h over on Day 6**, and it is not
    something the ladder can touch — **all five human-gated nodes are cut 0**, so
    firing every rank frees zero of these hours. You have exactly two levers: the
    user plans two half-days of attention on Day 5 and Day 6, or **you shorten

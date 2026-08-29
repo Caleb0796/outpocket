@@ -1053,11 +1053,14 @@ The arithmetic, from `graph.json.capacity.human_gated_breakdown`
    check, that trigger has already fired and everything else is already cut.
 2. **The 2.5 h/day human budget is a TOTAL spread over 5.5 days, not a per-day cap
    the schedule respects — and `schedule_A` makes that visible for the first
-   time.** Human-gated hours land on exactly three days: **Day 1 carries 2.5 h**
-   (`G1` 0.5 + `V1` 2.0, exactly at budget), **Day 5 carries 4.0 h** (`D4`) and
-   **Day 6 carries 4.0 h** (`D5` 2.0 + `D6` 2.0). Two consecutive days at 4.0 h
-   against a 2.5 h/day assumption is a **60% overrun on each**, and the four other
-   days carry zero. Verified by summing `human_gated` hours over
+   time.** REGENERATED against `capacity.schedule_A.days` — R-42/D-30 moved `G1`
+   from Day 1 to Day 6 and this split was never regenerated; the 10.5 h TOTAL was
+   right throughout. Human-gated hours land on exactly three days: **Day 1 carries
+   2.0 h** (`V1`), **Day 5 carries 4.0 h** (`D4`) and **Day 6 carries 4.5 h**
+   (`D5` 2.0 + `D6` 2.0 + **`G1` 0.5**). Against the **ruled 3.0 h/day** that is
+   **1.0 h over on Day 5 and 1.5 h over on Day 6, 2.5 h in total**, and the four
+   other days carry zero. D-30 is where Day 1 fell and Day 6 rose, and it states
+   both halves of the trade. Verified by summing `human_gated` hours over
    `capacity.schedule_A.days`; recorded in
    `capacity.human_hours_are_budgeted_in_total_not_per_day`.
 3. **No rank of the ladder touches this, so it is a decision and not a risk.** All
