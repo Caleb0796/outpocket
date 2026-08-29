@@ -6,7 +6,7 @@
 > from them, never re-derived. **On any disagreement, the authority wins and this file is
 > regenerated, not argued with.**
 >
-> Regenerated 2026-08-29 from `graph.json` (68 nodes, 120 edges — 109 hard and
+> Regenerated 2026-08-29 from `graph.json` (68 nodes, 121 edges — 110 hard and
 > 11 soft — 62 nodes horizon A, 118.0 agent-hours). Sprint A deadline **2026-09-03 13:00 PT**
 > (~5.5 days). Track B is everything after that date.
 >
@@ -59,7 +59,7 @@ mechanism, not a feature" by human judgement on the single most expensive node i
 now commands.
 
 **2. An edge is a frozen artifact, not a feeling.**
-Applied: all 120 edges carry a `contract` naming the file that crosses them.
+Applied: all 121 edges carry a `contract` naming the file that crosses them.
 **Where it bit, and it bit again this revision.** Three hard edges were missing and their absence was invisible: `F1→T2`,
 `S1→T2` and `S4→T2`. `T2`'s predicate drives a real page (only `F1` produces
 `src/page/index.html`), served by a real server (`S1`), and introduces a real blocking violation
@@ -517,7 +517,7 @@ plus S12's atomic lock.
 | id | title | owner | inputs | h | cut | accept — **gloss only, not an authority** |
 |---|---|---|---|---|---|---|
 | F0 | Storyboard and video script, authored before anything grades against them | UX | L0, G4 | 1 | 0 | `tools/lint-layer0.mjs docs/STORYBOARD.md docs/VIDEO-SCRIPT.md` exits 0 AND every shot in `docs/STORYBOARD.md` has a stable shot id and a duration with the durations summing under 170 s AND `docs/VIDEO-SCRIPT.md`'s first cue is timestamped ≤ 00:10 and contains a literal token from `kb/webmcp/MECHANISMS.txt` |
-| F1 | Application shell, login, two personas | UX | S1 | 2.5 | 0 | `drive.mjs --smoke-login chen,ruiz` exits 0 for both AND `document.querySelectorAll('[data-persona]').length === 2` |
+| F1 | Application shell, login, two personas | UX | S1, H2 | 2.5 | 0 | `drive.mjs --smoke-login chen,ruiz` exits 0 for both AND `document.querySelectorAll('[data-persona]').length === 2` |
 | F2 | Report editor with per-field provenance and an agent-proposed vs human-edited diff | UX | S8, F1 | 3.5 | 3 | `tests/acceptance/editor.test.mjs`: every field cell carries `data-source ∈ {agent,human}`; after a human edit of an agent-written field the cell exposes both `data-source="human"` and `data-prev-source="agent"` |
 | F3 | Receipt upload as a human-only channel; the agent can only link an existing id | UX | F1 | 1.5 | 2 | `tests/acceptance/receipt-channel.test.mjs`: zero registered tool has an `inputSchema` containing `contentEncoding`, `format:'byte'`, or a property named `file`/`data`/`base64`; `link_receipt` on an unknown id returns a `RECEIPT_NOT_FOUND` envelope |
 | F4 | Signature dialog with the worst-case consequence printed above the signature line | UX | S5 | 1.5 | 0 | `tests/acceptance/sign-dialog.test.mjs`: the element immediately preceding `[data-signature-line]` has text matching `/you are certifying .+ if this is wrong, .+/i`; cannot confirm while it is empty; confirming POSTs to `/api/sign/{request_id}/respond` a body that **validates against the frozen `sign_respond_request`** — all eight required fields under `additionalProperties:false`, with the `confirm_token` read out of this dialog's own DOM — carrying **no `signed_by`, no `at`, and no key for either**, both taken by the server from the session cookie and its own clock. (The old "**only** `{decision, reason}`" was unsatisfiable: such a body fails `required` and carries nothing for `E_DIGEST_ACK_MISMATCH` or `/respond` to check. CONTRACTS.md §7.3.) |
