@@ -107,6 +107,34 @@ here; there is one copy of that command and it lives in L0.
 | **K1** | chronicler A — API | resident Claude | sonnet / medium | **none — unbudgeted overhead (§8)** | `claude --model sonnet --effort medium --append-system-prompt-file .team/charters/K1.md` |
 | **K2** | chronicler B — method | resident Claude | sonnet / medium | **none — unbudgeted overhead (§8)** | `claude --model sonnet --effort medium --append-system-prompt-file .team/charters/K2.md` |
 
+### Every seat inherits `FORCE_COLOR=3`, and it breaks grep-a-banner predicates
+
+**MEASURED 2026-08-29, `tools/l0-forcecolor-probe.mjs` — adopted from `DEV-L0-gate4-banner-grep`
+(PM verdict: adopt, 2026-08-29).** The resident Claude session every seat is booted from exports
+`FORCE_COLOR=3` (with `TERM=xterm-ghostty` and `COLORTERM=truecolor`). A child CLI therefore
+colours its human-readable output **even when stdout is a pipe**, and `NO_COLOR=1` does not help
+because `FORCE_COLOR` outranks it. The same invocation differs only by the child environment:
+
+| Child environment | Banner bytes | A `grep -q 'reasoning effort: low'` |
+|---|---|---|
+| inherited (`FORCE_COLOR=3`) | `ESC[1mreasoning effort:ESC[0m low` | **NO MATCH** |
+| `FORCE_COLOR` removed | `reasoning effort: low` | **MATCH** |
+
+**Binding, on every seat:**
+
+1. **Any acceptance predicate that greps a CLI's human-readable output must be run with
+   `FORCE_COLOR` removed from the child environment.** The predicate is not defective and is
+   never to be relaxed to route around this — no SGR-stripping `sed`, no `grep -qE`. `L0`'s
+   gate (4) is the known instance; it is unlikely to be the only one.
+2. **An unexplained `exit 1` on such a gate gets `env | grep -i color` BEFORE it gets a theory.**
+   `NO_COLOR=1` failing to suppress colour is itself the tell that something is *forcing* it.
+3. **Two sessions can reach opposite results from the same command on the same machine because
+   their shells differ.** That is the generalisable finding, and it is why a seat normalises its
+   own environment rather than editing the authority. A seat normalising its shell is not the
+   same as a seat editing `erp/graph.json`.
+
+Nothing in `erp/graph.json` changed for this. The adopt is this section.
+
 ### C1's launch command — the only form of it that exists
 
 **R-2.** `-C` is not a jail and `-s read-only` still grants full-disk read. The base
@@ -206,8 +234,9 @@ work, and no channel split applies to them.
 | off-rails | 5% | ~0.3 h | 8–14 | the human's own curiosity, ad-hoc questions, anything |
 
 > **And none of this steering time falls on Day 5 or Day 6.** `capacity.schedule_A` puts 4.0 h
-> of human-**gated** work on each of those two days against a 2.5 h/day figure that is a
-> **total** over 5.5 days, not a per-day cap (§9.5). On those two days the human is doing the
+> of human-**gated** work on Day 5 (`D4`) and **4.5 h** on Day 6 (`G1` + `D5` + `D6`, after
+> R-42/D-30) against the ruled 3.0 h/day figure, which is a **total** over 5.5 days, not a
+> per-day cap (§9.5). On those two days the human is doing the
 > work, not steering it, and the twelve silent seats get **no** signal. Whatever brief they
 > need for the endgame has to be issued on Day 4 or earlier.
 
@@ -490,6 +519,14 @@ ritual honest; if the only acceptable entry were a war story, seats would invent
 Merge gate predicate: `test -f kb/pits/<node-id>.md` and the file contains all five keys. L1
 does not merge without it.
 
+**Who writes the file — D-31, ruled 2026-08-29.** The building seat **reports** the five fields
+to L1 with its merge request; **L1 commits the file.** A seat that writes its own pit is writing
+outside its ownership: no node lists a pit in `outputs` (clause (a) is empty by design, because
+§2.8 keeps the ritual unbudgeted) and the longest-matching glob `kb/pits/**` resolves to L1
+(clause (b)) — so gate 6 required a file that gate 3 forbade its author to write, on every merge.
+The write moves to the seat the glob already names. Nothing about the ownership model, the
+globs, or any node's `outputs` changes. L1 transcribes the seat's words and names the seat.
+
 > **Named cost.** `PATHS.md §2.8` records `kb/pits/<node-id>.md` as *merge ritual, unbudgeted* —
 > it is produced by no node and no seat's hours carry it. It is one paragraph per merge and it
 > is deliberately kept, but it is overhead, not budgeted work, and if the schedule bites it is
@@ -573,10 +610,12 @@ exists), and at freeze `ls kb/pits/*.md | wc -l` equals the number of nodes mark
    identically when no profile file exists at all, and the consequence is that C3 and C4 could
    run at `medium` for the entire sprint with every result file still green.
 5. **The human-gated hours are not spread evenly, and two consecutive days blow the daily
-   budget.** The 2.5 h/day figure is a **total over 5.5 days**, not a per-day cap, and
-   `capacity.schedule_A` makes that visible: **Day 1 carries 2.5 h** (`G1` + `V1`), **Day 5
-   carries 4.0 h** (`D4`) and **Day 6 carries 4.0 h** (`D5` + `D6`); the other four days carry
-   zero. No rank of the ladder touches it — all five gated nodes are cut 0 — so the only levers
+   budget.** The human-hours figure is a **total over 5.5 days**, not a per-day cap, and
+   `capacity.schedule_A` makes that visible. REGENERATED 2026-08-29 against
+   `capacity.schedule_A.days` and the ruled D-17 figure of **3.0 h/day**, after R-42/D-30 moved
+   `G1` from Day 1 to Day 6: **Day 1 carries 2.0 h** (`V1`), **Day 5 carries 4.0 h** (`D4`) and
+   **Day 6 carries 4.5 h** (`G1` + `D5` + `D6`); the other four days carry zero. Against 3.0 that
+   is 1.0 h over on Day 5 and 1.5 h over on Day 6. No rank of the ladder touches it — all five gated nodes are cut 0 — so the only levers
    are the user planning two half-days of attention or PM shortening `D4`'s scope. That is a
    **D-17-scope decision on Day 0**, and it is recorded in
    `capacity.human_hours_are_budgeted_in_total_not_per_day`.

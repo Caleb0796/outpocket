@@ -699,7 +699,6 @@ minutes, which is harmless: V1–V4 are attended, interactive, single-sitting pr
 |---|---|---|---|---|
 | **G0** | L1 | 2 | 0 | Graph instrumentation: tools/ready.mjs and tools/check-ownership.mjs |
 | **G4** | I4 | 1.5 | 0 | Layer-0 lint hook: banned identifiers, description budget, banned wording, retracted claims |
-| **G1** | I4 | 0.5 | 0 | Flip both repos public with a root LICENSE visible in the GitHub About box |
 | **T6** | I2 | 1 | 0 | Fix the red test: auditor surface read-only by construction |
 | **S10** | L1 | 2 | 0 | Freeze the I2/I3 contracts |
 | **S11** | I3 | 2 | 0 | OCF-1 canonicaliser and the seven-vector suite |
@@ -727,14 +726,14 @@ JS under `--enable-features=WebMCP` with no agent attached, lane E has no admiss
 must be told the same day (`graph.json.contingencies`). H2 runs against V5's probe, not the
 product, which is why the driver is finished and trusted before T2 exists.
 
-**Both human-gated Day-1 nodes are here on purpose, and together they are the whole of Day 1's
-human budget: G1 0.5 h + V1 2.0 h = 2.5 h.**
+**Day 1 has exactly ONE human-gated node, and it is the whole of Day 1's human budget: V1 2.0 h.**
 
-- **G1 executes on Day 1, not at the end** (D-12), and it now has a mechanical consumer: **the new
-  hard edge `G1 → G3`**, because G3 clones `https://github.com/Caleb0796/outpocket` over anonymous
-  HTTPS and the repository is private today (MEASURED). Without G1 that clone fails on
-  authentication, not on tests. G1 and G3 share Day 1; **G1 runs first**, and the day table above
-  is printed in that order.
+- **G1 does NOT execute on Day 1. It executes on Day 6, immediately before D5** — R-42/D-30,
+  ruled by the user 2026-08-29, overturning D-12. The supposed mechanical consumer, the hard edge
+  `G1 → G3`, was deleted: MEASURED, an authenticated `git clone` of a PRIVATE repo succeeds, so
+  G3 needs L0's PUSH and not the visibility flip. Booting G1 on Day 1 publishes both repositories
+  five days early for no downstream benefit. Day 1's human-gated load is 2.5 → **2.0 h**; Day 6's
+  is 4.0 → **4.5 h**.
 - **V1 runs on Day 1 — everywhere.** `graph.json.capacity.schedule_A` is the only authority on
   which day a node runs, and it says Day 1. The previous revision had V1 on Day 1 in `graph.json`
   and in `RISK.md` and on **Day 2** in this table, so RISK's "Day 1 23:59: V5 is not up, or V1 has
@@ -950,10 +949,12 @@ average**; see §6.4, where that is stated plainly rather than hidden.
 
 | Node | Owner | h | Cut | Title |
 |---|---|---|---|---|
+| **G1** | I4 | 0.5 | 0 | Flip both repos public with a root LICENSE visible in the GitHub About box |
 | **D5** | I4 | 2 | 0 | Devpost four answers and submission |
 | **D6** | QA | 2 | 0 | Freeze rehearsal on a clean profile / incognito |
 
-Nothing else. No code. **Day 6 carries 4.0 human-gated hours** — D5 2.0 + D6 2.0 —
+Nothing else. No code. **G1 runs first**, immediately before D5 (R-42/D-30). **Day 6 carries 4.5
+human-gated hours** — G1 0.5 + D5 2.0 + D6 2.0 —
 against a 2.5 h/day average, on the morning of a 13:00 PT deadline. §6.4 states what to do about
 that, and it is not "fire a rank": all five human-gated nodes are cut 0.
 
@@ -1010,17 +1011,21 @@ critical path is cut rank 0 — `V5` included — so graph depth stays **29.5 h 
 previous revision's "19.5 h → ~19.0 h via an H-lane reroute" was fabricated and is
 retracted.
 
-#### The 2.5 h/day figure is a TOTAL, not a per-day cap — and the schedule makes that visible
+#### The human-hours figure is a TOTAL, not a per-day cap — and the schedule makes that visible
 
 This is new in v2.1.0 and it is stated here because the day table now exposes it
 (`capacity.human_hours_are_budgeted_in_total_not_per_day`). Human-gated work is
 **not spread evenly**. It lands on exactly three days:
 
-| day | human-gated nodes | hours | against a 2.5 h/day average |
+REGENERATED 2026-08-29 against `capacity.schedule_A.days` and the **ruled** D-17 figure of
+**3.0 h/day** (not the 2.5 h/day contingency): R-42/D-30 moved `G1` from Day 1 to Day 6, and the
+10.5 h TOTAL was right throughout while the per-day figures were not.
+
+| day | human-gated nodes | hours | against the ruled 3.0 h/day |
 |---|---|---|---|
 | **Day 1** | V1 2.0 | **2.0** | 1.0 h of steering left |
-| **Day 5** | D4 4.0 | **4.0** | **1.5 h over** |
-| **Day 6** | D5 2.0 + D6 2.0 | **4.0** | **1.5 h over**, on the morning of a 13:00 PT deadline |
+| **Day 5** | D4 4.0 | **4.0** | **1.0 h over** |
+| **Day 6** | G1 0.5 + D5 2.0 + D6 2.0 | **4.5** | **1.5 h over**, on the morning of a 13:00 PT deadline |
 | Days 0, 2, 3, 4 | none | 0 | the review-overhead term only |
 
 **No rank of the ladder touches this.** All five human-gated nodes are cut rank 0,
@@ -1173,12 +1178,15 @@ acceptance predicate per item, so "basically done" is not expressible.
    acceptance predicate**. If you cannot write the check, the node is not a node.
 2. An edge is **a frozen artifact, not a feeling**. If you cannot name the file
    that crosses the edge, the edge is fake and the two nodes are actually one node.
-   All 121 edges carry a `kind` and a `contract`. Two were added in v2.3.0:
+   All 120 edges carry a `kind` and a `contract`. Two were added in v2.3.0:
    **`V5 → S10`** and **`V5 → G6`** — `V5` writes the ninth contract file into the
    directory `S10` freezes and `G6` validates, and only the schedule ordered them,
    which `--check-schedule` cannot prove because it walks hard edges only. Two were
    added in v2.1.0: **`G1 → G3`** (G3 clones a repo that is private until G1 flips
-   it) and **`L0 → H5`** (H5 runs `node --test` and had no hard path to L0 at all).
+   it) — **SINCE DELETED by R-42/D-30, 2026-08-29**, because an authenticated `git
+   clone` of a private repo succeeds (MEASURED), so G3 needs the push and not the
+   visibility flip — and **`L0 → H5`** (H5 runs `node --test` and had no hard path
+   to L0 at all), which stands.
 3. **Exactly one owner seat per node.** A seat may write a path if **either** it
    owns a node listing that path in `outputs`, **or** the longest-matching glob in
    `file_ownership` names it — **(a) beats (b)**

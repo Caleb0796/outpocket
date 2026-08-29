@@ -1015,7 +1015,7 @@ with **W** supplying stall detection and no verdicts. **Every row names nodes.**
 
 | When | Trigger condition (all mechanically checkable) | Action |
 | --- | --- | --- |
-| **Day 1, 23:59** | `G1` or `G3` not green (DQ-1/2, DQ-7) | **Stop every lane.** All seats onto lane G until green. Disqualification outranks every feature. This costs about an hour and is unrelated to the product; there is no legitimate reason for it to still be open. |
+| **Day 1, 23:59** | `G3` not green (DQ-7). *(`G1` is **NOT** in this row any more: R-42/D-30 moved it to **Day 6**, and a trigger that demands a Day-6 node be green on Day 1 fires by construction against the plan's own schedule — the exact defect the paragraph above this table warns about. `G1`'s trigger is the Day-6 row.)* | **Stop every lane.** All seats onto lane G until green. Disqualification outranks every feature. This costs about an hour and is unrelated to the product; there is no legitimate reason for it to still be open. |
 | **Day 1, 23:59** | **`V5` is not up, or `V1` has not run against it.** `schedule_A`: **`V5` Day 0, `V1` Day 1** — so at this hour both are due and neither is early. *(Not "against the production origin" — that demand is withdrawn; see §4. `D1` is on Day 3 in `schedule_A` and is covered by its own row below.)* | Freeze lanes F and E; **I1** finishes `V5` then `V1` the same evening. Neither node is cuttable — both are cut 0 — so there is no ladder answer here and the only lever is seats. `V1` gates three contingencies and cannot slip. |
 | **Day 2, 23:59** | `V1` returns `modelContextPresent: false` on `V5`'s plain HTTPS origin | Fire `graph.json.contingencies[0]`: **`D2` flips to cut 0** (custom domain becomes mandatory), re-run `node tools/ready.mjs --check-cuts`, and `H3` becomes the unconditional demo path. **Do not cut anything** — this is a promotion, not an amputation. |
 | **Day 3, 23:59** | `D1` not green: no live site a stranger can open and drive | Cut **`V0` `G5` `G6` `T4` `D3` `F6` `E5`** — §7.2's first row **minus `D2`**, which the row above may already have promoted to cut 0 — and PM re-scopes to "one demo beat, done completely". The red team's standing verdict is that with no openable live site by end of Day 3, every narrative above it is worth zero. |
@@ -1044,7 +1044,9 @@ The arithmetic, from `graph.json.capacity.human_gated_breakdown`
   hours**.
 - `D5` + `D6` alone are **4.0 human-gated hours**, and they are strictly
   sequential (`D5 → D6`). They consume the entire window with zero slack.
-- Day 6's human budget at 2.5 h/day is **2.5 h**. `D5`+`D6` do not fit in it.
+- Day 6's human budget at the **ruled 3.0 h/day** (D-17) is **3.0 h**, and Day 6's actual
+  human-gated load is **4.5 h** (`G1` 0.5 + `D5` 2.0 + `D6` 2.0). `D5`+`D6` alone already
+  overrun it, and `G1` is on top of them.
 
 **Three things follow, and they are binding:**
 
