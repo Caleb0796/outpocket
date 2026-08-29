@@ -15,13 +15,13 @@
     "G0",
     "G5",
     "T1",
-    "F0"
+    "F0",
+    "G6"
   ],
   "in_flight": {
-    "S1": "I3 \u2014 branch seat/I3-S1",
-    "G6": "QA \u2014 branch seat/QA-G6, unblocked and committing",
+    "S1": "I3 \u2014 branch seat/I3-S1, head of the remaining critical path",
     "H1": "I1 \u2014 branch seat/I1-H1",
-    "(G4 follow-up)": "I4 \u2014 BANNED.txt row for the phrase V2's result forbids; no node, closes an enforcement gap"
+    "(G4 follow-up)": "I4 \u2014 BANNED.txt row + sweep for other rulings that never reached a registry (D-41)"
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
@@ -31,5 +31,6 @@
     "H5": "ready on hard edges, scheduled Day 2",
     "H1": "I1's, queued behind V0 \u2014 one seat, one node at a time",
     "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
-  }
+  },
+  "deviation_queue": "TEN tickets in .team/deviations/. W filed nine tonight under D-39; six are against L1. VERDICT empty on all nine \u2014 PM adjudicates."
 }
