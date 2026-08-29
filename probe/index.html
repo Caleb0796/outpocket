@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>outpocket V5 probe</title>
+<style>
+  :root {
+    --ground: #f5f6f5; --panel: #fff; --ink: #16191a; --muted: #5c6568;
+    --line: #d9dedd; --ok: #1f6b45; --no: #a33a2e; --wait: #8a6d1f;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141716; --panel: #1c201f; --ink: #e8ecea; --muted: #98a3a0;
+      --line: #2e3634; --ok: #5fd39a; --no: #f08a7c; --wait: #e0bd63;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink);
+         font: 15px/1.55 system-ui, -apple-system, sans-serif; padding: 24px; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  p.sub { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+  section { background: var(--panel); border: 1px solid var(--line);
+            border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em;
+       color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+  td { padding: 5px 0; vertical-align: top; }
+  td:first-child { color: var(--muted); width: 46%; padding-right: 12px; }
+  .ok { color: var(--ok); } .no { color: var(--no); } .wait { color: var(--wait); }
+  #verdict { font-family: var(--mono); font-size: 13px; white-space: pre-wrap;
+             word-break: break-word; margin: 0; }
+  ol { margin: 0; padding-left: 20px; font-size: 14px; }
+  ol li { margin-bottom: 6px; }
+  code { font-family: var(--mono); font-size: 12.5px;
+         background: var(--ground); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>outpocket V5 probe</h1>
+  <p class="sub">Throwaway origin. Answers unknowns V0–V4. Nothing here is product code.</p>
+
+  <section>
+    <h2>What this page found about itself</h2>
+    <table id="env"></table>
+  </section>
+
+  <section>
+    <h2>Copy this into evidence/V1.json</h2>
+    <p id="verdict">…</p>
+  </section>
+
+  <section>
+    <h2>Ask the agent, in this order</h2>
+    <ol>
+      <li>“What tools does this page give you?” → <b>V1</b>. Five means the API reached it.</li>
+      <li>Call <code>probe_whoami</code> → <b>V3</b>. Does its fetch carry the page cookie?</li>
+      <li>Call <code>probe_flip</code>, then ask again what tools exist → <b>V2</b>. Did a sixth appear without a reload?</li>
+      <li>Call <code>probe_hang</code> → <b>V4</b>. Time how long before the client gives up. It never resolves.</li>
+    </ol>
+  </section>
+</main>
+
+<script>
+// ---------------------------------------------------------------------------
+// Detection. Grade ONLY off `typeof document.modelContext` — never off whether
+// a CDP domain enables. FACTS.md IR-16: `WebMCP.enable` returns OK even in a
+// launch with no page API at all, so a probe that reads the CDP domain reads
+// "on" when it is off.
+// ---------------------------------------------------------------------------
+var present = typeof document.modelContext !== "undefined" && document.modelContext !== null;
+var navAlias = typeof navigator.modelContext !== "undefined" && navigator.modelContext !== null;
+
+var m = navigator.userAgent.match(/Chrome\/(\d+)/);
+var chromiumMajor = m ? parseInt(m[1], 10) : null;
+
+var registered = [];
+var regError = null;
+var flipped = false;
+var flipController = null;
+
+function tool(def) {
+  try { document.modelContext.registerTool(def); registered.push(def.name); }
+  catch (e) { regError = String(e && e.message || e); }
+}
+
+if (present) {
+  // Exactly five at load. One of them never resolves — that one is V4.
+  tool({
+    name: "probe_status",
+    description: "Report what this probe page detected about the WebMCP API in this browser: whether document.modelContext exists, the Chromium major version, and how many tools are registered.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
+    execute: async function () {
+      return { content: [{ type: "text", text: JSON.stringify(snapshot()) }] };
+    }
+  });
+
+  tool({
+    name: "probe_echo",
+    description: "Return the text you pass in, unchanged. Proves a tool call round-trips arguments and results.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", description: "Any text to echo back." } },
+      required: ["text"]
+    },
+    annotations: { readOnlyHint: true },
+    execute: async function (args) {
+      var t = args && typeof args.text === "string" ? args.text : "";
+      return { content: [{ type: "text", text: t }] };
+    }
+  });
+
+  // V3 — does a fetch made inside an agent-initiated execute carry the page's
+  // cookie? Same-origin, credentials included.
+  tool({
+    name: "probe_whoami",
+    description: "Fetch this origin's /whoami endpoint and report whether the request carried the page's cookie. Answers whether tool calls inherit the browsing session.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
+    execute: async function () {
+      var r = await fetch("/whoami", { credentials: "include", cache: "no-store" });
+      var j = await r.json();
+      return { content: [{ type: "text", text: JSON.stringify(j) }] };
+    }
+  });
+
+  // V2 — register or revoke a sixth tool at runtime, so the caller can be asked
+  // whether its tool list refreshed WITHOUT a page reload.
+  tool({
+    name: "probe_flip",
+    description: "Toggle a sixth tool named probe_extra on or off. After calling this, list your tools again to see whether the change reached you without a page reload.",
+    inputSchema: { type: "object", properties: {} },
+    execute: async function () {
+      if (!flipped) {
+        flipController = new AbortController();
+        document.modelContext.registerTool({
+          name: "probe_extra",
+          description: "A sixth tool that only exists after probe_flip has been called. Its presence or absence is the test.",
+          inputSchema: { type: "object", properties: {} },
+          annotations: { readOnlyHint: true },
+          execute: async function () {
+            return { content: [{ type: "text", text: "probe_extra is registered" }] };
+          }
+        }, { signal: flipController.signal });
+        flipped = true;
+      } else {
+        if (flipController) flipController.abort();
+        flipped = false;
+      }
+      render();
+      return { content: [{ type: "text", text: "probe_extra is now " + (flipped ? "REGISTERED" : "REVOKED") + ". List your tools again." }] };
+    }
+  });
+
+  // V4 — never resolves. Time how long the client waits before giving up.
+  tool({
+    name: "probe_hang",
+    description: "Start an operation that never finishes. Use it to measure how long this client waits before it times out or cancels a suspended tool call.",
+    inputSchema: { type: "object", properties: {} },
+    execute: function () {
+      return new Promise(function () { /* deliberately never settles */ });
+    }
+  });
+}
+
+function snapshot() {
+  return {
+    origin: location.origin,
+    modelContextPresent: present,
+    navigatorAliasPresent: navAlias,
+    chromiumMajor: chromiumMajor,
+    toolCount: registered.length + (flipped ? 1 : 0),
+    tools: registered.concat(flipped ? ["probe_extra"] : []),
+    registrationError: regError,
+    isSecureContext: window.isSecureContext,
+    observedAt: new Date().toISOString()
+  };
+}
+
+function row(k, v, cls) {
+  return "<tr><td>" + k + "</td><td class='" + (cls || "") + "'>" + v + "</td></tr>";
+}
+
+function render() {
+  var s = snapshot();
+  document.getElementById("env").innerHTML =
+    row("document.modelContext", s.modelContextPresent ? "PRESENT" : "ABSENT",
+        s.modelContextPresent ? "ok" : "no") +
+    row("navigator.modelContext", s.navigatorAliasPresent ? "present (alias alive)" : "undefined",
+        s.navigatorAliasPresent ? "wait" : "ok") +
+    row("Chromium major", s.chromiumMajor === null ? "unknown" : s.chromiumMajor) +
+    row("isSecureContext", String(s.isSecureContext), s.isSecureContext ? "ok" : "no") +
+    row("tools registered", String(s.toolCount)) +
+    row("probe_extra", flipped ? "REGISTERED" : "not registered", flipped ? "ok" : "") +
+    (s.registrationError ? row("registration error", s.registrationError, "no") : "") +
+    row("origin", s.origin);
+
+  // Shaped to erp/contracts/probe-verdict.schema.json. chatgptModel is the one
+  // field the page cannot know — the person running the probe fills it in.
+  document.getElementById("verdict").textContent = JSON.stringify({
+    origin: s.origin,
+    chatgptModel: "Sol",
+    modelContextPresent: s.modelContextPresent,
+    toolCount: s.toolCount,
+    observedAt: s.observedAt
+  }, null, 2);
+}
+
+render();
+</script>
+</body>
+</html>
