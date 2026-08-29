@@ -63,3 +63,46 @@ MERGED T6 745d560 pits:kb/pits/T6.md accept:PASS
 #   artifact each seat worked to. I2 wrote a pit from its charter; I3 did not.
 #   That is not a difference in diligence. tools/contract.mjs now GENERATES a
 #   PIT line and every contract has been regenerated.
+
+MERGED S10 225daa6 pits:kb/pits/S10.md accept:PASS
+MERGED S11 17680ea pits:kb/pits/S11.md accept:PASS
+MERGED G4  0f3cebd pits:kb/pits/G4.md  accept:PASS
+MERGED V0  31b6e4f pits:kb/pits/V0.md  accept:PASS
+MERGED G3  2d35bee pits:kb/pits/G3.md  accept:PASS
+MERGED G0  1af3dc3 pits:kb/pits/G0.md  accept:PASS
+
+# Day 1. Seven merges (T6 above, then these six), every one gated in L1's
+# presence with the accept run VERBATIM via tools/accept-gate.mjs, every one
+# pushed with the remote sha verified equal to local HEAD before the line was
+# written. origin/main carries all of them.
+#
+# S10 — THE SEAM IS FROZEN. sha256sum -c erp/contracts/FREEZE.md verifies TEN
+#   files, not the nine S10.accept names: G6's accept is the tiebreaker and says
+#   the .md contract files are covered by the FREEZE.md sha256 check instead. A
+#   markdown contract nothing hashes is not frozen. R-20 confirmed BY COMPUTATION
+#   at SEVEN write tools, from annotations.readOnlyHint !== true.
+# S11 — the ONLY canonicaliser (R-11). Codepoint sort, not localeCompare, so a
+#   stranger's clean clone under a different ICU sorts the same.
+# G4 — REJECTED ONCE on a named clause and fixed properly. The sweep-vs-named
+#   distinction is the only reading under which accept clauses 1 and 2 both hold.
+# V0 — alias-absent on Chrome 152, with a negative-control arm nothing required.
+# G3 — R-26(c) satisfied: a stranger's clean clone of origin/main is green,
+#   40/40. L0 gate (7) asserts the OPPOSITE of the bootstrap commit and both are
+#   true; T6's merge and L1's push are what carried the tree between them.
+# G0 — held RED most of the day rather than relaxed. --check-tables found four
+#   stale restatements of the G1 Day-1 -> Day-6 move on its first run; the files
+#   are PM's; PM regenerated them (D-34) and the mode went green against the
+#   authority, not against a weakened test.
+#
+# D-31 RULED, and it retires the contradiction recorded at T6: L1 WRITES
+#   kb/pits/<node-id>.md from the seat's reported five fields. No seat commits a
+#   pit; no ownership violation is recorded when one appears on a branch. Folded
+#   into tools/contract.mjs so every contract now carries the ruling.
+#
+# OPEN FOR PM, raised by L1 and not L1's to verdict — THREE MORE COLLISIONS OF
+#   THE D-31 CLASS. PM's own rulings commit was DENIED on erp/graph.json and
+#   erp/PATHS.md (declared L0 outputs, so clause (a) beats the erp/*.md -> PM
+#   glob) and on .team/deviations/** (glob -> L1). L0 lists those two because it
+#   COMMITS them; PM AUTHORS them. The rule rejects the author of the authority
+#   in favour of the seat that committed it once on Day 0. Merged, raised, not
+#   waived.
