@@ -119,12 +119,9 @@ test("without an index.html, GET / falls through to the JSON 404 rather than thr
   }
 });
 
-test("the default page root is src/page — no fixture landed yet, so this documents current state honestly", async () => {
+test("the default page root is src/page — F1's index.html has landed and GET / serves it", async () => {
   await withServer(undefined, async (base) => {
     const res = await fetch(`${base}/`);
-    // F1 (src/page/index.html) has not landed as of this commit. Once it
-    // does, this assertion is the one that should be updated to 200 — not a
-    // silent pass either way.
-    assert.equal(res.status, 404);
+    assert.equal(res.status, 200);
   });
 });
