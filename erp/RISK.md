@@ -1050,8 +1050,14 @@ The arithmetic, from `graph.json.capacity.human_gated_breakdown`
   `G1 → D5 → D6` is a hard chain, so 0.5 + 2.0 + 2.0 = **4.5 h are strictly sequential**
   against a 4.0 h window. An exemption grants hours; it cannot grant clock. **The fix is free:
   the 09:00 freeze is a ceiling on CODE CHANGES, not a start time for submission work — nothing
-  forbids `G1`/`D5`/`D6` running before it, and `G1` touches no code. START DAY 6 AT 08:00 PT:
-  a 5.0 h window for 4.5 h of work, 0.5 h slack, no scope change and no further ruling.**
+  forbids `G1`/`D5`/`D6` running before it, and `G1` touches no code. **START THE FINAL DAY AT
+  08:00 PT — APPROVED by the user 2026-08-29 ("8点开工").** A 5.0 h window for 4.5 h of work,
+  0.5 h slack, no scope change and no further ruling.
+- **D-53: "Day 5" and "Day 6" are ORDINAL, not calendar dates.** `--check-schedule` proves ORDER,
+  never dates, so the tail may pull earlier as readiness allows and the 08:00 rule follows it to
+  whichever calendar day it lands on. `D4` and `G1` pull freely. **`D5` does not, until I4 reports
+  whether a Devpost entry can be edited after submission — the only irreversible act in the graph,
+  and a fact this corpus does not record at any grade.**
 
 **Three things follow, and they are binding:**
 
