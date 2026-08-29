@@ -24,7 +24,8 @@
     "S4",
     "F1",
     "H5",
-    "S9"
+    "S9",
+    "V1"
   ],
   "in_flight": {
     "T2": "I2 \u2014 HELD on drive.mjs --assert-flips (D-58). Own scope green, DEV-006 vindicated.",

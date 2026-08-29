@@ -460,3 +460,18 @@ MERGED S9  ba17b6c pits:kb/pits/S9.md accept:PASS
 #   EXISTS, so this is not the ordering fact — the page loaded it and still
 #   registered nothing. That is a real failure." Without that line the next hour
 #   goes on deciding which of the two it was.
+
+MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
+# V1 — HUMAN-GATED, and its row was missing for ninety minutes and ~10 merges.
+#   Mechanical gate: ajv 0, PNG non-empty, re-run on main. HUMAN SECOND GATE:
+#   QA, under D-46, PASS — six panel-checkable fields matching exactly, and
+#   chatgptModel explicitly NOT claimed because the page cannot detect its own
+#   driving model. QA checked against the PANEL and not the copy-block, which is
+#   the difference between a read and checking the file against itself.
+#   V1's artifacts landed INSIDE I1's D-48 merge, so this node produced NO BRANCH
+#   — clause 6d sweeps branches and had nothing to find, and the merge log had
+#   nothing to hang a row on. QA DID report; the message never arrived. That is
+#   not D-55's "finished without reporting" — it is a report sent and lost.
+#   Caught by mcp-6d comparing merges.txt against graph.state.json.done.
+#   GAP IN MY LOOP, recorded: 6d watches BRANCHES; a node whose artifacts arrive
+#   inside another node's merge is invisible to it.
