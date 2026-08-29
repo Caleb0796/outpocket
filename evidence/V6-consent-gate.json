@@ -1,0 +1,18 @@
+{
+  "id": "V6",
+  "status": "NEW - not in the original unknowns register",
+  "question": "Does the client gate an agent-initiated cookie-bearing request behind human approval?",
+  "verdict": "YES, on a remote origin - and NO on localhost",
+  "observedAt": "2026-08-29T08:23:00Z",
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol, Chromium 151",
+  "whatHappened": "Asked the agent to call probe_whoami on https://webmcp-probe.onrender.com. It listed the five tools, then refused to execute, verbatim: 'probe_whoami may transmit the browser's session cookie to webmcp-probe.onrender.com, so the browser blocked it pending action-time approval. Do you authorize that cookie-bearing request?' After explicit approval it ran and returned cookiePresent true, cookieMatches true.",
+  "contrast": "The identical call on http://localhost:8795 earlier the same session executed with NO prompt. The gate is origin-sensitive.",
+  "consequenceForKernel3": "Session-as-credential still works, but on a real origin every cookie-bearing tool call may cost a human approval. The demo storyboard must show this rather than be surprised by it - and it is arguably a point IN FAVOUR of the design's thesis, since the client is enforcing exactly the co-presence the project argues for.",
+  "consequenceForTheSignGate": "This is the D-19 forgery vector's environment. The surviving attack needs the agent to POST /respond carrying the session cookie. On a remote origin this client blocks that pending human approval, so the residual risk is materially SMALLER than the contracts layer currently states.",
+  "doNotOverclaim": "This is a CLIENT policy, not a server guarantee and not a browser invariant. A different client, a future version, or a user who approves reflexively all defeat it. It raises the cost of the attack; it does not close it. The provable sentence in D-19 is unchanged.",
+  "docsToUpdate": [
+    "erp/contracts/signature.schema.json - x-signRequestState survivingVector: add that on a remote origin this client gates the cookie-bearing POST behind action-time approval, as an environmental mitigation, explicitly not a closure",
+    "erp/PLAN.md - demo beat 2: the approval prompt will appear on camera; script it deliberately",
+    "erp/evidence/UNKNOWNS.md - add V6 as a discovered unknown"
+  ]
+}

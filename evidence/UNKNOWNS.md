@@ -3,6 +3,10 @@
 Measured 2026-08-29 in the **ChatGPT desktop built-in browser**, model **5.6 Sol**,
 against the V5 probe. **Chromium major 151** — not the 152 the plan anchors to.
 
+> **RE-RUN COMPLETE.** V1 and V3 were re-measured against the real remote HTTPS
+> origin `https://webmcp-probe.onrender.com`, not just localhost. Both hold. The
+> re-run also surfaced a sixth finding that localhost had hidden — see **V6**.
+
 | id | question | verdict | consequence |
 |---|---|---|---|
 | **V0** | `navigator.modelContext` alias status | **absent** | The 150 removal holds. No fallback path needed. |
@@ -53,3 +57,37 @@ ChatGPT → Settings → **Browser**:
 
 The built-in browser opens with **⌘T → View ▸ Browser ▸ Open Browser Tab**, not
 `Cmd+Shift+B`. The carried-over shortcut was wrong.
+
+
+---
+
+## V6 — the finding the localhost run could not have produced
+
+**On a remote origin, this client gates an agent-initiated cookie-bearing request
+behind action-time human approval. On localhost it does not.**
+
+Verbatim, when asked to call `probe_whoami` on the Render origin:
+
+> `probe_whoami` may transmit the browser's session cookie to
+> `webmcp-probe.onrender.com`, so the browser blocked it pending action-time
+> approval. Do you authorize that cookie-bearing request?
+
+After approval it ran and returned `cookiePresent: true, cookieMatches: true`.
+
+**Two consequences, pulling in opposite directions.**
+
+*Against the demo's smoothness:* every cookie-bearing tool call on a real origin
+may cost a human approval. Beat 2 of the storyboard must script this rather than
+be ambushed by it. It is arguably a point in the design's favour — the client is
+enforcing precisely the co-presence the project argues for — but it must be
+rehearsed.
+
+*In favour of the sign gate:* the surviving forgery (D-19) needs the agent to
+POST `/respond` carrying the session cookie. On a remote origin this client
+blocks exactly that, pending a human. **The residual risk is materially smaller
+than the contracts layer currently states.**
+
+**Do not overclaim it.** This is a *client policy*, not a server guarantee and not
+a browser invariant. A different client, a future version, or a user who approves
+reflexively all defeat it. It raises the attack's cost; it does not close the
+hole, and D-19's provable sentence is unchanged.

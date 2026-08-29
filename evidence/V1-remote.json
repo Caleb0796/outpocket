@@ -1,0 +1,11 @@
+{
+  "origin": "https://webmcp-probe.onrender.com",
+  "chatgptModel": "Sol",
+  "modelContextPresent": true,
+  "toolCount": 5,
+  "observedAt": "2026-08-29T08:20:27.687Z",
+  "verdict": "PRESENT",
+  "agentSawTools": true,
+  "agentListed": ["probe_status","probe_echo","probe_whoami","probe_flip","probe_hang"],
+  "note": "This is the re-run V1 actually specifies - a plain remote HTTPS origin, not localhost. The localhost caveat is retired. The per-site permission layer in ChatGPT's Browser settings did NOT need populating; the permissive global default applied to a brand-new origin the account had never visited."
+}
