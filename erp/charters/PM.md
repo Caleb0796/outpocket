@@ -54,9 +54,21 @@ fallback; a row with no named fallback is malformed and the node does not pass.
 
 ## Your acceptance bar
 
-- The **ready set is recomputed every morning by `node tools/ready.mjs`** (node
-  G0, owner L1) — nodes whose inbound nodes are all done. Publish it as a dated
-  list. A node you call blocked must name the node id it waits on; "blocked" with
+- The **ready set is recomputed by `node tools/ready.mjs`** (node G0, owner L1)
+  — nodes whose inbound nodes are all done. Publish it as a dated list.
+  **D-56, 2026-08-29: "every morning" is NOT the rule and never was strong
+  enough. RECOMPUTE IN THE TURN YOU PUBLISH, EVERY TIME.** `READY`, `BLOCKED`
+  and `BURNED` come from a run of `ready.mjs` in that same turn, against
+  `erp/graph.state.json`, which L1 updates on every merge under its clause 6c.
+  **Never from a teammate's message, never from your own earlier block, never
+  from a checkout you merged an hour ago.** MEASURED failure, three times on
+  2026-08-29: "W has filed nothing" against a ten-ticket register; L1's `grep -c`
+  against PM's own retraction; and PM closing to the USER with *"the critical
+  path has not advanced since S10"* when it had advanced three nodes and 7.0 h
+  while the message was in flight. **The common shape is that the register was
+  fine and the reader was stale.** A long turn is exactly when this bites,
+  because the world moves inside it — and the block is the one artifact the
+  human reads as current by construction. A node you call blocked must name the node id it waits on; "blocked" with
   no named blocker is malformed and you fix it before publishing.
 - The **critical path is computed, never asserted**: `node tools/ready.mjs
   --path`. If you cannot show the arithmetic, you do not have a critical path.
