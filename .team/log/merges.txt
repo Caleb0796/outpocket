@@ -344,7 +344,7 @@ MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
 # THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
 #   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
 
-MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
+MERGED H5  b446bc2 pits:PENDING accept:PASS
 
 # CORRECTION TO THAT MERGE COMMIT, MADE HERE BECAUSE IT IS ALREADY PUSHED.
 #   The message says spans 1 and 2 are "backticked FRAGMENTS, not commands".
@@ -523,8 +523,8 @@ MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
 # THE PAIRED GATE IS NOW A TRIO: I3's root widening + UX's mount + T2. None of
 #   the three is valid alone. Merged locally to test, reset, NOT pushed.
 
-MERGED V2   pits:kb/pits/V2.md accept:PASS
-MERGED G2   pits:kb/pits/G2.md accept:PASS
+MERGED V2  4b01533 pits:PENDING accept:PASS
+MERGED G2  ab4831b pits:PENDING accept:PASS
 
 # V2 — RECOVERED FROM A DANGLING COMMIT. seat/I1-V2 pointed at main and fe4e495
 #   was on NO branch. Third shared-checkout incident today, after UX's checkout
@@ -583,3 +583,30 @@ MERGED G2   pits:kb/pits/G2.md accept:PASS
 # every time, not only when something looks odd. `git reset --hard` on a branch
 # you have not verified is the one command in this loop that can destroy another
 # seat's work, and I ran it four times tonight.
+
+# RECORD CORRECTION — MY LOG ASSERTED FOUR FILES THE TREE DOES NOT HAVE.
+#   H5, S9, V2 and G2 all carried `pits:kb/pits/<node>.md` and NONE of those
+#   files exists on main. V2's and G2's rows also carried NO SHA — a shell
+#   substitution that returned empty because I ran the grep for the merge subject
+#   from the wrong branch, and I did not look at the line I had written.
+#   Shas restored from the real merge commits: V2 4b01533, G2 ab4831b.
+#   The three still-missing pits now read `pits:PENDING`, which is true, instead
+#   of naming a file that is not there.
+#
+#   THIS IS THE ASSERT-VS-EXISTS CLASS IN MY OWN RECORD, and it is the fourth
+#   time today the family has appeared: the authority asserted enforcement by a
+#   registry row that did not exist (D-41); a rule permitted an edit whose
+#   control was unverified (D-57); T1 was unservable while every gate passed; and
+#   now the merge log names artifacts that were never written. Every time the
+#   claim was reasonable and the thing behind it was absent.
+#
+#   VECTOR, per mcp-6d: the seat+I1-V2 worktree was removed while carrying two
+#   uncommitted files, at the moment I absorbed that branch. If those were the
+#   pit drafts they died with the tree and the reflog will not have them — they
+#   were never committed. That is the same `claude rm`/reset family that cost F0
+#   an hour and orphaned V2's commit.
+#
+#   WHY IT WENT UNSEEN: clause 6c says the record of a merge is part of the merge,
+#   and NOTHING CHECKED THE RECORD. The row count matched the done count, so both
+#   registers agreed while both overstated the tree. Two registers agreeing is not
+#   two registers being right.
