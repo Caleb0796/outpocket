@@ -1,0 +1,22 @@
+{
+  "node": "G1",
+  "what": "Day-1 zero-leakage rehearsal of the repo visibility flip, per G1.notes / D-30",
+  "ranAt": "2026-08-29T08:15:00Z",
+  "throwawayRepo": "Caleb0796/webmcp-probe",
+  "predicateRun": "gh api repos/Caleb0796/webmcp-probe -q '.visibility + \" \" + .license.spdx_id' | tr 'A-Z' 'a-z'",
+  "output": "public mit",
+  "expected": "public mit",
+  "result": "PASS",
+  "alsoVerified": {
+    "anonymousRepoPage": 200,
+    "anonymousRawFile": 200,
+    "outpocketStillPrivate": "private MIT"
+  },
+  "whatThisProves": [
+    "The account can create public repositories - no organisation policy blocks it.",
+    "The About-box license field populates, so G1's accept predicate is satisfiable. This was the entire surprise surface the rehearsal exists to eliminate.",
+    "A public repo is anonymously reachable, so a judge with no GitHub account can read it."
+  ],
+  "whatThisDoesNotProve": "That flipping an EXISTING private repo to public behaves identically to creating a new public one. The failure modes are the same (policy, license detection) and both are now excluded, but the flip itself is still unexercised and remains G1's job on Day 6.",
+  "leakage": "none - the throwaway contains no product content; the product name was scrubbed before publishing."
+}
