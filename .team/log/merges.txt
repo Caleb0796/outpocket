@@ -155,3 +155,31 @@ MERGED G5  d70c28d pits:kb/pits/G5.md accept:PASS
 #   G5 switched G4's lint hook on for every seat at once and blocked QA's G6
 #   commit on a pre-existing failure. QA diagnosed it correctly against a clean
 #   HEAD and recommended the fix that shipped.
+
+MERGED F0  3007891 pits:kb/pits/F0.md accept:PASS
+MERGED G6  3b5d051 pits:kb/pits/G6.md accept:PASS
+MERGED H1  99ba3e8 pits:kb/pits/H1.md accept:PASS
+MERGED S1  80ae482 pits:kb/pits/S1.md accept:PASS
+
+# BOOKKEEPING CORRECTION, and the gap was mine. These four merges landed hours
+# ago and their MERGED lines never got written, so this file carried ELEVEN rows
+# while erp/graph.state.json.done carried FIFTEEN. HANDOVER section 1 names THIS
+# file as the record — one line per node, with sha and pit — so any seat auditing
+# from it undercounted by four. Found by the peer session mcp-6d, with the
+# measurement attached rather than the assertion.
+#
+# All four pits exist and all four were verified before the rows were written:
+#   F0  kb/pits/F0.md  landed 7b0c7d3 (rewritten once, to clear BW-33 ahead of
+#                      the row, under the same rule I imposed on other seats)
+#   G6  kb/pits/G6.md  landed 5f6c3c6, reported by QA under D-31
+#   H1  kb/pits/H1.md  landed ea1b9db, and it is the one marked NOT THE SEAT'S
+#                      OWN REPORT — I1 was stopped before it reported, so every
+#                      field is labelled for provenance and GRADE is UNVERIFIED
+#                      for anything about what the seat experienced
+#   S1  kb/pits/S1.md  committed by I3 before D-31 reached it, not a violation
+#
+# WHY IT HAPPENED, since it is the same class as the W-branch miss earlier: both
+# are bookkeeping that only happens if I remember to do it. The merge itself is
+# gated by four mechanical clauses; the RECORD of the merge is gated by nothing.
+# Two registers that must agree, with a checker on neither — which is precisely
+# the shape --check-tables exists to fix one level up, and does not cover here.
