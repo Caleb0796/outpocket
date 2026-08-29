@@ -1053,6 +1053,14 @@ The arithmetic, from `graph.json.capacity.human_gated_breakdown`
   forbids `G1`/`D5`/`D6` running before it, and `G1` touches no code. **START THE FINAL DAY AT
   08:00 PT — APPROVED by the user 2026-08-29 ("8点开工").** A 5.0 h window for 4.5 h of work,
   0.5 h slack, no scope change and no further ruling.
+- **D-60: `D5`'s hold is LIFTED — it may pull earlier — but `D6` STAYS AT THE END.** Devpost
+  permits edits to a submitted entry until the deadline (rules §6) AND provides the control
+  (Help Center, "How to edit a submission"), both PUBLISHED, two independent sources, same
+  cutoff. **`D6` is the freeze rehearsal against the PUBLIC state a judge sees. If `D5`
+  submits early and we keep improving — the whole point of submitting early — a `D6` run
+  right after `D5` certifies a state we then change.** The `D5 → D6` edge constrains ORDER,
+  never adjacency. Sequence when the tail pulls earlier: `G1` → `D5` (banked) → continued
+  improvement → **`D6` LAST**, against the final public state, before the deadline.
 - **D-53: "Day 5" and "Day 6" are ORDINAL, not calendar dates.** `--check-schedule` proves ORDER,
   never dates, so the tail may pull earlier as readiness allows and the 08:00 rule follows it to
   whichever calendar day it lands on. `D4` and `G1` pull freely. **`D5` does not, until I4 reports
