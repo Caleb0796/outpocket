@@ -35,9 +35,33 @@ if (!Number.isInteger(idx) || idx < 0 || idx >= spans.length) {
 
 if (mode === '--show') { process.stdout.write(spans[idx] + '\n'); process.exit(0); }
 
+// NOT EVERY BACKTICKED SPAN IS A SHELL COMMAND. Several accepts quote a JS
+// expression, a filename or a fragment of prose inside backticks — F1's span 1
+// is `document.querySelectorAll('[data-persona]').length === 2`, which must be
+// graded IN A BROWSER. Handed to `sh -c` it exits 2 on a syntax error, and a
+// reader who does not know that reads exit 2 as the NODE failing. It is not:
+// the tool asked the wrong shell to grade the wrong kind of claim. Flagged by UX
+// on F1, 2026-08-29, after it had graded span 1 correctly by other means.
+// This is a WARNING, not a refusal — the span still runs, because deciding what
+// is "really" a command is exactly the kind of judgement a gate runner should
+// not be making silently.
+function looksUnrunnable(span) {
+  const t = span.trim();
+  if (/^(node|npm|git|test|for|rm|find|sha256sum|curl|python3|codex|cd|ls|grep|mkdir|echo)\b/.test(t)) return null;
+  if (/^[A-Za-z0-9_./-]+$/.test(t)) return 'a bare path or word, not a command';
+  if (/[;=]==|\bdocument\.|\bwindow\.|=>|\.length\b/.test(t)) return 'a JavaScript expression — grade it in the environment it describes';
+  return 'not recognisable as a shell command';
+}
+
 if (mode === '--run' || mode === '--run-clean') {
   const env = { ...process.env };
   if (mode === '--run-clean') delete env.FORCE_COLOR;
+  const warn = looksUnrunnable(spans[idx]);
+  if (warn) {
+    console.error(`!!! SPAN ${idx} DOES NOT LOOK LIKE A SHELL COMMAND: ${warn}.`);
+    console.error(`!!! A non-zero exit below is the SHELL rejecting it, NOT the node failing.`);
+    console.error(`!!! Grade this clause by the means it describes and say so in your report.`);
+  }
   console.error(`--- RUNNING VERBATIM FROM graph.json ${nodeId}.accept, span ${idx} ---`);
   console.error(spans[idx]);
   console.error('--- BEGIN OUTPUT ---');
