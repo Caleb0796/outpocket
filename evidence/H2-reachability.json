@@ -1,0 +1,127 @@
+{
+  "node": "H2",
+  "question": "Is the WebMCP page API reachable over CDP on the installed Chrome, and does an invokeTool round trip complete?",
+  "verdict": "reachable",
+  "chromeMajor": 152,
+  "flag": "--enable-features=WebMCP",
+  "headless": true,
+  "pageApiReachable": true,
+  "toolCount": 1,
+  "cdpDomainEnabled": true,
+  "invokeToolRoundTrip": true,
+  "noFlagPageApiAbsent": true,
+  "method": "cdp",
+  "chromeVersion": "Google Chrome 152.0.7977.64",
+  "chromeBinary": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "origin": "http://127.0.0.1:58348/",
+  "originNote": "A one-tool fixture served by this script on 127.0.0.1 (a secure context). The gate is stated over \"a page registering exactly 1 tool\"; V5's probe origin registers five. The remote origin is exercised in remoteOrigin below and by the --list/--exec accept spans.",
+  "observedAt": "2026-08-29T15:47:44.146Z",
+  "rawTypeof": "{\"document\":\"object\",\"getTools\":\"function\",\"executeTool\":\"function\"}",
+  "unAwaitedGetToolsLength": "undefined",
+  "launch": {
+    "note": "THE LAUNCH IS RECORDED AS WELL AS THE RESULT. A driver that omits the flag measures the flag, not the page API. Flags come from tools/chrome.mjs (H1): scenario `cdp` emits the spelling that labels a CDP run, scenario `none` is the control.",
+    "gradedScenario": "cdp",
+    "controlScenario": "none",
+    "gradedFlags": "--enable-features=WebMCP",
+    "controlFlags": null
+  },
+  "toolsAdded": {
+    "note": "Accept clause (v). MEASURED 2026-08-29: ONE WebMCP.toolsAdded event carries a `tools` ARRAY, and frameId sits on each tool object, not on the envelope. Note also that this channel spells the annotations `readOnly`/`untrustedContent` while the page JS that registered the tool wrote `readOnlyHint` — same tool, two channels, two spellings.",
+    "eventCount": 1,
+    "names": [
+      "h2_ping"
+    ],
+    "frameIds": [
+      "ED68786D7A0EE20D5D3D23D13A5C81D9"
+    ],
+    "pageFrameId": "ED68786D7A0EE20D5D3D23D13A5C81D9",
+    "raw": [
+      {
+        "tools": [
+          {
+            "name": "h2_ping",
+            "description": "Return a fixed string. The single tool the H2 reachability gate counts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {}
+            },
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "frameId": "ED68786D7A0EE20D5D3D23D13A5C81D9",
+            "stackTrace": {
+              "callFrames": [
+                {
+                  "functionName": "",
+                  "scriptId": "3",
+                  "url": "http://127.0.0.1:58348/",
+                  "lineNumber": 8,
+                  "columnNumber": 24
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "invokeTool": {
+    "sendRejected": false,
+    "toolName": "h2_ping",
+    "invocationId": "CEBF904B1F8CF6ED72FA313B8DC2FF84",
+    "matched": true,
+    "status": "Completed",
+    "output": {
+      "content": [
+        {
+          "type": "text",
+          "text": "h2_ping ok"
+        }
+      ]
+    },
+    "exception": null,
+    "roundTrip": true
+  },
+  "negativeControl": {
+    "note": "Same binary, same fixture page, launched with tools/chrome.mjs --scenario none, which emits NO --enable-features at all. documentPresent:false here is what makes pageApiReachable:true above a fact about Chrome 152 and not about our command line. THIS ARM MUST FAIL THE GATE — accept clause (i). cdpDomainEnabled is recorded on BOTH arms on purpose: it reads true with the feature off, no tools and no page API, which is precisely why nothing asserts on it.",
+    "scenario": "none",
+    "flag": null,
+    "headless": true,
+    "documentPresent": false,
+    "pageApiReachable": false,
+    "toolCount": 0,
+    "cdpDomainEnabled": true,
+    "toolsAddedEventCount": 0,
+    "invokeToolRoundTrip": false,
+    "invokeTool": null,
+    "rawTypeof": "{\"document\":\"undefined\",\"getTools\":\"undefined\",\"executeTool\":\"undefined\"}",
+    "failsGate": true
+  },
+  "remoteOrigin": {
+    "note": "RECORDED, NOT GATED. V5's remote HTTPS origin, which registers five tools, so it cannot satisfy clauses (iii) and (v). It is here because a green localhost run is not evidence on its own, and because a sleeping free-tier instance must not be able to fail a regression gate about Chrome. The remote path is gated by the --list/--exec accept spans.",
+    "url": "https://webmcp-probe.onrender.com",
+    "error": null,
+    "pageApiReachable": true,
+    "toolCount": 5,
+    "toolsAddedNames": [
+      "probe_status",
+      "probe_echo",
+      "probe_whoami",
+      "probe_flip",
+      "probe_hang"
+    ],
+    "invokeToolRoundTrip": true,
+    "invokeToolStatus": "Completed"
+  },
+  "notes": [
+    "chromeMajor is parsed from `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --version`, never from a user-agent string.",
+    "Every boolean above was produced by CDP Runtime.evaluate on a live page; the comparison is evaluated IN THE PAGE.",
+    "toolCount is (await document.modelContext.getTools()).length under awaitPromise:true. The un-awaited form is recorded above as unAwaitedGetToolsLength to keep IR-18 visible: it reads \"undefined\".",
+    "cdpDomainEnabled is RECORDED AND NEVER ASSERTED ON: WebMCP.enable returns OK with no flag, no tools and no page API — see negativeControl, where it reads true.",
+    "invokeToolRoundTrip is the only field that discriminates a live surface from an empty launch: WebMCP.invokeTool plus a MATCHING WebMCP.toolResponded carrying status \"Completed\" (FACTS §1 IR-17).",
+    "Execution is by name over the CDP WebMCP domain. document.modelContext.executeTool(name, args) throws TypeError: not of type RegisteredTool — from page JS it takes the descriptor out of getTools() and a JSON STRING of arguments. Runtime.evaluate is used here only for feature detection and page state, never as the executor.",
+    "headless is RECORDED AND NOT CONSTRAINED. This run was headless=true. MEASURED: --headless=new plus the flag behaves exactly as headed does, which is what makes E6 (evals in CI, where there is no display) feasible at all.",
+    "No agent was connected. These are renderer-side readings only."
+  ]
+}
