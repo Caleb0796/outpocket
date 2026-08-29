@@ -20,13 +20,14 @@
     "H1",
     "S1",
     "H2",
-    "S3"
+    "S3",
+    "S4"
   ],
   "in_flight": {
-    "S4": "I3 \u2014 HEAD OF THE CRITICAL PATH (S4 -> T2 -> H3 -> H6 -> D4 -> D5 -> D6).",
-    "H5": "I1 \u2014 dispatched if idle.",
-    "V1 gate": "QA \u2014 file is complete, gate is live.",
-    "F1": "UX \u2014 half-green; both external blockers CLEARED, the remaining failure is inside F1: a trusted click on [data-persona] does not reach POST /api/login."
+    "F1": "UX \u2014 BOTH SPANS GREEN. Held on one line: tests/acceptance/static.test.mjs test 7, I3's F1-landed tripwire, 404 -> 200. QA's by glob; no node declares the file so clause (a) cannot invert it.",
+    "V1 gate": "QA \u2014 in progress.",
+    "static test flip": "QA \u2014 queued behind V1. THE WHOLE CRITICAL PATH FUNNELS THROUGH THIS ONE LINE: F1 -> T2 -> H3 -> H6 -> D4 -> D5 -> D6.",
+    "H5": "I1."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
