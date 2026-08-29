@@ -28,12 +28,15 @@
     "V1",
     "V2",
     "G2",
-    "E1"
+    "E1",
+    "V3",
+    "T4"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 STILL RED. src/page/register.js is BYTE-IDENTICAL between 4e9c58e and c563cdd; the amendment was a rebase, not a fix. Everything upstream is proven green.",
-    "F1 mount": "UX \u2014 ready, holds with the trio.",
-    "served root": "I3 \u2014 root widening + base-href regression fix, ready, holds with the trio."
+    "T2": "I2 \u2014 STILL RED and its fix is NOT COMMITTED ANYWHERE. No commit touches src/page/register.js since c563cdd; branch tip 9976b68 is a merge of main; its worktree is clean. The report describes a fix the repo does not have.",
+    "F3": "UX \u2014 clause 1 GREEN with a negative control; clause 2 RED and UNSATISFIABLE without a frozen-file edit no node scheduled. PM ruling pending. Test committed RED deliberately; DO NOT MERGE.",
+    "D1": "I4 \u2014 route handler and runbook landed; its accept curls a DEPLOYED $URL that does not exist yet. Partial.",
+    "eval.mjs --suite": "C4 \u2014 E2/E3/E5 all name it; E1 shipped without it and E1's own accept never asked for it. Ninth instance of consumer-specifies-producer, caught by --check-modes at merge time."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
