@@ -1421,3 +1421,13 @@ bijective 121/121.** Those are the same three totals this corpus published befor
 D-30. **Two different edges, one net.** §17's correction is not undone, and a
 reader who finds 121 here and 120 there is looking at two true measurements of
 two different graphs, not at a document that drifted.
+
+**Appended 2026-08-29, third edge movement of the evening.** D-58 adds the hard,
+same-horizon `H2 → T2` edge: `T2.accept` span 0 invokes `--assert-flips`, a mode
+of `H2`'s `harness/drive.mjs`, and `T2.inputs` was `[T1, H1, F1, S1, S4]` with no
+`H2`. Re-MEASURED: **122 edges, 111 hard, 103 qualifying, 8 cross-horizon exempt,
+0 violations; `inputs`↔`edges` bijective 122/122.** With `H2 → F1` (D-50) that is
+**the same defect found twice — a predicate naming a mode of another node's
+artifact with no edge to prove the dependency** — and both were invisible to
+`--check-schedule` (no edge to order) and to `--check-accept-paths` (the *path*
+resolves; the *mode* is not a path).

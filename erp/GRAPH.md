@@ -6,7 +6,7 @@
 > from them, never re-derived. **On any disagreement, the authority wins and this file is
 > regenerated, not argued with.**
 >
-> Regenerated 2026-08-29 from `graph.json` (68 nodes, 121 edges — 110 hard and
+> Regenerated 2026-08-29 from `graph.json` (68 nodes, 122 edges — 111 hard and
 > 11 soft — 62 nodes horizon A, 118.0 agent-hours). Sprint A deadline **2026-09-03 13:00 PT**
 > (~5.5 days). Track B is everything after that date.
 >
@@ -59,7 +59,7 @@ mechanism, not a feature" by human judgement on the single most expensive node i
 now commands.
 
 **2. An edge is a frozen artifact, not a feeling.**
-Applied: all 121 edges carry a `contract` naming the file that crosses them.
+Applied: all 122 edges carry a `contract` naming the file that crosses them.
 **Where it bit, and it bit again this revision.** Three hard edges were missing and their absence was invisible: `F1→T2`,
 `S1→T2` and `S4→T2`. `T2`'s predicate drives a real page (only `F1` produces
 `src/page/index.html`), served by a real server (`S1`), and introduces a real blocking violation
@@ -344,7 +344,7 @@ banner reads the Chromium major itself.
 | id | title | owner | inputs | h | cut | accept — **gloss only, not an authority** |
 |---|---|---|---|---|---|---|
 | T1 | Port tools.js surface compiler into the page, top-level document only | I2 | S10, T6 | 2 | 0 | `node --test tests/surface.test.mjs` green AND `find src/page -name '*.js' -print0 \| xargs -0 node tools/check-toplevel.mjs` exits 0, finding zero `registerTool` call sites reachable from an iframe or worker entry |
-| T2 | Real registerTool plus AbortController revocation, the 1->5->12->13 flips | I2 | T1, H1, F1, S1, S4 | 3 | 0 | `harness/drive.mjs --assert-flips 1,5,12,13` exits 0 against a real Chrome under `--enable-features=WebMCP`, calling `getTools()` after each transition; `submit_expense_report` must vanish from `getTools()` after a blocking violation is introduced **through the real policy engine** |
+| T2 | Real registerTool plus AbortController revocation, the 1->5->12->13 flips | I2 | T1, H1, H2, F1, S1, S4 | 3 | 0 | `harness/drive.mjs --assert-flips 1,5,12,13` exits 0 against a real Chrome under `--enable-features=WebMCP`, calling `getTools()` after each transition; `submit_expense_report` must vanish from `getTools()` after a blocking violation is introduced **through the real policy engine** |
 | T3 | Absence register: a resident read-only tool explaining why a tool is missing | I2 | T2 | 1.5 | 2 | `explain_missing_tool` present in all **six** canonical states (count == 1 per state) AND its body validates against `erp/contracts/violation.schema.json` with all of code/severity/field/fix/candidates |
 | T4 | Description budget and annotations conformance | QA | T1 | 1 | 1 | `node --test tests/acceptance/conformance.test.mjs`, in all **six** states: every description ≤500; `annotations` keys ⊆ {`readOnlyHint`, `untrustedContentHint`}; zero `outputSchema` keys; every read-only tool carries `readOnlyHint: true` |
 | T5 | Blind surface export for C1 and the eval-kit | I2 | T2, T3 (soft), S11 | 1 | 2 | `tools/export-surface.mjs` writes **six** states in canonical id order (asserted by a real `node -e`, no `./` prefix anywhere); two runs byte-identical; every `surface_digest` equals `digest('outpocket/surface/1', tools)` under OCF-1, recomputed independently; the export contains **only** name/description/inputSchema/annotations — no paths, no repo identifiers |
