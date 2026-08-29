@@ -13,6 +13,8 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { policyHandler } from "./routes/policy.mjs";
+import { seedState } from "./seed.mjs";
+import { createStateDigestHandler } from "./routes/state-digest.mjs";
 
 // D-50, PM 2026-08-29: S1's accept never specified a static route, but the
 // graph's own edge contracts always assumed one (S1 -> T2 "there is no
@@ -107,6 +109,8 @@ function sendJson(res, status, body) {
  */
 export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
   const sessions = new Map(); // sid -> persona id
+  const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
+  const stateDigestHandler = createStateDigestHandler(() => state);
   const serveStatic = makeStaticHandler(pageRoot);
 
   function sessionFromRequest(req) {
@@ -146,6 +150,8 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
     }
 
     if (policyHandler(req, res, url)) return;
+
+    if (stateDigestHandler(req, res, url)) return;
 
     if (await serveStatic(req, res, url)) return;
 
