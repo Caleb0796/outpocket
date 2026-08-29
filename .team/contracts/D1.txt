@@ -1,0 +1,13 @@
+NODE:      D1
+OWNER:     I4
+INPUTS:    S9, F1
+DO:        Build to the accept and nothing beyond it. Read any merged evidence your node depends on before writing — several answers landed today.
+ACCEPT:    `curl -sI $URL | tee evidence/headers.txt` then the Origin-Agent-Cluster check `grep -i '^origin-agent-cluster:' evidence/headers.txt | grep -q '?0' && exit 1; exit 0` — the header must be ABSENT, or present with a value that is not ?0 — AND `curl -s -o /dev/null -w '%{http_code}' $URL` returns 200 AND `curl -s $URL/version` equals `git rev-parse HEAD` AND the deploy is configured for exactly ONE instance, recorded in evidence/D1-url.txt with the reason.
+PIT:       kb/pits/D1.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/I4-D1
+DEADLINE:  2026-08-31T23:59-07:00

@@ -1,0 +1,13 @@
+NODE:      V3
+OWNER:     I1
+INPUTS:    V1
+DO:        Build to the accept and nothing beyond it. Read any merged evidence your node depends on before writing — several answers landed today.
+ACCEPT:    evidence/V3.json records the response body of the probe's GET /whoami as fetched from inside an agent-initiated execute, and asserts whether it equals the body the page itself receives. `verdict` field is one of 'same-session'|'no-cookie'|'different-session'.
+PIT:       kb/pits/V3.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/I1-V3
+DEADLINE:  2026-08-30T23:59-07:00

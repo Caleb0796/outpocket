@@ -1,0 +1,13 @@
+NODE:      T4
+OWNER:     QA
+INPUTS:    T1
+DO:        Build to the accept and nothing beyond it. Read any merged evidence your node depends on before writing — several answers landed today.
+ACCEPT:    `node --test tests/acceptance/conformance.test.mjs` asserts, in every one of the SIX canonical states: every description length <= 500; the annotations object contains only keys from {readOnlyHint, untrustedContentHint}; no tool definition contains an outputSchema key; every read-only tool carries readOnlyHint:true.
+PIT:       kb/pits/T4.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/QA-T4
+DEADLINE:  2026-08-31T23:59-07:00

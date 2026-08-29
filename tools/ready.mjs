@@ -19,6 +19,7 @@
 // which conventions.ownership_rule names as its one implementation.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { whoMayWrite } from './check-ownership.mjs';
 
 const G = JSON.parse(fs.readFileSync('erp/graph.json', 'utf8'));
@@ -578,6 +579,46 @@ function selftestOrphans() {
   return fails === 0;
 }
 
+// ---------------------------------------------------------------- --check-record
+// Clause 6c says THE RECORD OF A MERGE IS PART OF THE MERGE, and nothing checked
+// the record. On 2026-08-29 .team/log/merges.txt carried four rows naming pit
+// files that do not exist and two rows with no sha at all, while the row count
+// and graph.state.json.done agreed exactly — SO BOTH REGISTERS AGREED WHILE BOTH
+// OVERSTATED THE TREE. Two registers agreeing is not two registers being right.
+//
+// Every MERGED row must satisfy: the sha resolves to a commit that exists, and
+// the pit path exists in HEAD or reads PENDING. PENDING is honest and passes;
+// naming a file that is not there does not.
+function checkRecord() {
+  const LOG = '.team/log/merges.txt';
+  if (!fs.existsSync(LOG)) { bad(`${LOG} does not exist`); return false; }
+  const rows = fs.readFileSync(LOG, 'utf8').split('\n').filter((l) => l.startsWith('MERGED'));
+  const st = fs.existsSync(STATE_PATH) ? JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) : { done: [] };
+  let violations = 0;
+  const seen = [];
+  for (const line of rows) {
+    const m = line.match(/^MERGED\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
+    if (!m) { bad(`malformed row: ${line}`); violations++; continue; }
+    const [, node, sha, pit] = m;
+    seen.push(node);
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) { bad(`${node}: "${sha}" is not a sha`); violations++; }
+    else {
+      const r = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]);
+      if (r.status !== 0) { bad(`${node}: sha ${sha} is not a commit in this repository`); violations++; }
+    }
+    if (pit !== 'PENDING' && !fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+  }
+  const done = new Set(st.done || []);
+  const rowsNotDone = seen.filter((n) => !done.has(n));
+  const doneNotRows = [...done].filter((n) => !seen.includes(n));
+  if (rowsNotDone.length) { bad(`rows for nodes not in graph.state.json.done: ${rowsNotDone.join(' ')}`); violations++; }
+  if (doneNotRows.length) { bad(`done but no merge row: ${doneNotRows.join(' ')}`); violations++; }
+  const pending = rows.filter((l) => /pits:PENDING/.test(l)).length;
+  console.log(`${rows.length} merge row(s) checked; ${done.size} node(s) done; ${pending} pit(s) PENDING`);
+  if (!violations) ok('every row names a sha that exists and a pit that exists or is honestly PENDING');
+  return violations === 0;
+}
+
 // ---------------------------------------------------------------- --check-tables
 // R-22: this mode is what makes restatement legal at all. falsification[9] used to forbid a
 // sibling document from restating a node table outright; the rule is now narrowed to "a
@@ -740,6 +781,7 @@ const MODES = [
   ['--check-schedule', checkSchedule],
   ['--check-modes', checkModes],
   ['--check-orphans', checkOrphans],
+  ['--check-record', checkRecord],
   ['--selftest-orphans', selftestOrphans],
 ];
 

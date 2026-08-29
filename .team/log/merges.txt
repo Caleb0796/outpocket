@@ -344,7 +344,7 @@ MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
 # THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
 #   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
 
-MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
+MERGED H5  b446bc2 pits:PENDING accept:PASS
 
 # CORRECTION TO THAT MERGE COMMIT, MADE HERE BECAUSE IT IS ALREADY PUSHED.
 #   The message says spans 1 and 2 are "backticked FRAGMENTS, not commands".
@@ -522,3 +522,125 @@ MERGED V1  b13e898 pits:kb/pits/V1.md accept:PASS
 #
 # THE PAIRED GATE IS NOW A TRIO: I3's root widening + UX's mount + T2. None of
 #   the three is valid alone. Merged locally to test, reset, NOT pushed.
+
+MERGED V2  4b01533 pits:kb/pits/V2.md accept:PASS
+MERGED G2  ab4831b pits:PENDING accept:PASS
+
+# V2 — RECOVERED FROM A DANGLING COMMIT. seat/I1-V2 pointed at main and fe4e495
+#   was on NO branch. Third shared-checkout incident today, after UX's checkout
+#   moved HEAD under me and my own G5 commit landed on UX's branch. Found by sha,
+#   branched, gated normally, nothing lost, I1 did nothing wrong. The peer session
+#   mcp-6d independently anchored the same sha as insurance a moment later; both
+#   anchors deleted after the merge.
+#   THE EVIDENCE IS STRONG AND MY FIRST CHECK OF IT WAS WRONG. I probed for
+#   before/after/gap keys, got null, and read that as a defective artifact. The
+#   real keys are observationPair.before/.after/.gapMs. My probe asked the wrong
+#   question — the third time today I drew a conclusion from a check that could
+#   not have answered it (the T2 module-graph walk with a hardcoded base, the
+#   D-41 grep against a retraction, and this).
+#   What the evidence actually carries: toolCount 5 -> 6 with gapMs 3, a
+#   documentNonce identical across both readings and navigationsSinceLoad 0
+#   (two independent witnesses that ONE document instance was observed, since a
+#   reload would discard the nonce and emit a second frameNavigated), the sixth
+#   tool registered BY NAME over the CDP WebMCP domain rather than through
+#   Runtime.evaluate, and the un-awaited getTools().length recorded as
+#   "undefined" beside each reading to keep IR-18 visible. It also RETRACTS an
+#   earlier 4048 ms gap from its own rig as a defect in that rig's push detector
+#   rather than reporting it.
+#
+# G2 — README demo credentials and open-app paths. Accept 2/2, suite 102/102.
+#
+# CORRECTION TO THE V2 ENTRY ABOVE: I ORPHANED THAT COMMIT MYSELF. The reflog is
+# unambiguous and I had blamed the shared checkout for all of it:
+#   seat/I1-V2@{7}  branch: Created from HEAD
+#   seat/I1-V2@{6}  commit: I1: V2 — the before/after pair …   <- I1's delivery
+#   seat/I1-V2@{5..3}  merge worktree-s1-d66 / seat/UX-F1 / seat/I2-T2
+#                      <- MY trio gating, run believing I was on main
+#   seat/I1-V2@{2}  reset: moving to origin/main   <- MY reset, which orphaned it
+# HALF of it is the shared checkout: HEAD@{7} reads "checkout: moving from main
+# to seat/I1-V2" and I did not run that. The other half is mine: I ran three
+# merges and a `git reset --hard` WITHOUT EVER CHECKING WHICH BRANCH I WAS ON.
+# Every trio gating result was still valid — same content, same commands — but
+# the bookkeeping was wrong for the whole sequence, and the reset destroyed a
+# seat's delivery. I then reported the dangling commit as the shared-checkout
+# hazard rather than as my own reset. The hazard is real and it put me on the
+# wrong branch; it did not run reset --hard.
+#
+# NOTHING WAS LOST. fe4e495 was recovered by sha, gated normally and merged; the
+# push was `HEAD:main`, so origin/main is correct throughout and never carried a
+# wrong tree. Local `main` was stale at d41f303 while origin/main was ab4831b,
+# and is now corrected. seat/I1-V2 is re-pointed at I1's own commit.
+#
+# AND THE HOOK CAUGHT IT, which is DEV-005 paying for itself within hours of the
+# send-back: my record commit was BLOCKED because pre-commit-ownership resolved
+# the seat from the branch name as I1 and denied .team/log/merges.txt and
+# erp/graph.state.json. That gate exists because G5 shipped inert and PM sent it
+# back; the chained hook I asked I4 for is what turned a silent wrong-branch
+# commit into a refusal. It is the first time tonight an instrument stopped ME
+# rather than reporting on someone else.
+#
+# THE RULE, and it is cheap: CHECK THE BRANCH BEFORE A DESTRUCTIVE GIT COMMAND,
+# every time, not only when something looks odd. `git reset --hard` on a branch
+# you have not verified is the one command in this loop that can destroy another
+# seat's work, and I ran it four times tonight.
+
+# RECORD CORRECTION — MY LOG ASSERTED FOUR FILES THE TREE DOES NOT HAVE.
+#   H5, S9, V2 and G2 all carried `pits:kb/pits/<node>.md` and NONE of those
+#   files exists on main. V2's and G2's rows also carried NO SHA — a shell
+#   substitution that returned empty because I ran the grep for the merge subject
+#   from the wrong branch, and I did not look at the line I had written.
+#   Shas restored from the real merge commits: V2 4b01533, G2 ab4831b.
+#   The three still-missing pits now read `pits:PENDING`, which is true, instead
+#   of naming a file that is not there.
+#
+#   THIS IS THE ASSERT-VS-EXISTS CLASS IN MY OWN RECORD, and it is the fourth
+#   time today the family has appeared: the authority asserted enforcement by a
+#   registry row that did not exist (D-41); a rule permitted an edit whose
+#   control was unverified (D-57); T1 was unservable while every gate passed; and
+#   now the merge log names artifacts that were never written. Every time the
+#   claim was reasonable and the thing behind it was absent.
+#
+#   VECTOR, per mcp-6d: the seat+I1-V2 worktree was removed while carrying two
+#   uncommitted files, at the moment I absorbed that branch.
+#   CORRECTION — I NARROWED THAT TO I1's PIT DRAFTS AND I WAS WRONG. I1 states it
+#   never wrote to kb/pits/ at all this session (D-31 says report, do not commit),
+#   that its only repo write all night was evidence/V2.json, and that fe4e495 is
+#   1 file changed — which the tree confirms. So the two lost files are still
+#   unidentified and the search does NOT narrow to I1. I inferred a convenient
+#   explanation from a real observation and stated it as likely; the observation
+#   stands and the attribution does not.
+#
+#   WHY IT WENT UNSEEN: clause 6c says the record of a merge is part of the merge,
+#   and NOTHING CHECKED THE RECORD. The row count matched the done count, so both
+#   registers agreed while both overstated the tree. Two registers agreeing is not
+#   two registers being right.
+
+# TWO CORRECTIONS FROM I1, BOTH ACCEPTED, BOTH MINE.
+#
+# (1) H5 WAS A DIFFERENT SESSION OF THE I1 SEAT and I asked the wrong one for its
+#     pit. Verified: H5's commit 2d2854b carries
+#     Claude-Session: …session_01GZnyPEuYaxqLRGj7m4jN4L; the session I asked is a
+#     different id, dispatched tonight for V2 only. It REFUSED to reconstruct a
+#     pit from a diff, and it is right to: that is the artifact D-31 exists to
+#     prevent, and this project already carries one pit marked "NOT the seat's own
+#     report" (kb/pits/H1.md) which was worse than the node deserved. H5's row
+#     stays pits:PENDING, which is the honest state, and --check-record enforces
+#     that PENDING may not silently become a filename.
+#     Its commit body ends "the five fields are reported to L1" at 11:02 -0700, so
+#     that session believed it had reported. That is the THIRD time today a report
+#     was made and did not arrive — after QA's V1 verdict, durable in its own
+#     transcript, and I4's and I3's. A seat still running cannot be relied on to
+#     have reached me any more than one that has ended.
+#
+# (2) THE observationPair KEY PATH, recorded so the next reader does not repeat my
+#     mis-grade: evidence/V2.json nests the pair under observationPair.before,
+#     .after and .gapMs. V2's accept says "a pair of tool-count observations plus
+#     the wall-clock gap" and names no keys, so a flat probe was a reasonable
+#     guess — the mis-grade was as much the shape's fault as mine, which is I1's
+#     framing and I accept it.
+#
+# OPEN FOR PM, raised by I1 and not L1's to edit: evidence/UNKNOWNS.md line 34
+#   still reads "refreshes (localhost)" and "Not re-run remotely", both stale as
+#   of 4b01533 — V2 was re-run on the REMOTE origin on Chrome 152. The row still
+#   ends MEASURED so tools/check-unknowns.mjs stays green; it is wording, not a
+#   broken gate, and UNKNOWNS.md is a V6 output and PM's.
