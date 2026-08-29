@@ -1,5 +1,5 @@
 {
-  "id": "V6",
+  "id": "V6-consent-gate",
   "status": "NEW - not in the original unknowns register",
   "question": "Does the client gate an agent-initiated cookie-bearing request behind human approval?",
   "verdict": "YES, on a remote origin - and NO on localhost",
@@ -7,8 +7,8 @@
   "client": "ChatGPT desktop built-in browser, model 5.6 Sol, Chromium 151",
   "whatHappened": "Asked the agent to call probe_whoami on https://webmcp-probe.onrender.com. It listed the five tools, then refused to execute, verbatim: 'probe_whoami may transmit the browser's session cookie to webmcp-probe.onrender.com, so the browser blocked it pending action-time approval. Do you authorize that cookie-bearing request?' After explicit approval it ran and returned cookiePresent true, cookieMatches true.",
   "contrast": "The identical call on http://localhost:8795 earlier the same session executed with NO prompt. The gate is origin-sensitive.",
-  "consequenceForKernel3": "Session-as-credential still works, but on a real origin every cookie-bearing tool call may cost a human approval. The demo storyboard must show this rather than be surprised by it - and it is arguably a point IN FAVOUR of the design's thesis, since the client is enforcing exactly the co-presence the project argues for.",
-  "consequenceForTheSignGate": "This is the D-19 forgery vector's environment. The surviving attack needs the agent to POST /respond carrying the session cookie. On a remote origin this client blocks that pending human approval, so the residual risk is materially SMALLER than the contracts layer currently states.",
+  "consequenceForKernel3": "One remote probe_whoami call required a human approval; the identical localhost call did not. TREAT SOLELY AS DEMO FRICTION AND A REHEARSAL REQUIREMENT (R-44). It does not reduce server-side residual risk and no co-presence may be inferred from it: one observation does not show every cookie-bearing call prompts, an approval click is not a review, and this server cannot detect, require or fall back on a client policy. The previous text here called it 'arguably a point IN FAVOUR ... enforcing exactly the co-presence the project argues for', which is precisely the reassurance the contract denies.",
+  "consequenceForTheSignGate": "NO CREDIT. R-44. The surviving forgery (D-19) needs a POST carrying the session cookie, and this client prompted for one such call on one remote origin. That is not a control: the server cannot observe it, a different client or a reflexive click defeats it, and it says nothing about the vector's other precondition. The previous text here said 'the residual risk is materially SMALLER than the contracts layer currently states'; that sentence is withdrawn. The residual risk is exactly what erp/contracts/signature.schema.json states.",
   "doNotOverclaim": "This is a CLIENT policy, not a server guarantee and not a browser invariant. A different client, a future version, or a user who approves reflexively all defeat it. It raises the cost of the attack; it does not close it. The provable sentence in D-19 is unchanged.",
   "docsToUpdate": [
     "DONE - erp/contracts/signature.schema.json x-signRequestState.survivingVector",
@@ -31,6 +31,9 @@
       "evidence/UNKNOWNS.md - rewritten to six rows each ending in MEASURED, satisfying node V6's predicate; the stale 're-run all five on a remote origin' caveat discharged.",
       "erp/PATHS.md - rows added for evidence/V1-remote.json, evidence/V6-consent-gate.json and evidence/G1-rehearsal.json.",
       "Stale-prose sweep across RISK, CONTRACTS, EVAL, RUBRIC, FACTS, GRAPH, PLAN and charters C3/I1/I3/L2. erp/reviews/ deliberately NOT rewritten - archived reports are records of what was known on their date."
-    ]
-  }
+    ],
+    "reviewedBy": "Adversarial review 2026-08-29, codex gpt-5.6-sol, reasoning effort max, read-only, against commit 0bf0c1e. 15 findings, 2 BLOCKERs. Repaired under R-44; report at scratchpad R43-findings.md."
+  },
+  "idNote": "Never a bare `V6` — that is a NODE id in erp/graph.json. R-43, and the file was still self-labelled `V6` until R-44.",
+  "whatItAlsoRecords": "This is the ONLY remote confirmation of V3 on record: after approval, probe_whoami returned cookiePresent true and cookieMatches true on https://webmcp-probe.onrender.com. evidence/V3.json itself is localhost."
 }

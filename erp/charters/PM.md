@@ -40,7 +40,7 @@ run `git push`. **This binds you, not L1.** `git push` is L1's *permission* and 
 
 **V6 — unknowns verdict and fallback election** (cut rank 0, 1.5 h). Its accept
 predicate is in `graph.json`; L1 copies it verbatim into `.team/contracts/V6.txt`.
-The register is keyed **`V0`–`V4`**, matching the V-lane nodes that answer them —
+The register is keyed **`V0`–`V4`** **plus the discovered sixth, `V6-consent-gate`** — six rows exactly, and the sixth key always carries its suffix because bare `V6` is a node id (R-43/R-44). The first five match the V-lane nodes that answer them —
 never `T0`–`T4`, which collide with live tool-surface node ids. Every
 `UNVERIFIED` row must name an existing node id from `erp/graph.json` as its
 fallback; a row with no named fallback is malformed and the node does not pass.

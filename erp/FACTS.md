@@ -824,15 +824,25 @@ the planned acceptance test on the paid tier.
 ## 7. Open unknowns
 
 These are the five things whose answers change the design. Lane **V** exists to
-close them and has the highest information value per hour on the board. All
-grade: UNVERIFIED. **Days are quoted from
+close them and has the highest information value per hour on the board.
+
+> **STATUS, 2026-08-29 (R-43/R-44): all five carry readings, and NOT ONE has passed its
+> answering node.** `V1` wants a canonical `evidence/V1.json` plus a non-empty
+> `evidence/V1.png`; `V2` wants a before/after count pair and a wall-clock gap; `V4`
+> wants two runs and `harness/compare-runs.mjs`; `V0` wants a nine-field CDP artifact
+> from the **installed** Chrome. Provenance is **per row**: `V1` was read on the remote
+> origin, `V0`/`V2`/`V3`/`V4` on `http://localhost:8795`, and a sixth finding
+> `V6-consent-gate` proves those two differ in this client. Read `evidence/UNKNOWNS.md`
+> and quote the reading with its scope; never cite one as a passed gate.
+
+**Days are quoted from
 `graph.json.capacity.schedule_A`, which is the only schedule authority.**
 
 | Node | Day | Question | What it decides |
 |---|---|---|---|
 | **V0** | 1 | Does `navigator.modelContext` still exist as a stale alias on the **installed** Chrome (152.0.7977.64)? | Contradicts IR-1 if yes. Affects what we may write publicly. |
 | **V1** | 1 | Is `document.modelContext` ABSENT in the ChatGPT built-in browser on a plain HTTPS origin? There are reports that the origin must be authorised — and 45 in-window repos deployed to `*.chatgpt.site`, which may be a workaround for exactly this. | **If true and we use an ordinary domain, judges see a page with no tools at all, and local testing would never reveal it.** The single highest-stakes unknown on the board. Human-gated; runs against **V5's throwaway origin**, not against D1 and not against localhost. |
-| **V2** | 2 | Does the built-in browser refresh the tool list mid-session? | Whether kernel ① is *demonstrable* at all. Until V2 returns `refreshes`, **no document, storyboard, video cue or Devpost answer may say the surface changes "on the spot"** — the honest phrasing is "on its next turn". |
+| **V2** | 2 | Does the built-in browser refresh the tool list mid-session? | Whether kernel ① is *demonstrable* at all. **V2 returned `refreshes` (2026-08-29, localhost).** The restriction is unchanged and unrelaxed: **no document, storyboard, video cue or Devpost answer may say the surface changes "on the spot"** — the sixth tool arrived on the agent's *next turn*, which is what "on its next turn" means — the honest phrasing is "on its next turn". |
 | **V3** | 2 | Does an agent-initiated tool `execute` carry the page's session cookie on `fetch`? | Kernel ③ — the entire lane S premise. **And, since R-13, the sign gate's residual risk: see the warning below.** |
 | **V4** | 2 | Does a suspended `execute` time out in the built-in browser? | Kernel ④ — how long the human has to sign before the call dies. If the maximum is below the time a human needs to read a dialog, S5 ships in two-call handshake mode. |
 
@@ -940,14 +950,13 @@ is arguably worse than the old forgery, and it is written down here on purpose.
 sign request, delivered **only** into the rendered dialog's DOM, never returned
 in any tool-call result or any `/api/sign/{id}` response body, and required by
 `/respond`. It raises the cost of the attack; **it does not establish
-personhood.** Its value was a direct function of unknown **V3** — **MEASURED
-`same-session` on 2026-08-29 (R-43), the unfavourable branch.** The
-agent-initiated fetch **does** carry the page session cookie and that client
-**does** read the DOM, so the token **is** reachable. Present tense. The client's
-own action-time consent prompt on a remote origin (`V6-consent-gate`) raises the
-attacker's cost and closes nothing — client policy, absent on `localhost`,
-defeated by a different client or a reflexive click. State the residual risk in
-exactly those terms wherever the sign gate is described, including in
+personhood.** **`V3` measured COOKIE CARRIAGE ONLY (R-44).** The vector stays open for any caller that **also**
+obtains read access to the rendered dialog's DOM — and *nothing measured establishes that second
+conjunct for this client*: no run rendered a sign dialog, queried a DOM, or lifted a token. This is
+**not** a closure; it removes an unsupported assertion about *which* caller has the access.
+**`V6-consent-gate` gets no credit (R-44)** — a client policy this server cannot
+observe, require, or fall back on is not a property of the token. State the
+residual risk in exactly those terms wherever the sign gate is described, including in
 `docs/DEVPOST.md` and `docs/VIDEO-SCRIPT.md`.
 
 **Negative control N-16 `neg-respond-without-click`** is scripted verbatim as
@@ -955,7 +964,9 @@ the attack and **records the current outcome honestly**: with no `confirm_token`
 required the commit **SUCCEEDS** (HTTP 200, a chain entry attesting Chen Xiao at
 a genuine server time) and the case is recorded `KNOWN-OPEN`; with the token
 required, a caller that cannot read the rendered dialog's DOM gets 403
-`E_NO_CONFIRM_TOKEN` and the case is recorded `REFUSED`. **The test fails if the
+`E_NO_CONFIRM_TOKEN` and the case is recorded `controlStatus: "enforced"` — **never
+`REFUSED`, which is not a member of the frozen enum `[enforced, known-open,
+not-runnable]` (R-27)**. **The test fails if the
 outcome changes silently in either direction. Delete the stronger sentence; do
 not weaken the test.**
 

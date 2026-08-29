@@ -552,14 +552,13 @@ ids are in `graph.json`; this file does not restate them.
 > the frozen `$defs.sign_respond_request` under `additionalProperties:false` and the body
 > below carries seven. **That refusal is scheduled and documented; it is not a discovery,
 > and it does not make the gate stronger than the provable sentence above** — a caller
-> who can read the dialog's DOM lifts the token and the walk holds again for that caller
-> — and **`V3` is MEASURED `same-session` (2026-08-29, R-43)**, so that caller is not
-> hypothetical: it is the client this demo is filmed in. Anyone quoting *"it commits"*
-> without *"before the `confirm_token` ships"* is quoting half of it. And the one thing
-> that raises the cost on a remote origin — the client's own action-time consent prompt,
-> `V6-consent-gate` — is a **client policy**, not a server guarantee: absent on
-> `localhost`, defeated by a different client or a reflexive click. **Cost, never
-> closure.**
+> who can read the dialog's DOM lifts the token and the walk holds again for that caller.
+> **`V3` measured COOKIE CARRIAGE ONLY (R-44)** — no run rendered a dialog, queried a DOM,
+> or lifted a token — so the honest statement is that the walk holds for any caller that
+> *also* obtains DOM read access, which this evidence neither establishes nor excludes for
+> this client. Anyone quoting *"it commits"* without *"before the `confirm_token` ships"*
+> is quoting half of it. And `V6-consent-gate` gets **no credit here**: a client policy
+> this server cannot observe, require, or fall back on is demo friction, not a mitigation.
 >
 > Two requests instead of one. The
 > attacker calls `submit_expense_report`, takes the `snapshot_digest` D and `revision` R
@@ -1390,9 +1389,18 @@ whole server-side decision state machine of §7.3 plus negative control N-15, an
    **What we can honestly claim is a precondition, not a witness**, and §7's first box
    is the sentence. The `confirm_token` moves the bar without moving the class.
 
-## 14. Open unknowns that can force a change here
+## 14. The unknowns that can force a change here
 
-Register keys are **`V0`–`V4`**, matching the V-lane nodes that answer them
+> **STATUS, 2026-08-29 (R-43/R-44): all five carry readings, and NOT ONE has passed its
+> answering node.** `V1` wants a canonical `evidence/V1.json` plus a non-empty
+> `evidence/V1.png`; `V2` wants a before/after count pair and a wall-clock gap; `V4`
+> wants two runs and `harness/compare-runs.mjs`; `V0` wants a nine-field CDP artifact
+> from the **installed** Chrome. Provenance is **per row**: `V1` was read on the remote
+> origin, `V0`/`V2`/`V3`/`V4` on `http://localhost:8795`, and a sixth finding
+> `V6-consent-gate` proves those two differ in this client. Read `evidence/UNKNOWNS.md`
+> and quote the reading with its scope; never cite one as a passed gate.
+
+Register keys are **`V0`–`V4`** **plus the discovered sixth, `V6-consent-gate`** — six rows exactly, and the sixth key always carries its suffix because bare `V6` is a node id (R-43/R-44). The first five match the V-lane nodes that answer them
 (`PATHS.md §5`). The previous revision keyed them `T2`/`T3`/`T4`, which collide with
 live lane-T **node** ids meaning *Port tools.js*, *Real registerTool*, *Absence
 register* and *Description budget*.
@@ -1403,8 +1411,10 @@ register* and *Description budget*.
 | V3 | does an agent-initiated execute carry the page session cookie | C4, and **this is now the load-bearing unknown of the whole layer.** Two separate consequences, and the previous revision recorded only the first. **(a) Attribution:** if the cookie is *not* carried, the commit path needs a different carrier and §7 is rewritten, because the server takes `signed_by` from the session and a `/respond` arriving without one cannot be attributed at all. **(b) The forgery vector, which matters more:** if the cookie *is* carried, the agent can drive `/respond` itself — that is exactly §7's surviving vector — and the `confirm_token` holds only for as long as the agent cannot read the DOM. **A yes on V3 plus DOM read access reopens `neg-respond-without-click` for that caller, and no wording anywhere may upgrade to "a human decided" on either answer.** |
 | V4 | does a suspended execute time out in the built-in browser | C4 — `expires_at` (300 s default) must be shorter than any client timeout, and F4 must degrade legibly when the execute is torn down under us |
 
-Nodes V2–V4 answer these. **Contract C4 must not be treated as load-bearing for the
-video until V3 returns.**
+Nodes V2–V4 answer these. **V3 has returned `same-session` (2026-08-29), and C4 is
+therefore load-bearing for the video — with the qualifier that V3 measured COOKIE
+CARRIAGE ONLY and not DOM read access (R-44), so C4's residual-risk sentence stays
+exactly as the contract writes it.**
 
 ---
 

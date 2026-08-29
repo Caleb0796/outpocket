@@ -26,8 +26,9 @@ The next action is Day 0 (`L0` + `V5`), and `V5` is **already done**.
 | `Caleb0796/webmcp-eval-kit` | PRIVATE. README + LICENSE only. |
 | **https://webmcp-probe.onrender.com** | **LIVE**, Render free tier. Spins down when idle; first request after a nap takes ~50 s. `curl` it once to wake it before any test. |
 
-`erp/` is 49 files, ~22,450 lines. `graph.json` is **v2.5.0**: 68 nodes, 120
-edges, **38 rulings** (R-43 landed the measured unknowns).
+`erp/` is 49 files, ~22,450 lines. `graph.json` is **v2.5.1**: 68 nodes, 120
+edges, **39 rulings** — R-43 landed the measured unknowns, **R-44 repaired R-43**
+after an adversarial review found two blockers in it.
 
 ---
 
@@ -60,10 +61,10 @@ ChatGPT desktop built-in browser · model **5.6 Sol** · **Chromium 151**
 | id | verdict | consequence |
 |---|---|---|
 | **V0** | `navigator.modelContext` **absent** | The 150 removal holds. |
-| **V1** | **PRESENT** — on `https://webmcp-probe.onrender.com` | The agent listed all five tools *and executed them*, on a brand-new remote origin the account had never visited. The plan's worst case — judges see a page with zero tools — does not occur on this client. |
-| **V2** | **refreshes** | A tool registered at runtime reached the agent with no page reload. Demo beat 1 works on camera. Keep the narration at "on its next turn". |
-| **V3** | **same-session** | `cookiePresent: true, cookieMatches: true`. Kernel ③ survives; `contingencies[0]` does NOT fire; S1 stays 2.5 h. |
-| **V4** | **times out at 22.3 s** | `Timed out running CDP command "Runtime.evaluate"`. **Decisive against suspend-until-signed.** |
+| **V1** | **PRESENT** — on `https://webmcp-probe.onrender.com` | The agent listed all five tool **names** on a brand-new remote origin the account had never visited. `evidence/V1-remote.json` records names, **not descriptions and not executions**; the one execution on record is `probe_whoami`, after approval. The plan's worst case — judges see a page with zero tools — was not observed. |
+| **V2** | **refreshes** *(localhost)* | A tool registered at runtime reached the agent with no page reload. Demo beat 1 works on camera. Keep the narration at "on its next turn". |
+| **V3** | **same-session** *(localhost; confirmed remote in `V6-consent-gate.json`)* | `cookiePresent: true, cookieMatches: true`. Kernel ③ survives; **`contingencies[2]`** does NOT fire and `[3]` fires *for the cookie conjunct only* (R-44 — a previous revision said `[0]`, which is the V1 branch); S1 stays 2.5 h. **It measures cookie carriage and nothing about DOM read access.** |
+| **V4** | **times out at 22,267 ms** *(localhost, **run 1 of 2**)* | `Timed out running CDP command "Runtime.evaluate"`. Enough to make the handshake the **conservative default**; not enough to close the node. `contingencies[4]` is *provisionally selected, not fired* (R-44). |
 | **`V6-consent-gate`** | **consent gate, remote only** | NEW. See below. **Always write the suffix** — bare `V6` is a *node id* (`graph.json.id_collision_warnings`, R-43). |
 
 ### V4 changes a design — act on it
@@ -85,15 +86,19 @@ request pending action-time human approval**. Verbatim:
 The identical call on `localhost` ran with **no prompt**. It cuts both ways:
 
 - **Against the demo** — every cookie-bearing call on a real origin may cost a
-  human approval. **Beat 2 must script it**, not be ambushed by it.
-- **For the sign gate** — the D-19 forgery needs exactly that POST, and this
-  client gates it. Residual risk is **materially smaller** than the contracts
-  layer currently states.
+  human approval. **Beat 2 must script it**, not be ambushed by it, and the
+  rehearsal must run on the **remote** origin: localhost shows no prompt at all.
+- **For the sign gate — NO CREDIT. R-44 withdrew the sentence that used to sit
+  here** (*"residual risk is materially smaller than the contracts layer states"*).
+  One observation does not show every cookie-bearing call prompts, an approval
+  click is not a review, and this server cannot detect, require, or fall back on a
+  client policy. A disclaimer printed after a reassurance does not undo the
+  reassurance, so the reassurance is deleted rather than qualified. **The residual
+  risk is exactly what the contract states.**
 
 **Overclaim guard, non-negotiable:** this is a *client policy*, not a server
 guarantee and not a browser invariant. Another client, a future version, or a
-user who approves reflexively all defeat it. It raises the attack's cost; it does
-**not** close the hole. D-19's provable sentence is unchanged.
+user who approves reflexively all defeat it. D-19's provable sentence is unchanged.
 
 ---
 

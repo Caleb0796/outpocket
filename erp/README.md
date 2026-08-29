@@ -14,7 +14,7 @@ No second front door, no service account minted for a robot, no broker holding a
 ---
 
 > **Resuming after a compaction? Read [`HANDOVER.md`](HANDOVER.md) first.** It carries
-> the measured browser facts (V0–V6), the decisions closed on 2026-08-29, the
+> the measured browser facts (V0–V4 plus `V6-consent-gate`), the decisions closed on 2026-08-29, the
 > environment gotchas that cost real time, and what not to redo.
 
 ## 1. Reading order, and which two files are AUTHORITIES
@@ -182,10 +182,11 @@ Patterns must be `\b`-anchored: unanchored, `our differentiator` matches the inn
   rerouted to `L0 → V5 → S10 → …` at **29.5 h**; (3) `PATHS.md` §2.4 and §3 publish the superseded
   accept-path run (**179 / 157 / 12 / 10 / 19**) while `G0`'s accept publishes the recomputed one
   (**182 / 152 / 7 / 12 / 11 / 21**) — the two authorities disagree about the same run.
-- **Open unknowns V0–V4** (`RISK.md` §4), each with a pre-declared fallback. `V1` — is
-  `document.modelContext` present in ChatGPT's built-in browser on a plain HTTPS origin — is the one
-  failure mode invisible from inside the dev loop; it is human-gated on Day 1 against `V5`'s
-  throwaway origin, never against production.
+- **The unknowns V0–V4** (`RISK.md` §4), each with a pre-declared fallback. **All five now carry
+  readings (2026-08-29) and none has passed its answering node** — see `evidence/UNKNOWNS.md`, and
+  quote each with its origin, because `V1` was read remotely and the rest on localhost. `V1` — is
+  `document.modelContext` present in ChatGPT's built-in browser on a plain HTTPS origin — was the one
+  failure mode invisible from inside the dev loop; it came back **PRESENT** on `V5`'s throwaway origin.
 - **Unbudgeted overhead, kept deliberately**: `kb/pits/<node-id>.md` merge entries, deviation
   tickets, inbound logs, and the 68 `.team/contracts/<node>.txt` briefs. If the schedule bites, PM
   drops them by ruling — never by silence.

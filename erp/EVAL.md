@@ -764,7 +764,7 @@ row that is not red**, and §7.1's `known-open` status is why it is still in the
 | **N-18** | **a submitted report is append-only** | `S4-emp-submitted`: attempt a line mutation by name, then the same route directly | `update_expense_line` absent from `getTools()` **and** the direct write returns `overTheWire(409)`; day-book head unchanged | `S4-emp-submitted` | S2 | allow the `submitted` status through the write-route table |
 | **N-19** | **the anonymous surface cannot read the ledger** *(was N-16; renumbered because `graph.json`'s S5 `accept` binds the id N-16 to `neg-respond-without-click`, and `graph.json` wins)* | `S0-anon`, no cookie: attempt the read tool by name, then the same route by `curl` | the tool is absent from `getTools()` **and** the direct route returns `overTheWire(401)` | `S0-anon` | S1 | make `GET /api/me` fall through without a cookie |
 | **N-20** | `neg-policy-content-swap` — **the signature binds the policy's CONTENT, not its version name** *(R-33, 2026-08-28; the N-number is assigned by `graph.json`'s E3 accept, which states that it assigns it, and this row is that assignment written down here)* | scripted: seed `2026-08.1`, open a sign request over `S2-emp-draft-clean`, then swap the **served** policy document for the `sha256:17bc4b2d…` trap — `2026-08.1`'s own document with `transport_per_line` dropped to 5000 and the `version` string **not** bumped, already shipped in `policy-versions.json` — and commit | commit returns **409 `E_POLICY_DIGEST_MOVED`**, nothing committed, day-book head unchanged; **`E_POLICY_VERSION_MOVED` correctly does *not* fire**, because the version NAME did not move, and that is the whole point of the row. `controlStatus: "enforced"` (R-27) and **RED until `policy_digest` is inside the snapshot projection**. **Honest scope, and it travels with the case:** the attack needs **write access to the served policy**, arguably *outside* the declared N-04 curl-and-cookie model — it is a **weaker** vector than N-16, which needs only the cookie. Never write it up as a break of the curl-and-cookie model; it is in the set because the same hole fires on an honest operator hot-editing a limit without bumping the version | `S2-emp-draft-clean` | S5, with S3 for the load-time lock | drop `policy_digest` from the snapshot projection |
-| **N-21** | `neg-decline-to-unlock` — **the sign machine is one-shot: the FIRST respond wins and a second cannot overwrite it** *(R-34, 2026-08-28; the audit's Invented D, now claimed and coded)* | two actors, and the ordering is the test: the human submits and the dialog renders, so a `confirm_token` exists in the DOM; the **attacker**, who can read that DOM (**V3 MEASURED `same-session` 2026-08-29, R-43** — the same precondition `N-16` needs, and it now holds), POSTs `/api/sign/{sg}/respond` with `decision:'declined'` **first**; the **human** then clicks Sign and their genuine respond arrives second | **both** observed statuses, not just the first: the human's respond → **409 `E_ALREADY_ANSWERED`**, and the commit → **200 `E_DECLINED`**. Asserting only the 409 would pass against a server that merely dropped the second request. `controlStatus: "enforced"` (R-27 — `refused` is not in the enum) and **RED until `E_ALREADY_ANSWERED` ships** | the `answered` state | S5, with S12 | remove the one-shot guard on `/respond` so a second respond overwrites the first — the human's signature then lands and the control goes green |
+| **N-21** | `neg-decline-to-unlock` — **the sign machine is one-shot: the FIRST respond wins and a second cannot overwrite it** *(R-34, 2026-08-28; the audit's Invented D, now claimed and coded)* | two actors, and the ordering is the test: the human submits and the dialog renders, so a `confirm_token` exists in the DOM; the **attacker**, who can read that DOM (the attack additionally requires DOM read access; **V3 does not measure that precondition** — R-44), POSTs `/api/sign/{sg}/respond` with `decision:'declined'` **first**; the **human** then clicks Sign and their genuine respond arrives second | **both** observed statuses, not just the first: the human's respond → **409 `E_ALREADY_ANSWERED`**, and the commit → **200 `E_DECLINED`**. Asserting only the 409 would pass against a server that merely dropped the second request. `controlStatus: "enforced"` (R-27 — `refused` is not in the enum) and **RED until `E_ALREADY_ANSWERED` ships** | the `answered` state | S5, with S12 | remove the one-shot guard on `/respond` so a second respond overwrites the first — the human's signature then lands and the control goes green |
 
 **Pairing coverage** (what the runner builds from `pairsWith`, and why no state is empty):
 `S0-anon` → N-19 · `S1-emp-home` → N-17 · `S2-emp-draft-clean` → N-01, N-05, N-15, **N-20**, **N-21** · `S3-emp-draft-dirty`
@@ -808,8 +808,9 @@ the frozen `$defs.sign_respond_request` under `additionalProperties:false` and t
 **That refusal is scheduled, not a discovery** — N-16 flips to `controlStatus: "enforced"` under S5's
 deviation `DEV-E3-eval-case-known-open` — **and it does not make the gate stronger than the provable
 sentence below**, because a caller that can read the dialog's DOM lifts the token and the vector is open
-again for that caller — and **`V3` is MEASURED `same-session` (2026-08-29, R-43)**, so that caller is the
-client this project demos in, not a hypothesis. The attacker does not need to synthesise anything: it
+again for that caller — and V3 measured **cookie carriage only**, so the honest statement is that the walk
+holds for any caller that *also* obtains DOM read access, which this evidence neither establishes nor
+excludes for this client (R-44). The attacker does not need to synthesise anything: it
 POSTs `/api/sign/{request_id}/respond` **itself**, from the authenticated session, echoing the digest the
 server just issued, and then commits. Every rejection code in `erp/contracts/signature.schema.json` `x-rejectionCodes`
 were walked against that sequence and **none fires**. This is inside our own declared threat model — N-04's
@@ -835,13 +836,13 @@ written here on purpose, and any surface that describes the sign gate carries th
 **The `confirm_token` is defence in depth, not a proof.** A token is minted with the sign request and
 delivered **only** into the rendered dialog's DOM — never in a tool-call result, never in any
 `/api/sign/{id}` response body — and `/respond` requires it. It raises the cost of the attack. **It does
-not establish personhood**, and its value was a direct function of unknown V3 — **which is MEASURED
-`same-session` (2026-08-29, R-43), the unfavourable branch.** The agent-initiated fetch *does* carry the
-page session cookie and that client *does* read the DOM, so the token **is** reachable and N-16 **is**
-`known-open` for that caller. Present tense. The one thing raising the attacker's cost on a remote origin
-is the client's own action-time consent prompt (`V6-consent-gate`) — a client policy, absent on
-`localhost`, defeated by a different client or a reflexive click: **cost, never closure**. Do not describe
-the token, or the prompt, as a closure anywhere — in the README, the video, or Devpost — and do not let a
+not establish personhood**. **`V3` measured COOKIE CARRIAGE ONLY (R-44).** The vector stays open for any caller that **also**
+obtains read access to the rendered dialog's DOM — and *nothing measured establishes that second
+conjunct for this client*: no run rendered a sign dialog, queried a DOM, or lifted a token. This is
+**not** a closure; it removes an unsupported assertion about *which* caller has the access.
+N-16 stays `known-open` for any such caller. **`V6-consent-gate` gets no credit (R-44)**: a client policy
+this server cannot observe is not a property of the token. Do not describe the token, or the prompt, as a
+closure anywhere — in the README, the video, or Devpost — and do not let a
 green N-16 be read as one.
 
 ### 7.3 Guards — regression lints, not negative controls
@@ -1398,12 +1399,13 @@ project weaker.
    against a competitor we cannot re-run fairly is how a submission acquires a claim it cannot defend. Note
    that must-fail negative controls in CI against a deployed commit are **parity, not lead** — at least one
    competing repo already does it.
-8. **Anything about ChatGPT's built-in browser that V0–V4 have not answered.** Until V1 resolves whether
-   `document.modelContext` is present on a plain HTTPS origin there, we publish no claim about that
-   environment and the harness records only what it measured on the Chrome it drove. **If V1 comes back
-   negative, the entire results table is still valid — it is a Chrome result and it says so in the header
+8. **Anything about ChatGPT's built-in browser that V0–V4 have not answered.** V1 resolved 2026-08-29:
+   `document.modelContext` is PRESENT on `https://webmcp-probe.onrender.com`. That licenses a claim about
+   *that* origin in *that* client on Chromium 151 and nothing wider, and V1's node has not passed its own
+   predicate (no `evidence/V1.png`). The harness still records only what it measured on the Chrome it drove.
+   **The results table would have stayed valid either way — it is a Chrome result and says so in the header
    row.** That is the point of putting `chromiumMajor` and `chromeFlags` in every file. (The unknowns are
-   keyed **`V0`–`V4`**, matching the V-lane nodes that answer them; `T0`–`T4` is dead numbering and
+   keyed **`V0`–`V4`** plus **`V6-consent-gate`**, the first five matching the V-lane nodes that answer them; `T0`–`T4` is dead numbering and
    `T1`–`T4` are live tool-surface node ids meaning something else.)
 
 ---
@@ -1459,8 +1461,8 @@ and never as `enforced`.
 succeeds; a POST to `/api/sign/{request_id}/respond` from the authenticated session is the only thing the
 gate requires, and it does not establish that a human decided* (§7.2.1). When the `confirm_token` lands — **S5, Day 3**, a scheduled change (R-34) — the
 row flips to reporting a refusal — `controlStatus: "enforced"`, R-27 — and the caption changes with it — **the caption never says "closed"**, because
-against a caller that can read the dialog's DOM it is not — and **`V3` is MEASURED `same-session`**, so
-that caller exists (R-43).
+against a caller that can read the dialog's DOM it is not — and V3 measured cookie carriage only, so
+whether this client is such a caller is **unmeasured**, not settled either way (R-44).
 
 **Table 2b — guards** (source: `evals/latest.json`) — a separate table, on purpose.
 

@@ -5,7 +5,7 @@ project. `graph.json` owns node identity, ownership, hours and cut rank. **This 
 every literal path, filename, artifact name and command name.** Every other document quotes
 this file and never restates it.
 
-Generated from `erp/graph.json` on 2026-08-28, revision **v2.3.0**. Every table column is
+Generated from `erp/graph.json` on 2026-08-29, revision **v2.5.1**. Every table column is
 copied from that file, not re-derived. If a row here disagrees with `graph.json`, `graph.json`
 wins and this file is regenerated. `node tools/ready.mjs --check-tables` (G0) proves the
 agreement mechanically; a restated table anywhere in `erp/` is legal only while that check is
@@ -15,14 +15,15 @@ green.
 
 Every master table now carries **two owner columns instead of one**, because the single
 `Owner` column it used to carry was the **glob** owner and it disagreed with the seat that
-actually writes the file. **RECOUNTED for v2.3.0, and the published figure reproduced neither
-half: this file's §2.1–§2.9 master tables hold 166 rows, not 157.** Of those, **150 carry two
-plain seat names in the two owner columns** and **57 of those 150 disagree**. The other 16 rows
+actually writes the file. **RECOUNTED for v2.5.1 — and note that the v2.3.0 figures below were themselves a recount
+that then went stale within a day, which is the argument for deriving these by script and never
+by hand: this file's §2.1–§2.9 master tables hold 169 rows.** Of those, **153 carry two
+plain seat names in the two owner columns** and **58 of those 153 disagree**. The other 16 rows
 carry a `—` or a parenthetical in the Writing-seat column — pre-existing files, the merge ritual,
 the two files `L0` commits without authoring — and are not seat-vs-seat comparisons at all;
-counting them as disagreements is what gives the looser figure of 73. **The measured numbers to
-quote are 166 rows / 150 comparable / 57 disagreeing**, counted by script over the nine §2.x
-tables with the nine header rows excluded, one per section. Four of the 57 are new in v2.3.0 and
+counting them as disagreements is what gives the looser figure of 74. **The measured numbers to
+quote are 169 rows / 153 comparable / 58 disagreeing**, counted by script over the nine §2.x
+tables with the nine header rows excluded, one per section. Four of the 58 are new in v2.3.0 and
 are corrections, not drift: `src/page/sign-bridge.js`, `tools/blind-home.sh`,
 `evals/blind/C1-verdict.json` and `evals/redteam/report.md` each had the **writing** seat copied
 into the **Glob owner** column, so they read as agreeing when the longest matching glob in
@@ -333,9 +334,9 @@ producing node and the hours are funded there.
 | `evidence/V1.png` | I1 | I1 | **V1** | — |
 | `evidence/V4-run1.json`, `evidence/V4-run2.json` | I1 | I1 | **V4** | — |
 | `evidence/V5-origin.txt`, `evidence/V5-headers.txt` | I1 | I1 | **V5** | — |
-| `evidence/V1-remote.json` | I1 | I1 | **V1** | — |
-| `evidence/V6-consent-gate.json` | I1 | I1 | **V6** | **`evidence/V6.json`** *(the bare form collides with the node id — R-43)* |
-| `evidence/G1-rehearsal.json` | I1 | I4 | **G1** | — |
+| `evidence/V1-remote.json` | I1 | I1 | — *(pre-existing R-43 evidence; `V1.outputs` is `V1.json` + `V1.png` and does not include this)* | — |
+| `evidence/V6-consent-gate.json` | I1 | I1 | **V3** *(R-44: added to `V3.outputs`, which is the run that produced it; naming it under node `V6` while no node output it would have failed cut-0 `G0 --check-accept-paths`)* | **`evidence/V6.json`** *(the bare form collides with the node id — R-43)* |
+| `evidence/G1-rehearsal.json` | I1 | I4 | — *(pre-existing R-42 rehearsal evidence; `G1.outputs` is the About-box PNG and the visibility text)* | — |
 | `evidence/UNKNOWNS.md` | I1 | PM | **V6** | `erp/VERIFY.md`, **`erp/evidence/UNKNOWNS.md`** *(WRONG PREFIX — the register lives at the repo root, not under `erp/`; the bad path is in `erp/HANDOVER.md` §2 and in `evidence/V6-consent-gate.json` `docsToUpdate`)* |
 | `evidence/H2-reachability.json` | I1 | I1 | **H2** | — |
 | `evidence/rehearsal.json` | I1 | I1 | **H6** | — |
@@ -351,6 +352,10 @@ producing node and the hours are funded there.
 | `evidence/freeze-check.json` | I1 | QA | **D6** | — |
 | `evidence/L0-bootstrap.txt` | I1 | L1 | **L0** | — |
 | **`artifacts/tools.export.json`** | I2 | I2 | **T5** | **`outpocket/tools.export.json`** *(EVAL §3, §8.2)*, **`tools.export.json`** bare *(PLAN Day-2 gate)* |
+
+> **`harness/fake-client` is not a path and never was** (R-44). `S5`'s suspend arm is driven against the
+> **no-timeout fake client embedded in `harness/drive.mjs`**. Any document naming `harness/fake-client` as
+> a file is quoting a phrase this vocabulary does not contain.
 
 ### 2.8 Docs, video, knowledge base, team tree
 

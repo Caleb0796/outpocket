@@ -499,7 +499,16 @@ have now broken five times while believing they were being rigorous.
 
 ---
 
-## 4. Open unknowns V0–V4
+## 4. The unknowns V0–V4 — read, not closed
+
+> **STATUS, 2026-08-29 (R-43/R-44): all five carry readings, and NOT ONE has passed its
+> answering node.** `V1` wants a canonical `evidence/V1.json` plus a non-empty
+> `evidence/V1.png`; `V2` wants a before/after count pair and a wall-clock gap; `V4`
+> wants two runs and `harness/compare-runs.mjs`; `V0` wants a nine-field CDP artifact
+> from the **installed** Chrome. Provenance is **per row**: `V1` was read on the remote
+> origin, `V0`/`V2`/`V3`/`V4` on `http://localhost:8795`, and a sixth finding
+> `V6-consent-gate` proves those two differ in this client. Read `evidence/UNKNOWNS.md`
+> and quote the reading with its scope; never cite one as a passed gate.
 
 Highest information value per hour in the whole plan. Lane **V**, owner **I1**,
 adjudicated by **PM**. Every one is answerable by measurement, and every one has a
@@ -512,10 +521,10 @@ nowhere.
 | ID | What is unknown | What it blocks | Answering node | Fallback if the answer is bad |
 | --- | --- | --- | --- | --- |
 | **V0** | What is the alias status of `navigator.modelContext` on the **installed** Chrome major? **MEASURED 2026-08-29: `absent`.** | Nothing structural. It blocks only the *wording* of the feature-detect and one sentence of materials. | **`V0`** (I1, 1.0 h, **cut 1**) — `node harness/probe-v0.mjs` writes `evidence/V0.json` with `{chromeMajor, navigatorAlias, documentPresent, method:'cdp'}`, both booleans obtained via CDP `Runtime.evaluate` on a live page, never from a user-agent string. | Feature-detect both, always call through `document.modelContext`, and say nothing in materials about which entry points exist. Cost of a bad answer: zero. If `V0` is amputated, this ships UNVERIFIED and `H5`'s banner reads the major itself (`V0` is a **soft** input to `H5`). |
-| **V1** | Is `document.modelContext` present in ChatGPT's built-in browser on a plain HTTPS origin we own — or does the origin need to be blessed? There is a report of an authorisation requirement, and 45 repositories in the window deployed to `*.chatgpt.site`, which may be exactly this workaround. UNVERIFIED. | **Everything on the judge path**: `D1`, the whole `T` lane's visible payoff, demo beats ①②③, and the value of `H1`–`H2`. | **`V1`** (I1, 2.0 h, **cut 0**, HUMAN-GATED), whose only input is **`V5`**. See the box below. | `H3` in-page fallback agent driving the same surface, plus `H5`'s first-screen banner; the video is shot in flagged Chrome, where the surface demonstrably works. |
+| **V1** | Is `document.modelContext` present in ChatGPT's built-in browser on a plain HTTPS origin we own — or does the origin need to be blessed? There is a report of an authorisation requirement, and 45 repositories in the window deployed to `*.chatgpt.site`, which may be exactly this workaround. **MEASURED 2026-08-29 on `https://webmcp-probe.onrender.com`: PRESENT, five tool names listed, per-site permission layer NOT needed. The node has not passed — no `evidence/V1.png`.** | **Everything on the judge path**: `D1`, the whole `T` lane's visible payoff, demo beats ①②③, and the value of `H1`–`H2`. | **`V1`** (I1, 2.0 h, **cut 0**, HUMAN-GATED), whose only input is **`V5`**. See the box below. | `H3` in-page fallback agent driving the same surface, plus `H5`'s first-screen banner; the video is shot in flagged Chrome, where the surface demonstrably works. |
 | **V2** | Does the built-in browser refresh the tool list mid-session, or only at page load / connection? **MEASURED 2026-08-29: `refreshes`.** | `T2` (the 1→5→12→13 flips) as a *live* demo beat, and demo narrative ①. | **`V2`** (I1, **cut 3**) — register a tool on a timer, watch whether the agent's tool list changes without a reload. | `graph.json.contingencies[1]`: the demo runs through `H3` or Chrome with `--enable-features=WebMCP`, `docs/VIDEO-SCRIPT.md` says which, the storyboard re-prompts the agent after the flip, and the narration says "on its next turn", never "on the spot". Make the flip visible on our own surface via `F5`'s inspector. Owner of the switch: **L2**. |
 | **V3** | Does an agent-initiated tool `execute` carry the page's session cookie on a same-origin `fetch`? **MEASURED 2026-08-29: `same-session` — yes.** | `S1`/`S2` and kernel mechanism ③ — and through them the first of the two defensible claims, "no new credential holder". **Also, since R-13, the sign gate**: `V3` is now the single unknown that decides whether `S5`'s `confirm_token` is worth anything. If an agent-initiated fetch carries the cookie *and* the agent can read the DOM, the agent can drive `/respond` itself and §6.1a's open vector reopens for it. `V3` got **more** load-bearing under R-1, not less, and this row is where that is recorded. | **`V3`** (I1, **cut 3**) — one tool that does `fetch('/whoami', {credentials:'same-origin'})` against `V5`'s cookie-echo endpoint and returns the resolved role. | `graph.json.contingencies[2]`, owner **L2**: fall back to a page-held bearer token minted at login and passed by the page bridge, and retract "no new credential holder" to "no credential leaves the page". **The hour cost lives in `S1.notes`, not here** — see the discipline note below. |
-| **V4** | Does a **suspended** `execute` time out in the built-in browser, and after how long? **MEASURED 2026-08-29: yes, at 22.3 s — so the suspend-until-signed form is dead and `S5` ships the handshake (R-43).** | `S5`, the human-sign gate, in its suspend-until-signed form. | **`V4`** (I1, **cut 3**) — register a tool whose `execute` returns a promise that never resolves; time the client's give-up. | `graph.json.contingencies[3]`, owner **I3**: `S5` ships the two-call `{status:"awaiting_signature", ticket}` handshake instead of suspension. **The design requirement lives in `S5.notes`, not here** — see the discipline note below. |
+| **V4** | Does a **suspended** `execute` time out in the built-in browser, and after how long? **MEASURED 2026-08-29: yes, at 22.3 s — so the suspend-until-signed form is dead and `S5` ships the handshake (R-43).** | `S5`, the human-sign gate, in its suspend-until-signed form. | **`V4`** (I1, **cut 3**) — register a tool whose `execute` returns a promise that never resolves; time the client's give-up. | `graph.json.contingencies[4]`, owner **I3** — R-44 corrects the index; `[3]` is the V3 same-session branch: `S5` ships the two-call `{status:"awaiting_signature", ticket}` handshake instead of suspension, as a **conservative default on one localhost run**, recorded *provisionally selected, not fired*, because V4's two-run predicate is unmet. **The design requirement lives in `S5.notes`, not here** — see the discipline note below. |
 
 > ### V1 gets special handling
 >
@@ -823,24 +832,21 @@ curl, session cookie, no browser — so it is not an out-of-scope attack.
   mints a token with the sign request, delivers it **only into the rendered dialog's
   DOM** — never in any tool-call result and never in any `/api/sign/{id}` response
   body — and requires it on `/respond`. It raises the cost of the attack. **It does
-  not establish personhood.** Its value was a direct function of unknown `V3`, and
-  **`V3` is MEASURED `same-session` (2026-08-29) — the unfavourable branch, so read
-  this in the present tense (R-43):** the ChatGPT built-in browser's agent-initiated
-  fetch *does* carry the page session cookie and that client *does* read the DOM, so
-  the token **is** reachable and the vector **is** open for that caller. One thing
-  raises the attacker's cost and it is **not ours**: on a remote origin that same
-  client gates the cookie-bearing POST behind an action-time human approval
-  (`V6-consent-gate`) — a client policy, absent on `localhost`, defeated by a
-  different client or a reflexive click. **Cost, never closure**, and no sentence may
-  cite it without that clause. State the residual risk in exactly those terms wherever
-  the gate is described — §4's `V3` row is the same question, and it got **more** load-bearing
+  not establish personhood.** **`V3` measured COOKIE CARRIAGE ONLY (R-44).** The vector stays open for any caller that **also**
+  obtains read access to the rendered dialog's DOM — and *nothing measured establishes that second
+  conjunct for this client*: no run rendered a sign dialog, queried a DOM, or lifted a token. This is
+  **not** a closure; it removes an unsupported assertion about *which* caller has the access.
+  **`V6-consent-gate` gets no credit here (R-44)** — a client policy this server cannot
+  observe, require, or fall back on is not a property of the gate; it is demo friction.
+  State the residual risk in exactly those terms wherever the gate is described — §4's `V3` row is the same question, and it got **more** load-bearing
   under R-1, not less.
 - **The instrument is pointed at it.** Negative control **N-16
   `neg-respond-without-click`** is scripted verbatim as the attack and records the
   honest outcome in both directions: with no token required the commit **succeeds**
   (HTTP 200, chain entry) and the case is `KNOWN-OPEN`; with the token required, a
   caller that cannot read the DOM gets 403 `E_NO_CONFIRM_TOKEN` and the case is
-  `REFUSED`. `E9` (+0.5 h) rewrites `charters/C3.md`'s standing target list, which
+  recorded `controlStatus: "enforced"` — **never `REFUSED`, which is not a member of the
+  frozen enum `[enforced, known-open, not-runnable]` (R-27)**. `E9` (+0.5 h) rewrites `charters/C3.md`'s standing target list, which
   enumerated four sign-gate attacks — replay, race a second respond, wrong
   `request_id`, expire-and-commit — and **none of them was this one**, while telling
   the red team to "prove that closure, not to rediscover the hole". The one

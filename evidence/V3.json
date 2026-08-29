@@ -15,6 +15,7 @@
     "at": "2026-08-29T07:55:25.814Z"
   },
   "caveat": "Measured on localhost, a secure context but NOT the plain remote HTTPS origin V1/V3 specify. Re-run against the Render origin before treating as final.",
-  "consequence": "Kernel 3 (session as credential) survives; contingencies[0] does NOT fire. But this is also the answer that makes the sign gate worse: an agent whose fetch carries the cookie can POST /respond itself, which is the surviving forgery vector (D-19).",
-  "observedAt": "2026-08-29T07:55:25.814Z"
+  "consequence": "Kernel 3 (session as credential) survives; contingencies[2] ('V3 reports NO cookie') does NOT fire and contingencies[3] ('V3 reports it DOES') FIRES. R-44 corrects the index — a previous revision said contingencies[0], which is the V1-absent branch. And this is also the answer that makes the sign gate worse: an agent whose fetch carries the cookie can POST /respond itself, which is the surviving forgery vector (D-19). BUT THE VECTOR HAS TWO PRECONDITIONS AND THIS MEASURES ONE: cookie carriage, yes; read access to the rendered dialog's DOM, NOT MEASURED HERE OR ANYWHERE. No run rendered a dialog or queried a DOM. Write it as 'open for any caller that ALSO obtains DOM read access'.",
+  "observedAt": "2026-08-29T07:55:25.814Z",
+  "remoteConfirmation": "evidence/V6-consent-gate.json — the same result on https://webmcp-probe.onrender.com, after a human approval."
 }

@@ -91,15 +91,18 @@ because it discredits the claims either side of it.
 already-authenticated session; the honest form names the alternative explicitly, that
 *every* other route mints a credential separated from the login state and held or
 rotated by an intermediary, with **Truto / Merge / Paragon / Nango** named as
-competitors rather than whitespace; and (b) **the site can evidence co-presence and
-turn it into auditable record.** Anything stronger than these two is struck.
+competitors rather than whitespace; and (b) **the site binds what was persisted to what was
+on screen, and the binding is auditable.** Anything stronger than these two is struck — and
+R-44 struck the previous wording of (b), "*evidence co-presence*", which reads as personhood
+and is banned by R-13.
 
 **§3.2 — mechanism, not slogan.** Human-sign gates are publicly claimed by
 `webmcpui`. Deterministic policy contracts are preceded by Oracle's `expenseErrors` and
 by UCP's error envelope. What is left that is ours is the *specific* mechanism:
 **snapshot-digest binding plus server-side re-canonicalisation on write**, and the fact
-that the **server owns the human decision rather than verifying a client's claim about
-it** (`S5`: state `open → answered(signed|declined) → committed | expired`, `signed_by`
+that the **server owns the response state rather than verifying a client's claim about
+it** (R-44: "owns the human decision" is the banned wording — what the server owns is the
+record of a POST arriving, never the fact of a decision) (`S5`: state `open → answered(signed|declined) → committed | expired`, `signed_by`
 from the session cookie and `at` from the server clock, never from the payload).
 
 **§3.3 — the sign gate's exact sentence, and no other. R-13.** The only provable
@@ -109,16 +112,16 @@ wherever it appears — "a commit cannot be made without a human decision", "Lay
 answers *did a human decide?*", any `forgeryClosed` flag. A second forgery survives
 R-1 and is **open today**: the attacker never renders the dialog, POSTs `/respond`
 itself with the page session cookie and the digest the server just issued, then
-commits; all eleven rejection codes were walked and none fires. It is inside the plan's
+commits; every code named by `x-rejectionCodes` was walked and none fires. It is inside the plan's
 own **N-04** threat model. What R-1 bought is real and must be stated with its cost:
 the attacker loses the name and the timestamp, so the record becomes a **true
 attribution of a false event** — forensically indistinguishable from a real click. The
 `confirm_token` (`S5`) is **defence in depth and not a proof**: it raises cost, it does
-not establish personhood, and its value was a direct function of unknown `V3` — **MEASURED
-`same-session` on 2026-08-29 (R-43), the unfavourable branch**, so the DOM-reading,
-cookie-carrying caller is real and the vector is open for it. The client's own
-action-time consent prompt on a remote origin (`V6-consent-gate`) raises the cost and is
-**not** a closure: client policy, absent on `localhost`, defeated by a reflexive click.
+not establish personhood. **`V3` measured COOKIE CARRIAGE ONLY (R-44).** The vector stays open for any caller that **also**
+obtains read access to the rendered dialog's DOM — and *nothing measured establishes that second
+conjunct for this client*: no run rendered a sign dialog, queried a DOM, or lifted a token. This is
+**not** a closure; it removes an unsupported assertion about *which* caller has the access.
+`V6-consent-gate` gets **no credit** (R-44): a client policy this server cannot observe.
 `N-16 neg-respond-without-click` records the outcome honestly in both directions.
 
 **§3.4 — no claim of attesting a *specific agent*. R-21.** WebMCP provides no agent

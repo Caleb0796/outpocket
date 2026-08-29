@@ -271,9 +271,11 @@ evening L0 lands, so the origin is up before the human opens the built-in browse
 whether it survives on 151, which is not present on this machine. Build against the current
 version and demand an upgrade only if something actually breaks.
 
-**V6's register is keyed `V0`–`V4`.** It used to be keyed `T0`–`T4`, so "every `UNVERIFIED` row
-names an existing node id" passed by accident on four rows — `T1`–`T4` are live tool-surface
-nodes — and could never pass on the fifth, because `T0` exists nowhere. Only V1 is a hard input;
+**V6's register is keyed `V0`–`V4` plus the discovered sixth, `V6-consent-gate` — six rows
+exactly** (R-43/R-44). The sixth key always carries its suffix: bare `V6` is *this node's own id*,
+and an id check written with `\b` matches both. It used to be keyed `T0`–`T4`, so "every
+`UNVERIFIED` row names an existing node id" passed by accident on four rows — `T1`–`T4` are live
+tool-surface nodes — and could never pass on the fifth, because `T0` exists nowhere. Only V1 is a hard input;
 V0/V2/V3/V4 are soft, which is exactly why V6 is rank 0 while V2–V4 are rank 3.
 
 ### Lane H — Harness
@@ -448,10 +450,11 @@ Three consequences, and all three are written into the authority rather than smo
 3. **The `confirm_token` is defence in depth, not a proof.** Minted with the sign request,
    delivered **only** into the rendered dialog's DOM, never returned in any tool-call result or
    any `/api/sign/{id}` response body, and required by `/respond`. **Residual risk, exactly:** it
-   raises cost, it does **not** establish personhood, and its value is a direct function of open
-   unknown **V3** — if an agent-initiated fetch carries the page session cookie and the agent can
-   read the DOM, the token is reachable. `graph.json.contingencies` carries both V3 branches, and
-   the `same-session` branch is the one that makes this gate *worse*, not better.
+   raises cost, it does **not** establish personhood, and **`V3` measured COOKIE CARRIAGE ONLY**
+   (2026-08-29, R-44): the token is reachable by any caller that **also** obtains read access to the
+   rendered dialog's DOM, and nothing measured establishes that second conjunct for this client.
+   `contingencies[3]` fired for the cookie conjunct — the branch that makes this gate *worse*, not
+   better. `V6-consent-gate` gets **no credit** here: a client policy this server cannot observe.
 
 **Negative control N-16 `neg-respond-without-click` is scripted verbatim as that attack, and it
 records the truth in both directions — and the two directions are SEPARATED BY A DATE, which is
@@ -539,7 +542,7 @@ attachments are uploaded and stored. The only honest narrowing is "the derivatio
 not enter the store", and the copy must say so.
 
 F5 is the one cheap way to make kernel ① visible **on screen**, and it is on *our* page, so it is
-unconditional — unlike whether the agent's client re-reads the tool list, which is unknown V2.
+unconditional — unlike whether the agent's client re-reads the tool list, which V2 measured as `refreshes` on localhost (2026-08-29) and which stays narrated as "on its next turn".
 Contest rules (PUBLISHED): judges may judge from text, images and video alone, and three of the
 four differentiators are invisible server-side invariants. If F5 is cut at rank 2, the video
 carries all of it.
@@ -1274,10 +1277,16 @@ and all product code.
 Only two claims survived four adversarial rounds and may be asserted:
 **(a)** every other route into the ERP requires minting a credential separate from the login
 session, held and rotated by an intermediary — we add no new credential holder;
-**(b)** the site can attest to co-presence and turn that attestation into auditable evidence —
-specifically, that a **specific authenticated human** reviewed a **specific canonical snapshot**,
-that the write arrived through the tool surface rather than the UI, and that what was persisted is
-byte-identical to what the human saw.
+**(b) (NARROWED BY R-44 — the previous wording asserted personhood and tool-surface arrival, both
+unprovable, and violated R-13 in the pitch itself)** the site turns a consequential write into an auditable record that binds **what was persisted** to
+**what was on screen**: the commit carries the digest of the exact canonical snapshot the sign dialog
+rendered, the server re-canonicalises and refuses on any difference, and the record names the
+authenticated session subject and the server's own clock — neither of which the client can supply.
+**What it proves and NOT ONE WORD MORE (R-13, restated by R-44):** *a commit cannot be made without a
+POST from the authenticated session to `/api/sign/{request_id}/respond`* — and, if a human did sign,
+that what was stored is byte-identical to what they saw. It does **not** establish that a person
+reviewed the snapshot, and it does **not** establish that the write arrived through the tool surface:
+the surviving forgery uses direct HTTP and no tool call at all.
 
 **And claim (b) has a stated edge, which is the last thing written in this file on purpose.** The
 sign gate proves *"a commit cannot be made without a POST from the authenticated session to

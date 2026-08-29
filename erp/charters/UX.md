@@ -143,7 +143,7 @@ Accept predicates are in `graph.json`; L1 copies them verbatim into
   `S3-emp-draft-dirty`, `S4-emp-submitted` — and the version chip text equals the
   value from `GET /api/policy`. This is the one cheap way to make kernel ① visible
   on screen, and it is on **our** page, so it is unconditional — unlike whether the
-  agent's client re-reads the tool list, which is unknown V2. If F5 is cut, the
+  agent's client re-reads the tool list — V2 measured `refreshes` (2026-08-29, localhost). If F5 is cut, the
   video carries that weight instead.
 - **F6** Demo skin aligned to the storyboard: every shot id in
   `docs/STORYBOARD.md` resolves to a CSS selector matching at least one element on
@@ -175,10 +175,18 @@ Do **not** open with form-filling. The demo narrative that survived review:
    write** on re-canonicalisation.
 
 Write the storyboard so the first shot is beat 1's surface flip, not a logo.
-**Until unknown V2 returns "refreshes", the storyboard re-prompts the agent after
-the policy flip and the narration says "on its next turn" — never "on the spot".**
-That contingency is in `graph.json.contingencies`; it is not yours to resolve, only
-to write for.
+**V2 returned "refreshes" (2026-08-29) AND NOTHING ABOUT YOUR JOB CHANGES: the
+storyboard still re-prompts the agent after the policy flip and the narration still
+says "on its next turn" — never "on the spot".** What was measured is that the sixth
+tool reached the agent on its *next turn* with no page reload; that is exactly the
+sentence you were already told to write. `contingencies[1]` did not fire.
+
+**And script the approval prompt into beat 2.** On a remote origin this client may ask
+the human to approve each cookie-bearing call (`V6-consent-gate`). Give it its own cue
+and let the narrator say only *"the client is asking for approval before this
+cookie-bearing call."* Never dress it as evidence that our design works — it is a
+client policy, absent on localhost, and R-44 forbids the stronger line. **Rehearse on
+the remote origin**, or you will not see the prompt until the take that counts.
 
 ## Honesty constraints you must build into the UI
 
