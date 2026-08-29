@@ -53,10 +53,16 @@ function makeStaticHandler(pageRoot) {
     if (url.pathname.startsWith("/api/")) return false;
 
     let reqPath;
+    let isRootAlias = false;
     try {
       // D-66: GET / is routed to page/index.html explicitly — there is no
       // src/index.html now that the root is src/, not src/page/.
-      reqPath = url.pathname === "/" ? "/page/index.html" : decodeURIComponent(url.pathname);
+      if (url.pathname === "/") {
+        reqPath = "/page/index.html";
+        isRootAlias = true;
+      } else {
+        reqPath = decodeURIComponent(url.pathname);
+      }
     } catch {
       return false;
     }
@@ -75,8 +81,24 @@ function makeStaticHandler(pageRoot) {
     if (!info.isFile()) return false;
 
     const contentType = MIME_TYPES[extname(resolved).toLowerCase()] ?? "application/octet-stream";
+    let body = await readFile(resolved);
+    if (isRootAlias && contentType.startsWith("text/html")) {
+      // D-66 regression, found post-merge: this document is served AT "/",
+      // one level above where the file actually lives (page/index.html).
+      // Browsers resolve its relative references — `<script src="./ui/
+      // shell.js">`, `<link href="./skin.css">` — against the DOCUMENT URL,
+      // not the file's location on disk, so without a base they resolve to
+      // /ui/shell.js and 404, shell.js never loads, and no click handler
+      // ever attaches (F1's --smoke-login: element exists, not wired).
+      // Inject <base href="/page/"> into the served BYTES so every relative
+      // reference in the document lands where the files actually live,
+      // without editing src/page/index.html — F1/UX's file, not ours.
+      const html = body.toString("utf8");
+      const withBase = html.replace(/<head[^>]*>/i, (tag) => `${tag}\n<base href="/page/">`);
+      body = Buffer.from(withBase, "utf8");
+    }
     res.writeHead(200, { "Content-Type": contentType });
-    res.end(req.method === "HEAD" ? undefined : await readFile(resolved));
+    res.end(req.method === "HEAD" ? undefined : body);
     return true;
   };
 }
