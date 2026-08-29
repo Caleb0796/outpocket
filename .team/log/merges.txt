@@ -424,3 +424,39 @@ MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
 #   under D-46. Silence is not a pass.
 
 MERGED S9  ba17b6c pits:kb/pits/S9.md accept:PASS
+
+# I1's THREE MODES MERGED (D-58 + D-61). --check-modes now EXITS 0 on main:
+#   "every mode named in an accept is produced by something". Both FAIL lines
+#   the instrument found this evening are gone.
+#   I1 RAN THE SELFTEST RED SIX WAYS BEFORE BELIEVING THE GREEN — wrong count at
+#   flip 3, all-zero counts, wrong arity, non-numeral, no violation raised, and
+#   violation-raised-but-submit_expense_report-still-present via two temporary
+#   edits reverted and diffed back to zero. That last is the clause T2's accept
+#   names explicitly, and I1 wanted to have SEEN it fail rather than believe it
+#   would. An instrument only ever seen to pass is the vacuous-pass trap this
+#   project priced four times today.
+#
+# T2 IS HELD ON A FIFTH INSTANCE OF THE CONSUMER/PRODUCER DEFECT, IN A REGISTER
+#   NO INSTRUMENT REACHES. Not a missing flag and not a missing edge — A MISSING
+#   MOUNT POINT. Measured:
+#     src/page/index.html:159 loads ./ui/shell.js and NOTHING ELSE.
+#     Nothing imports or loads src/page/register.js anywhere. Both index.html
+#     and shell.js MENTION it in comments; neither loads it.
+#     T2.outputs is [src/page/register.js] — its ONLY output. index.html and
+#     shell.js are F1's (UX). So T2's accept requires an observable effect on a
+#     page of which I2 owns not one byte, and nothing in T2's accept says who
+#     mounts it.
+#   --check-modes cannot see this: there is no --flag. --check-accept-paths
+#   cannot: register.js resolves perfectly as a declared T2 output. This is the
+#   CAPABILITY-DESCRIBED-IN-PROSE class PM named when it priced the instrument at
+#   two of three, and it has now cost two nodes — S1's static route and this —
+#   both found by a human driving a running system rather than by a checker.
+#   Escalated to PM. T2 NOT sent back (I2's scope is green and DEV-006 is
+#   vindicated on it); no script tag added by L1; UX not asked on L1's authority,
+#   because specifying work into a node from outside is the act D-50 rules
+#   against and this would be the fifth time today the fix was to do it again.
+#
+#   WORTH NAMING: I1's mode reported this correctly and by name — "register.js
+#   EXISTS, so this is not the ordering fact — the page loaded it and still
+#   registered nothing. That is a real failure." Without that line the next hour
+#   goes on deciding which of the two it was.
