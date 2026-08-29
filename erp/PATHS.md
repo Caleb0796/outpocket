@@ -333,7 +333,10 @@ producing node and the hours are funded there.
 | `evidence/V1.png` | I1 | I1 | **V1** | — |
 | `evidence/V4-run1.json`, `evidence/V4-run2.json` | I1 | I1 | **V4** | — |
 | `evidence/V5-origin.txt`, `evidence/V5-headers.txt` | I1 | I1 | **V5** | — |
-| `evidence/UNKNOWNS.md` | I1 | PM | **V6** | `erp/VERIFY.md` |
+| `evidence/V1-remote.json` | I1 | I1 | **V1** | — |
+| `evidence/V6-consent-gate.json` | I1 | I1 | **V6** | **`evidence/V6.json`** *(the bare form collides with the node id — R-43)* |
+| `evidence/G1-rehearsal.json` | I1 | I4 | **G1** | — |
+| `evidence/UNKNOWNS.md` | I1 | PM | **V6** | `erp/VERIFY.md`, **`erp/evidence/UNKNOWNS.md`** *(WRONG PREFIX — the register lives at the repo root, not under `erp/`; the bad path is in `erp/HANDOVER.md` §2 and in `evidence/V6-consent-gate.json` `docsToUpdate`)* |
 | `evidence/H2-reachability.json` | I1 | I1 | **H2** | — |
 | `evidence/rehearsal.json` | I1 | I1 | **H6** | — |
 | `evidence/headers.txt` | I1 | I4 | **D1** | — |

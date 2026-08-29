@@ -535,7 +535,9 @@ which a non-awaiting caller will never see.
 Consequence: these numbers describe *page cost*, never *end-to-end agent
 latency*. State that qualifier wherever the numbers appear. Do not extrapolate
 to "the agent sees the new surface in 0.5 ms" — whether the built-in browser
-even refreshes mid-session is open unknown **V2**.
+even refreshes mid-session was unknown **V2**, and **V2 is MEASURED `refreshes`**
+(2026-08-29): it does, on the agent's *next turn*, which is still not the same
+claim as the page-cost number above.
 
 Adjacent measured fact carried from the A-line, kept because it is the kind of
 thing nobody re-derives: after `iframe.remove()`, an orphan renderer process
@@ -938,11 +940,15 @@ is arguably worse than the old forgery, and it is written down here on purpose.
 sign request, delivered **only** into the rendered dialog's DOM, never returned
 in any tool-call result or any `/api/sign/{id}` response body, and required by
 `/respond`. It raises the cost of the attack; **it does not establish
-personhood.** Its value is a direct function of open unknown **V3**: if an
-agent-initiated fetch carries the page session cookie **and** the agent can read
-the DOM, the token is reachable. State the residual risk in exactly those terms
-wherever the sign gate is described, including in `docs/DEVPOST.md` and
-`docs/VIDEO-SCRIPT.md`.
+personhood.** Its value was a direct function of unknown **V3** — **MEASURED
+`same-session` on 2026-08-29 (R-43), the unfavourable branch.** The
+agent-initiated fetch **does** carry the page session cookie and that client
+**does** read the DOM, so the token **is** reachable. Present tense. The client's
+own action-time consent prompt on a remote origin (`V6-consent-gate`) raises the
+attacker's cost and closes nothing — client policy, absent on `localhost`,
+defeated by a different client or a reflexive click. State the residual risk in
+exactly those terms wherever the sign gate is described, including in
+`docs/DEVPOST.md` and `docs/VIDEO-SCRIPT.md`.
 
 **Negative control N-16 `neg-respond-without-click`** is scripted verbatim as
 the attack and **records the current outcome honestly**: with no `confirm_token`

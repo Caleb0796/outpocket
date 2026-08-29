@@ -114,7 +114,11 @@ own **N-04** threat model. What R-1 bought is real and must be stated with its c
 the attacker loses the name and the timestamp, so the record becomes a **true
 attribution of a false event** — forensically indistinguishable from a real click. The
 `confirm_token` (`S5`) is **defence in depth and not a proof**: it raises cost, it does
-not establish personhood, and its value is a direct function of **open unknown `V3`**.
+not establish personhood, and its value was a direct function of unknown `V3` — **MEASURED
+`same-session` on 2026-08-29 (R-43), the unfavourable branch**, so the DOM-reading,
+cookie-carrying caller is real and the vector is open for it. The client's own
+action-time consent prompt on a remote origin (`V6-consent-gate`) raises the cost and is
+**not** a closure: client policy, absent on `localhost`, defeated by a reflexive click.
 `N-16 neg-respond-without-click` records the outcome honestly in both directions.
 
 **§3.4 — no claim of attesting a *specific agent*. R-21.** WebMCP provides no agent

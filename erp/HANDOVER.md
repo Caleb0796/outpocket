@@ -26,8 +26,8 @@ The next action is Day 0 (`L0` + `V5`), and `V5` is **already done**.
 | `Caleb0796/webmcp-eval-kit` | PRIVATE. README + LICENSE only. |
 | **https://webmcp-probe.onrender.com** | **LIVE**, Render free tier. Spins down when idle; first request after a nap takes ~50 s. `curl` it once to wake it before any test. |
 
-`erp/` is 49 files, ~22,450 lines. `graph.json` is **v2.4.0**: 68 nodes, 120
-edges, 37 rulings.
+`erp/` is 49 files, ~22,450 lines. `graph.json` is **v2.5.0**: 68 nodes, 120
+edges, **38 rulings** (R-43 landed the measured unknowns).
 
 ---
 
@@ -37,7 +37,9 @@ edges, 37 rulings.
 2. **`erp/graph.json`** — **AUTHORITY** for node identity, owner, hours, cut rank, `accept`.
 3. **`erp/PATHS.md`** — **AUTHORITY** for every literal path and command name.
 4. **`erp/RUNBOOK.md`** — how to actually run the agent team. Written for a first-timer.
-5. **`erp/evidence/UNKNOWNS.md`** — what the browser actually does. Newest and most valuable.
+5. **`evidence/UNKNOWNS.md`** — what the browser actually does. Newest and most valuable.
+   *(Repo **root**, not under `erp/`. `erp/PATHS.md` §2.7 is the authority on that; the
+   `erp/evidence/…` form that used to sit here was wrong.)*
 
 Everything else (`PLAN`, `GRAPH`, `TEAM`, `EVAL`, `RISK`, `FACTS`, `CONTRACTS`,
 `RUBRIC`, the 16 charters) is a **checked restatement**. Where a restatement and
@@ -62,7 +64,7 @@ ChatGPT desktop built-in browser · model **5.6 Sol** · **Chromium 151**
 | **V2** | **refreshes** | A tool registered at runtime reached the agent with no page reload. Demo beat 1 works on camera. Keep the narration at "on its next turn". |
 | **V3** | **same-session** | `cookiePresent: true, cookieMatches: true`. Kernel ③ survives; `contingencies[0]` does NOT fire; S1 stays 2.5 h. |
 | **V4** | **times out at 22.3 s** | `Timed out running CDP command "Runtime.evaluate"`. **Decisive against suspend-until-signed.** |
-| **V6** | **consent gate, remote only** | NEW. See below. |
+| **`V6-consent-gate`** | **consent gate, remote only** | NEW. See below. **Always write the suffix** — bare `V6` is a *node id* (`graph.json.id_collision_warnings`, R-43). |
 
 ### V4 changes a design — act on it
 
@@ -71,7 +73,7 @@ handshake**, not suspend-until-signed. `RISK.md` already required S5 to be
 written with both modes behind one switch, so this is a switch position, not a
 rewrite. Do not let a seat "discover" this on Day 4.
 
-### V6 is the finding localhost could not have produced
+### `V6-consent-gate` is the finding localhost could not have produced
 
 On a **remote** origin this client **blocks an agent-initiated cookie-bearing
 request pending action-time human approval**. Verbatim:
@@ -151,13 +153,29 @@ user who approves reflexively all defeat it. It raises the attack's cost; it doe
 
 ## 6. Open, and what I would do next
 
-**Three doc edits, queued and specified** (listed in
-`evidence/V6-consent-gate.json` → `docsToUpdate`):
+**The three queued doc edits are LANDED**, 2026-08-29, under ruling **R-43**
+(`evidence/V6-consent-gate.json` → `docsUpdated` carries the full change list).
+They grew in the doing, and the reasons are worth carrying:
 
-1. `contracts/signature.schema.json` → `x-signRequestState.survivingVector`: add
-   V6 as an **environmental mitigation**, explicitly not a closure.
-2. `PLAN.md` demo beat 2: script the approval prompt into the storyboard.
-3. `S5`'s accept: make the two-call handshake the shipped mode, per V4.
+- The sweep found that **`V2`, `V3` and `V4` were still written as *open unknowns*
+  in ten live files** while §3 above called them measured. Every one is now in the
+  present tense. `erp/reviews/` is deliberately untouched — those are records of
+  what was known on their date.
+- **`S5`'s accept** now tests the handshake arm and keeps `suspend` as the switch's
+  other position and the node's own negative control. It also states, so nobody
+  records it as a win, that the handshake is **not** a mitigation of the surviving
+  forgery: withholding the digest from the tool *result* does not withhold it from a
+  caller who can `GET /api/sign/{request_id}`.
+- **Two id collisions and one wrong path** were found and fixed: the finding is
+  `V6-consent-gate` because bare `V6` is a node id, and `evidence/UNKNOWNS.md` lives
+  at the repo **root** — the `erp/evidence/…` form in this file and in the evidence
+  JSON was wrong against `PATHS.md`.
+- Landed **before `S10` freezes `erp/contracts/` on Day 1**. After that freeze the
+  same edit costs a deviation ticket, a re-recorded sha256 and a PM adopt ruling.
+
+**Still open on the unknowns:** `V4` is **run 1 of 2**. Its own accept wants two
+independent runs compared at 20% tolerance. The reading is decisive enough to have
+moved the design; the *node* is not passed until run 2 exists.
 
 **Then Day 0.** It is now just `L0` — `V5` is done and live.
 

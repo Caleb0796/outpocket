@@ -11,8 +11,26 @@
   "consequenceForTheSignGate": "This is the D-19 forgery vector's environment. The surviving attack needs the agent to POST /respond carrying the session cookie. On a remote origin this client blocks that pending human approval, so the residual risk is materially SMALLER than the contracts layer currently states.",
   "doNotOverclaim": "This is a CLIENT policy, not a server guarantee and not a browser invariant. A different client, a future version, or a user who approves reflexively all defeat it. It raises the cost of the attack; it does not close it. The provable sentence in D-19 is unchanged.",
   "docsToUpdate": [
-    "erp/contracts/signature.schema.json - x-signRequestState survivingVector: add that on a remote origin this client gates the cookie-bearing POST behind action-time approval, as an environmental mitigation, explicitly not a closure",
-    "erp/PLAN.md - demo beat 2: the approval prompt will appear on camera; script it deliberately",
-    "erp/evidence/UNKNOWNS.md - add V6 as a discovered unknown"
-  ]
+    "DONE - erp/contracts/signature.schema.json x-signRequestState.survivingVector",
+    "DONE - erp/PLAN.md demo beat 2",
+    "DONE - evidence/UNKNOWNS.md (NOT erp/evidence/UNKNOWNS.md - the register lives at the repo ROOT; erp/PATHS.md section 2.7 is the authority and the erp/ prefix was this file's own error)"
+  ],
+  "keyDiscipline": "The finding's key is `V6-consent-gate`, never a bare `V6`: bare V6 is a NODE id in erp/graph.json (the PM's unknowns verdict and fallback election). Recorded in graph.json id_collision_warnings under R-43.",
+  "docsUpdated": {
+    "landedOn": "2026-08-29",
+    "ruling": "R-43 in erp/graph.json rulings_applied; graph moved 2.4.0 -> 2.5.0",
+    "landedBeforeTheFreeze": "On purpose. erp/contracts/ is frozen by node S10 on Day 1 under sha256sum -c erp/contracts/FREEZE.md, which does not exist yet. The same edit after the freeze would have cost a deviation ticket, a re-recorded sha256 and a PM adopt ruling.",
+    "changes": [
+      "erp/contracts/signature.schema.json x-signRequestState.survivingVector - V6 appended as an ENVIRONMENTAL MITIGATION with the not-a-closure qualifier attached to it inseparably.",
+      "erp/contracts/signature.schema.json confirmToken, the confirm_token property, E_NO_CONFIRM_TOKEN, E_ALREADY_ANSWERED - 'open unknown V3' rewritten to MEASURED same-session; the conditional resolved to its unfavourable branch and no longer hedges.",
+      "erp/contracts/signature.schema.json E_SIGN_REQUEST_EXPIRED - V4 measured; 300 s is now the human's budget rather than a number hiding under an unknown client timeout.",
+      "erp/PLAN.md demo beat 2 - the approval prompt is scripted into the storyboard with its own narrator cue, plus the rule that the rehearsal must run on the REMOTE origin because localhost will not show it.",
+      "erp/graph.json S5 accept - the two-call handshake is the shipped mode and the accept tests it; the suspend arm survives as the switch's other position and this node's negative control.",
+      "erp/graph.json V6 accept - the register grows from five rows to exactly six and names the suffixed key.",
+      "erp/graph.json contingencies - [3] and [4] recorded as FIRED, [0] [1] [2] as DID NOT FIRE, each with its measured outcome inline.",
+      "evidence/UNKNOWNS.md - rewritten to six rows each ending in MEASURED, satisfying node V6's predicate; the stale 're-run all five on a remote origin' caveat discharged.",
+      "erp/PATHS.md - rows added for evidence/V1-remote.json, evidence/V6-consent-gate.json and evidence/G1-rehearsal.json.",
+      "Stale-prose sweep across RISK, CONTRACTS, EVAL, RUBRIC, FACTS, GRAPH, PLAN and charters C3/I1/I3/L2. erp/reviews/ deliberately NOT rewritten - archived reports are records of what was known on their date."
+    ]
+  }
 }
