@@ -422,3 +422,5 @@ MERGED H5  b446bc2 pits:kb/pits/H5.md accept:PASS
 # V1's GATE: SWEPT AND THE VERDICT DOES NOT EXIST — no branch, no artifact.
 #   Not D-55's "finished but unreported"; QA never ran the read. Re-dispatched
 #   under D-46. Silence is not a pass.
+
+MERGED S9  ba17b6c pits:kb/pits/S9.md accept:PASS

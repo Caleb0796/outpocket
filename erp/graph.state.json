@@ -23,12 +23,13 @@
     "S3",
     "S4",
     "F1",
-    "H5"
+    "H5",
+    "S9"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 HELD, not rejected. Own scope green and DEV-006 vindicated (1 real call site, not 0). span 0 blocked on drive.mjs --assert-flips, which does not exist and no node was told to build. PM ruling pending under D-50.",
-    "V1 gate": "QA, after I1's transcription (merged).",
-    "D5 UI check": "docs-first only \u2014 PM REFUSED the decoy-submission route."
+    "T2": "I2 \u2014 HELD on drive.mjs --assert-flips (D-58). Own scope green, DEV-006 vindicated.",
+    "drive.mjs modes": "I1 \u2014 THREE modes: --smoke-login shipped, --assert-flips (D-58), --fallback (D-61). 1.5 h. Unblocks T2 and H3.",
+    "V1 gate": "QA \u2014 re-dispatched; the first read never happened."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
