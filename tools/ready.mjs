@@ -12,6 +12,7 @@
 //   node tools/ready.mjs --check-ownership-globs  every output/accept path is ownable
 //   node tools/ready.mjs --check-tables         restated tables in erp/**.md vs the authority
 //   node tools/ready.mjs --check-schedule       day(u) <= day(v); no seat over the daily cap
+//   node tools/ready.mjs --check-modes          every --flag in an accept is produced by something
 //   node tools/ready.mjs --all                  every check above, exit 1 if any fails
 //
 // The ownership rule is NOT reimplemented here: it is imported from tools/check-ownership.mjs,
@@ -355,6 +356,83 @@ function checkSchedule() {
   return violations === 0;
 }
 
+// ---------------------------------------------------------------- --check-modes
+// D-59, bought by PM after THREE instances in one day of a predicate naming a
+// capability nobody was told to build: --smoke-login (F1's accept, produced by
+// H2), S1's missing static route (asserted by T2's and D1's edge contracts), and
+// --assert-flips (T2's accept, produced by H2). Two green instruments passed all
+// three: --check-accept-paths resolves harness/drive.mjs happily as a declared H2
+// output, because THE PATH RESOLVES AND THE MODE IS NOT A PATH; and
+// --check-schedule had no edge to order because the dependency was never drawn.
+//
+// THE RULE, exactly as ruled, so it needs no second interpretation. For every
+// (script-path, --flag) pair extracted from an accept:
+//   (a) if the script EXISTS on disk, the flag literal must appear in it;
+//   (b) if it does NOT exist yet, the node declaring it as an output must be a
+//       HARD INPUT of the node whose accept names it.
+//
+// THE LIMIT, STATED RATHER THAN SOLD AS COMPLETE — PM's words and they belong in
+// the source, not only in a decision row: THIS CATCHES TWO OF THE THREE.
+// --smoke-login and --assert-flips are FLAGS. S1's static route was a CAPABILITY
+// DESCRIBED IN PROSE, and no flag-based checker reaches it; that one was caught
+// by a human reading an edge contract against a running server, and nothing cheap
+// replaces that. An instrument that closes two thirds of a class and says so is
+// worth more than one that claims the class and is trusted in six months.
+
+function checkModes() {
+  // A script followed by one or more flags. Flags BEFORE a path are not attributed
+  // to it — `node --test tests/x.test.mjs` must not read as tests/x.test.mjs
+  // needing a --test literal.
+  const PAIR = /([A-Za-z0-9_./-]+\.(?:mjs|js|sh))((?:\s+--[a-z][a-z0-9-]*)+)/g;
+  const outputOwner = new Map();
+  for (const n of G.nodes) for (const o of n.outputs) outputOwner.set(stripTrailing(o), n);
+
+  let checked = 0, violations = 0;
+  const onDisk = [], deferred = [];
+
+  for (const n of G.nodes) {
+    for (const m of n.accept.matchAll(PAIR)) {
+      const script = m[1].replace(/^\.\//, '');
+      const flags = [...m[2].matchAll(/--[a-z][a-z0-9-]*/g)].map((f) => f[0]);
+      for (const flag of new Set(flags)) {
+        checked++;
+        if (fs.existsSync(script) && fs.statSync(script).isFile()) {
+          const src = fs.readFileSync(script, 'utf8');
+          if (src.includes(flag)) { onDisk.push(`${n.id}: ${script} ${flag}`); continue; }
+          bad(`${n.id}.accept names \`${script} ${flag}\` — the script EXISTS and the flag literal does NOT appear in it`);
+          violations++;
+          continue;
+        }
+        // (b) not on disk yet: the producer must be a hard input of the consumer
+        const producer = outputOwner.get(script);
+        if (!producer) {
+          bad(`${n.id}.accept names \`${script} ${flag}\` — the script does not exist and NO node declares it as an output`);
+          violations++;
+          continue;
+        }
+        if (producer.id === n.id) { deferred.push(`${n.id}: ${script} ${flag} (own output)`); continue; }
+        const edge = HARD.find((e) => e.from === producer.id && e.to === n.id);
+        if (!edge) {
+          bad(`${n.id}.accept names \`${script} ${flag}\`, produced by ${producer.id}, but there is NO HARD EDGE ${producer.id} -> ${n.id} — the dependency is invisible to --check-schedule`);
+          violations++;
+          continue;
+        }
+        deferred.push(`${n.id}: ${script} ${flag} <- ${producer.id} (hard edge present)`);
+      }
+    }
+  }
+
+  console.log(`${checked} (script, flag) pair(s) extracted from accept predicates`);
+  console.log(`  ${onDisk.length} resolved against a script ON DISK carrying the flag literal`);
+  console.log(`  ${deferred.length} deferred to a producer that is a hard input (or the node's own output)`);
+  for (const d of deferred) console.log(`        ${d}`);
+  console.log(`LIMIT, STATED: this checks FLAGS. A capability described in PROSE — S1's missing`);
+  console.log(`static route — is not reachable by this mode and never will be. It closes two of`);
+  console.log(`the three instances that bought it, and that is the whole claim.`);
+  if (!violations) ok('every mode named in an accept is produced by something');
+  return violations === 0;
+}
+
 // ---------------------------------------------------------------- --check-tables
 // R-22: this mode is what makes restatement legal at all. falsification[9] used to forbid a
 // sibling document from restating a node table outright; the rule is now narrowed to "a
@@ -515,6 +593,7 @@ const MODES = [
   ['--check-ownership-globs', checkOwnershipGlobs],
   ['--check-tables', checkTables],
   ['--check-schedule', checkSchedule],
+  ['--check-modes', checkModes],
 ];
 
 const argv = process.argv.slice(2);
