@@ -644,3 +644,5 @@ MERGED G2  ab4831b pits:PENDING accept:PASS
 #   of 4b01533 — V2 was re-run on the REMOTE origin on Chrome 152. The row still
 #   ends MEASURED so tools/check-unknowns.mjs stays green; it is wording, not a
 #   broken gate, and UNKNOWNS.md is a V6 output and PM's.
+
+MERGED E1  90dc51f pits:kb/pits/E1.md accept:PASS
