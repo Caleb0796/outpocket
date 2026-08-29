@@ -19,6 +19,32 @@ Reimbursement is high-risk and carries personal responsibility. That is the
 reason the human stays on the page rather than being replaced by a backend
 integration.
 
+## Demo credentials
+
+Two demo logins, no password — signing in is a one-click persona pick,
+enforced server-side by the session cookie (see
+[`erp/contracts/session.contract.md`](erp/contracts/session.contract.md)).
+Exactly these two, matching the frozen persona enum:
+
+| Name | Role | Login |
+| --- | --- | --- |
+| Chen Xiao | employee | `login: chen` |
+| Elena Ruiz | auditor | `login: ruiz` |
+
+## Opening the app
+
+Judges can drive `outpocket` two ways:
+
+1. **ChatGPT desktop built-in browser** — open the deployed URL directly. The
+   built-in browser exposes `document.modelContext` to the page with no
+   flags required.
+2. **Local Chrome** — launch Chrome with the WebMCP testing flag, then
+   navigate to the deployed URL:
+
+   ```
+   google-chrome --enable-features=WebMCPTesting
+   ```
+
 ## Repository layout
 
 | Path | Contents |
