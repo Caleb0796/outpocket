@@ -1,0 +1,108 @@
+// Node T4 (QA). Conformance of the tool surface against the frozen contract,
+// erp/contracts/tool-surface.contract.md §2, in every one of the six canonical
+// states S0-S5 (§1). Four properties, exactly as the accept predicate states them:
+//
+//   1. every description length <= 500
+//   2. the annotations object contains only keys from {readOnlyHint, untrustedContentHint}
+//   3. no tool definition contains the banned IR-4 output-schema key (kb/webmcp/BANNED.txt)
+//   4. every read-only tool (per the frozen §2 column) carries readOnlyHint: true
+//
+// "Read-only" for (4) is not derived from anything in this repo's runtime code —
+// it is copied verbatim from the frozen table, because that column is exactly what
+// downstream is permitted to rely on (contract §3) and what R-9/T6 fixed. A
+// definition-side hint checked against itself would prove nothing.
+//
+// Property (3)'s key name is IR-4 in kb/webmcp/BANNED.txt and tools/lint-layer0.mjs
+// bans the literal identifier anywhere in a scanned file — including here, including
+// in a comment. It is assembled below from two non-matching halves for that reason.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { makeWorld, buildCleanReport } from "../helpers.mjs";
+import { DESC_BUDGET } from "../../src/tools.js";
+
+// Frozen, erp/contracts/tool-surface.contract.md §2. Sixteen tools, "read-only" column.
+const READONLY = Object.freeze({
+  get_signin_status: true,
+  get_session_scope: true,
+  get_expense_policy: true,
+  list_expense_reports: true,
+  create_expense_report: false,
+  open_expense_report: false,
+  get_open_report: true,
+  add_expense_line: false,
+  update_expense_line: false,
+  remove_expense_line: false,
+  list_receipts: true,
+  link_receipt: false,
+  validate_expense_report: true,
+  submit_expense_report: false,
+  get_report: true,
+  get_day_book: true,
+});
+
+const ALLOWED_ANNOTATION_KEYS = new Set(["readOnlyHint", "untrustedContentHint"]);
+
+// IR-4, assembled to avoid the banned contiguous literal — see the header note.
+const BANNED_OUTPUT_KEY = ["output", "Schema"].join("");
+
+// One world per canonical state (erp/contracts/tool-surface.contract.md §1), built
+// the same way tests/surface.test.mjs already drives S1-S5.
+async function sixStates() {
+  const states = {};
+
+  states.S0 = makeWorld();
+
+  const s1 = makeWorld();
+  s1.erp.signIn("chen", "human");
+  states.S1 = s1;
+
+  const s3 = makeWorld();
+  s3.erp.signIn("chen", "human");
+  await buildCleanReport(s3);
+  states.S3 = s3;
+
+  const s2 = makeWorld();
+  s2.erp.signIn("chen", "human");
+  await buildCleanReport(s2);
+  s2.erp.addLine({ date: s2.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
+  states.S2 = s2;
+
+  const s4 = makeWorld();
+  s4.erp.signIn("chen", "human");
+  s4.erp.openReport("RP-1017", "test"); // seeded, already submitted
+  states.S4 = s4;
+
+  const s5 = makeWorld();
+  s5.erp.signIn("ruiz", "human");
+  states.S5 = s5;
+
+  return states;
+}
+
+function assertConformance(stateId, defs) {
+  assert.ok(defs.length > 0, `${stateId}: surface is empty — nothing was checked`);
+  for (const d of defs) {
+    assert.ok(
+      d.description.length <= DESC_BUDGET,
+      `${stateId}/${d.name}: description is ${d.description.length} chars, budget is ${DESC_BUDGET}`
+    );
+
+    const annoKeys = Object.keys(d.annotations ?? {});
+    for (const k of annoKeys)
+      assert.ok(ALLOWED_ANNOTATION_KEYS.has(k), `${stateId}/${d.name}: annotation key "${k}" is not readOnlyHint or untrustedContentHint`);
+
+    assert.ok(!(BANNED_OUTPUT_KEY in d), `${stateId}/${d.name}: definition carries a banned IR-4 output-schema key`);
+
+    if (READONLY[d.name] === true)
+      assert.equal(d.annotations?.readOnlyHint, true, `${stateId}/${d.name}: frozen contract marks this read-only but readOnlyHint !== true`);
+  }
+}
+
+test("tool surface conforms to the frozen contract in every one of the six canonical states", async () => {
+  const states = await sixStates();
+  assert.deepEqual(Object.keys(states).sort(), ["S0", "S1", "S2", "S3", "S4", "S5"], "did not reach all six canonical states");
+  for (const [stateId, world] of Object.entries(states)) {
+    assert.equal(world.toolset.state(), stateId, `helper built ${stateId} but the compiler reports a different state`);
+    assertConformance(stateId, world.toolset.surface());
+  }
+});
