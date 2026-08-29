@@ -107,6 +107,37 @@ here; there is one copy of that command and it lives in L0.
 | **K1** | chronicler A — API | resident Claude | sonnet / medium | **none — unbudgeted overhead (§8)** | `claude --model sonnet --effort medium --append-system-prompt-file .team/charters/K1.md` |
 | **K2** | chronicler B — method | resident Claude | sonnet / medium | **none — unbudgeted overhead (§8)** | `claude --model sonnet --effort medium --append-system-prompt-file .team/charters/K2.md` |
 
+### One worktree per building seat — and never `git checkout -b` in the shared checkout
+
+**DEV-007, adopt, PM 2026-08-29.** `erp/charters/L1.md` already named this exact
+failure — *"a process sharing a checkout with a resident session produces diffs
+nobody can explain"* — but it said so **only in L1's charter**, and the seats it
+binds are the building seats. That is the defect: a rule that governs every seat
+lived in one seat's file. It is now here.
+
+**Binding on every building seat.** Work in your own worktree. Do **not** run
+`git checkout`, `git checkout -b`, `git switch` or `git reset` in the shared
+checkout. MEASURED 2026-08-29: UX ran `git checkout -b` in the shared checkout
+while L1 was mid-node in it, HEAD moved under L1, and L1's `G5` fixture commit
+landed on `seat/UX-F0`. Recovered by `git reflog` and cherry-pick with nothing
+lost on either side — but the recovery was luck and a reflog, not a control.
+
+### A repo-wide gate is switched on only after the repo is already clean
+
+**DEV-009, adopt, PM 2026-08-29, and it is the same defect as the BW-33 blast
+radius ruled the same evening (D-43) — twice in one day is what makes it a rule.**
+Enabling `core.hooksPath` as part of merging `G5` switched G4's Layer-0 lint on
+for **every seat at once**, and blocked QA's `G6` commit on a pre-existing failure
+QA did not introduce. Nobody's node was wrong; the rollout was.
+
+**Before enabling any gate that applies repo-wide — a hook, a `core.hooksPath`
+flip, a new registry row — run it over the whole repository first and land every
+fix it demands. The gate goes on last, when it is already green.** A gate that
+turns red on merge does not catch a defect; it stops every seat that is not the
+author, at the moment they can least afford it, for something they did not do.
+QA diagnosed this correctly against a clean HEAD and recommended the fix that
+shipped, which is the only reason it cost an hour instead of an evening.
+
 ### Every seat inherits `FORCE_COLOR=3`, and it breaks grep-a-banner predicates
 
 **MEASURED 2026-08-29, `tools/l0-forcecolor-probe.mjs` — adopted from `DEV-L0-gate4-banner-grep`
