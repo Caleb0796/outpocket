@@ -1,0 +1,13 @@
+NODE:      G5
+OWNER:     L1
+INPUTS:    G0
+DO:        Build the file-ownership pre-commit hook against TWO FIXTURE INVOCATIONS, never an ambient git diff. Reuse tools/check-ownership.mjs; do not reimplement the rule.
+ACCEPT:    Two fixture invocations, not one ambient diff: `node tools/check-ownership.mjs --seat I2 --files-from tests/fixtures/ownership-ok.txt` exits 0 (the fixture lists only src/page/tools/compile.js and tests/surface.test.mjs) AND `node tools/check-ownership.mjs --seat I2 --files-from tests/fixtures/ownership-bad.txt` exits 1 naming the offending path (the fixture lists server/index.mjs). AND `.githooks/pre-commit-ownership` is registered: `git config core.hooksPath` prints `.githooks`.
+PIT:       kb/pits/G5.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
+           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
+           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
+           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
+           the file from you — that contradiction is L1's to carry to PM, not yours to
+           resolve. Write the file; L1 absorbs the ownership finding.)
+BRANCH:    seat/L1-G5
+DEADLINE:  2026-08-29T23:59-07:00
