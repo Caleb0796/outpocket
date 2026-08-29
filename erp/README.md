@@ -45,7 +45,7 @@ missing path), lived side by side as if both were true. Restating is *legal* her
 
 | File | One line |
 |---|---|
-| `graph.json` | **AUTHORITY.** 68 nodes, 121 edges, capacity, schedule, cut ladder, 36 rulings, falsification register. |
+| `graph.json` | **AUTHORITY.** 68 nodes, 122 edges, capacity, schedule, cut ladder, 36 rulings, falsification register. |
 | `PATHS.md` | **AUTHORITY.** Canonical path, glob owner, writing seat, producing node, and every dead alias. |
 | `PLAN.md` | The two claims, five kernel mechanisms, demo beats, Day 0–6 schedule with every cut-0 gate quoted verbatim. |
 | `GRAPH.md` | Readable lane tables for all 68 nodes, the critical path, the cut ladder, the morning ready-set procedure. |
@@ -105,7 +105,7 @@ landed: move the probe's path, never weaken the `sha256sum -c` clause.
 
 | Check | Result |
 |---|---|
-| structure | 68 nodes (ids unique), 121 edges, `inputs`↔`edges` bijective 121/121, acyclic, roots `{G1, L0}` |
+| structure | 68 nodes (ids unique), 122 edges, `inputs`↔`edges` bijective 122/122, acyclic, roots `{G1, L0}` |
 | cut invariant, hard + same-horizon | **0 violations over 102 qualifying edges** (110 hard / 11 soft) |
 | critical path, recomputed from `hours` | **29.5 h**, `L0 → V5 → S10 → S1 → S3 → S4 → T2 → H3 → H6 → D4 → D5 → D6` |
 | capacity | 118.0 A-hours, 107.5 non-gated, 5.375 overhead, **15.875 required vs 16.5 available at the ruled 3.0 h/day**; fits whole, 0.625 h spare, nothing cut |
