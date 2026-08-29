@@ -183,3 +183,32 @@ MERGED S1  80ae482 pits:kb/pits/S1.md accept:PASS
 # gated by four mechanical clauses; the RECORD of the merge is gated by nothing.
 # Two registers that must agree, with a checker on neither — which is precisely
 # the shape --check-tables exists to fix one level up, and does not cover here.
+
+MERGED H2  96bfd9f pits:kb/pits/H2.md accept:PASS
+MERGED S3  e3bdd75 pits:kb/pits/S3.md accept:PASS
+
+# CLAUSE 6c APPLIED TO ITSELF, TWENTY MINUTES AFTER I MERGED IT. D-49 rules that
+# THE RECORD OF A MERGE IS PART OF THE MERGE. I merged that clause, then merged
+# H2 and S3, then pushed a state file saying seventeen done while this file said
+# fifteen — the identical two-registers-one-checker gap it was written to close,
+# reopened by the person who wrote it in. Caught by my own end-of-batch count,
+# which is now part of the loop rather than a thing I remember to do.
+#
+# H2 — CDP driver. Six clauses green, re-run by L1 against the merged tree.
+#   I1's THROWAWAY SCOUT before designing is the method worth keeping: it removed
+#   three guesses that would each have shipped as a wrong assertion (toolsAdded
+#   fires ONCE with a tools ARRAY carrying frameId per tool; that channel spells
+#   the annotations differently from the page JS; an unknown tool name is a
+#   CDP-level rejection at send time, never a failed response). Every previous
+#   revision of the brief had the calling convention wrong.
+# S3 — policy engine. Four runnable spans green, 62/62, CHECK 3b still agreeing
+#   in blocking, warning AND the identifying-quadruple set.
+#   MY FIRST RUN OF contracts-check EXITED 1 AND I NEARLY WROTE IT UP AS A
+#   REGRESSION S3 INTRODUCES INTO A MERGED GATE. Cause: ajv missing, because
+#   node_modules is gitignored and a fresh scratch worktree has none. Fourth
+#   false red from the environment today, same shape as Day 0's FORCE_COLOR pit,
+#   and I got as far as drafting the theory before checking the environment.
+#
+# ADJUDICATION COMPLETE: all ten tickets carry PM's verdict, transcribed by L1
+#   under clause 6b — 6 adopt, 2 debt (DEV-004 G0, DEV-008 F0), 1 send-back
+#   (DEV-005 G5), plus the Day-0 ticket. 67% adopt.
