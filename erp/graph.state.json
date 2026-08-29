@@ -2,7 +2,7 @@
   "_authority": "erp/graph.json is the authority for node identity; this file records only WHAT HAS LANDED. It is L1's, it is written on merge, and nothing else may edit it. `node tools/ready.mjs` reads it to compute the ready set.",
   "_grade": "MEASURED \u2014 every id under `done` corresponds to a line in .team/log/merges.txt whose sha was pushed to origin/main and verified equal to local HEAD.",
   "updated": "2026-08-29",
-  "day": 1,
+  "day": 2,
   "done": [
     "L0",
     "V5",
@@ -21,9 +21,10 @@
     "S1"
   ],
   "in_flight": {
-    "S1": "I3 \u2014 branch seat/I3-S1, head of the remaining critical path",
-    "H1": "I1 \u2014 branch seat/I1-H1",
-    "(G4 follow-up)": "I4 \u2014 BANNED.txt row + sweep for other rulings that never reached a registry (D-41)"
+    "H2": "I1 \u2014 Day 1, branch seat/I1-H2",
+    "S3": "I3 \u2014 Day 2, critical-path head, branch seat/I3-S3",
+    "F1": "UX \u2014 Day 2, branch seat/UX-F1",
+    "(D-41 row)": "I4 \u2014 BANNED.txt row for the phrase V2's result forbids, plus the sweep PM wants as a NUMBER"
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
@@ -34,5 +35,6 @@
     "H1": "I1's, queued behind V0 \u2014 one seat, one node at a time",
     "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
   },
-  "deviation_queue": "TEN tickets in .team/deviations/. W filed nine tonight under D-39; six are against L1. VERDICT empty on all nine \u2014 PM adjudicates."
+  "deviation_queue": "TEN tickets in .team/deviations/. W filed nine tonight under D-39; six are against L1. VERDICT empty on all nine \u2014 PM adjudicates.",
+  "note": "Day 1's machine lane finished early and Day 2 was opened on the user's authority. G1 stays DAY 6 (R-42/D-30). V1 is human-gated and V2/V3/V4/V6 sit behind its evidence."
 }
