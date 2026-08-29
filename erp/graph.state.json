@@ -1,0 +1,31 @@
+{
+  "_authority": "erp/graph.json is the authority for node identity; this file records only WHAT HAS LANDED. It is L1's, it is written on merge, and nothing else may edit it. `node tools/ready.mjs` reads it to compute the ready set.",
+  "_grade": "MEASURED \u2014 every id under `done` corresponds to a line in .team/log/merges.txt whose sha was pushed to origin/main and verified equal to local HEAD.",
+  "updated": "2026-08-29",
+  "day": 1,
+  "done": [
+    "L0",
+    "V5",
+    "T6",
+    "S10",
+    "S11",
+    "G4",
+    "V0",
+    "G3",
+    "G0"
+  ],
+  "in_flight": {
+    "T1": "I2 \u2014 branch seat/I2-T1",
+    "S1": "I3 \u2014 branch seat/I3-S1",
+    "G4-sweep": "I4 \u2014 SWEEP_EXCLUDE narrowing, follow-up to the merged G4"
+  },
+  "human_gated_in_flight": {
+    "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
+  },
+  "not_dispatched_today": {
+    "G1": "R-42/D-30: DAY 6. It flips both repositories public. Fifteen stale restatements placing it on Day 1 were cleared today across two disjoint registers (tables by --check-tables, prose by hand); erp/charters/I4.md now states DAY 6, NOT DAY 1 for the seat that owns it.",
+    "H5": "ready on hard edges, scheduled Day 2",
+    "H1": "I1's, queued behind V0 \u2014 one seat, one node at a time",
+    "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
+  }
+}
