@@ -1,0 +1,20 @@
+{
+  "$comment": "server/personas.json — node F1 (lane F, owner UX). The two seeded logins, and the ONLY place their display names are recorded. README.md's `login:` lines (node G2, owner I4) are generated from this file; src/page/index.html renders the same two ids as static markup so the DOM assertion in F1's accept holds in every session state. Persona ids are constrained by the frozen enum in erp/contracts/eval-case.schema.json — [\"none\",\"chen\",\"ruiz\"] — where \"none\" is the signed-out state and is never a value a client may log in as. There is no third persona.",
+  "contract": "erp/contracts/session.contract.md",
+  "personas": [
+    {
+      "id": "chen",
+      "role": "employee",
+      "name": "Chen Xiao",
+      "title": "Field engineer",
+      "description": "Files expense reports. Owns the session an agent works inside."
+    },
+    {
+      "id": "ruiz",
+      "role": "auditor",
+      "name": "Elena Ruiz",
+      "title": "Internal audit",
+      "description": "Reviews submitted reports. Cannot file or submit one."
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>outpocket — expense desk</title>
+
+<!--
+  src/page/index.html — node F1 (lane F, owner UX): the application shell,
+  the login, and the two personas.
+
+  Session interface: erp/contracts/session.contract.md (node S1, owner I3).
+  That contract, not server/index.mjs, is the authority for the shape below:
+    POST /api/login  {"persona":"chen"|"ruiz"}  -> 200 {persona, role} + Set-Cookie sid
+    GET  /api/me                                -> 200 {persona, role} | 401 E_NO_SESSION
+  The sid cookie is HttpOnly, so page JavaScript never reads it and never
+  needs to: /api/me is the only way this shell learns who is signed in.
+
+  The two persona ids are constrained by the frozen enum in
+  erp/contracts/eval-case.schema.json — ["none","chen","ruiz"] — where "none"
+  is the signed-out state. There is no third persona. Their display names live
+  in server/personas.json and are repeated here as static markup on purpose:
+  F1's acceptance predicate counts [data-persona] elements in the DOM, and a
+  count that depends on a fetch resolving is a count with a race in it.
+
+  MOUNT REGIONS. Every <section data-region="..."> below is an empty, named
+  slot owned by a later node. This file creates the slot and nothing else;
+  the owning node fills it. Filling someone else's slot from here would be an
+  ownership violation, and an empty slot is what makes F6's shot-id-to-
+  selector resolution possible before those nodes land.
+      #env-banner            H5 / I1   src/page/env-banner.js
+      #agent-banner          H3 / I1   src/page/fallback-agent.js
+      [data-region=surface]  F5 / UX   src/page/ui/inspector.js
+      [data-region=editor]   F2 / UX   src/page/ui/editor.js
+      [data-region=receipts] F3 / UX   src/page/ui/receipts.js
+      [data-region=sign]     F4 / UX   src/page/ui/sign-dialog.js
+  Tools are registered by src/page/register.js (node I2) at the top level of
+  this document, never from inside a region and never from an iframe.
+
+  ./skin.css is node F6's output and does not exist yet; the link is here so
+  that F6 is a pure addition rather than an edit to this file.
+-->
+
+<link rel="stylesheet" href="./skin.css">
+<style>
+  /* Shell-only styling. Enough that the page is legible and screenshot-safe
+     before F6's skin exists; F6's skin.css loads after this block and wins. */
+  :root { color-scheme: light; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: #f4f4f2; color: #16181d; }
+  header, main { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+  h1 { font-size: 20px; margin: 18px 0 4px; letter-spacing: -0.01em; }
+  .lede { margin: 0 0 20px; color: #55596a; max-width: 62ch; }
+  #env-banner, #agent-banner { padding: 10px 20px; font-size: 13px;
+         border-bottom: 1px solid #d9dae0; background: #eceef3; }
+  #agent-banner:empty { display: none; }
+  .personas { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+         list-style: none; padding: 0; margin: 0 0 24px; }
+  [data-persona] { background: #fff; border: 1px solid #d9dae0; border-radius: 8px; padding: 16px; }
+  [data-persona] .role { display: inline-block; font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.08em; color: #55596a; border: 1px solid #d9dae0;
+         border-radius: 999px; padding: 2px 8px; margin-bottom: 8px; }
+  [data-persona] .name { font-weight: 600; }
+  [data-persona] .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #55596a; }
+  [data-persona] p { margin: 6px 0 12px; color: #55596a; font-size: 13px; }
+  button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #16181d;
+         background: #16181d; color: #fff; cursor: pointer; }
+  button.quiet { background: #fff; color: #16181d; border-color: #d9dae0; }
+  [hidden] { display: none !important; }
+  [data-signed-in-as] { display: flex; align-items: center; gap: 10px;
+         background: #fff; border: 1px solid #d9dae0; border-radius: 8px;
+         padding: 10px 14px; margin-bottom: 20px; }
+  [data-region] { border: 1px dashed #d9dae0; border-radius: 8px; padding: 14px;
+         margin-bottom: 14px; background: #fff; }
+  [data-region] > .slot-label { font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.08em; color: #8b8fa0; }
+  [data-login-error]:empty { display: none; }
+  [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Permanently on the first screen, by charter: the environment banner is how
+     a real platform gap becomes visible instead of mysterious. Node H5 (I1)
+     writes the Chromium major, WebMCP presence, and on a major below 153 a
+     warning. Until then it states only that the check has not run. -->
+<div id="env-banner" role="status">environment — not yet checked</div>
+
+<!-- Node H3 (I1) writes here, and only when the page is driving itself: the
+     banner must say so in plain words. Empty means no simulated agent. -->
+<div id="agent-banner" role="status"></div>
+
+<header>
+  <h1>outpocket — expense desk</h1>
+  <p class="lede">
+    Your agent works inside the session you are already signed into. Every write
+    is checked again on the server, per request, against that same session.
+  </p>
+</header>
+
+<main>
+
+  <!-- Signed-in identity. Deliberately NOT data-persona: F1's accept counts
+       [data-persona] elements and this element would make the count three. -->
+  <section data-signed-in-as hidden>
+    <span>Signed in as <strong data-session-name></strong>
+      (<code data-session-persona></code> · <span data-session-role></span>)</span>
+    <button class="quiet" type="button" data-action="switch">Switch persona</button>
+  </section>
+
+  <section data-login-panel>
+    <h2 style="font-size:15px;margin:0 0 10px">Sign in as</h2>
+    <p data-login-error role="alert"></p>
+
+    <!-- EXACTLY TWO. Static markup, present in every session state, hidden but
+         never removed once signed in — so the count holds and so the storyboard
+         shots SB-05 / SB-06 resolve against [data-persona="chen"] and
+         [data-persona="ruiz"] on the built page. Display names are the ones
+         recorded in server/personas.json. -->
+    <ul class="personas">
+      <li data-persona="chen" data-role="employee">
+        <span class="role">employee</span>
+        <div><span class="name">Chen Xiao</span> · <span class="id">chen</span></div>
+        <div style="color:#55596a;font-size:13px">Field engineer</div>
+        <p>Files expense reports. Owns the session an agent works inside.</p>
+        <button type="button" data-login="chen">Sign in as chen</button>
+      </li>
+      <li data-persona="ruiz" data-role="auditor">
+        <span class="role">auditor</span>
+        <div><span class="name">Elena Ruiz</span> · <span class="id">ruiz</span></div>
+        <div style="color:#55596a;font-size:13px">Internal audit</div>
+        <p>Reviews submitted reports. Cannot file or submit one.</p>
+        <button type="button" data-login="ruiz">Sign in as ruiz</button>
+      </li>
+    </ul>
+  </section>
+
+  <!-- Mount regions. Empty slots owned by later nodes; see the header comment. -->
+  <section data-region="surface" id="surface-inspector" hidden>
+    <span class="slot-label">tool surface — node F5</span>
+  </section>
+  <section data-region="editor" hidden>
+    <span class="slot-label">report editor — node F2</span>
+  </section>
+  <section data-region="receipts" hidden>
+    <span class="slot-label">receipts — node F3</span>
+  </section>
+  <section data-region="sign" hidden>
+    <span class="slot-label">signature — node F4</span>
+  </section>
+
+</main>
+
+<script type="module" src="./ui/shell.js"></script>
+</body>
+</html>
