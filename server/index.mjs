@@ -21,7 +21,17 @@ import { createStateDigestHandler } from "./routes/state-digest.mjs";
 // server to serve the page under test"; F1 -> D1 "something to serve").
 // Default root is src/page/ — F1's output. Parameterized (not hardcoded) so
 // tests can point it at a fixture without depending on F1 having landed.
-const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/page/", import.meta.url));
+//
+// D-66, PM 2026-08-29: widened from src/page/ to src/. Three files under
+// src/page/ import above the page root (register.js -> ../erp.js,
+// tools/compile.js -> ../../erp.js, tools/defs.js -> ../../policy.js) —
+// src/policy.js and src/erp.js are shared by server/, tests/, harness/ AND
+// the page, so re-homing or duplicating them was rejected on architecture,
+// not cost. server/ is a SIBLING of src/, not a descendant, so it stays
+// unreachable through this root at any depth — see the traversal guard
+// below, unchanged, now anchored one level higher. GET / is routed
+// explicitly to page/index.html since there is no src/index.html.
+const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/", import.meta.url));
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -44,12 +54,16 @@ function makeStaticHandler(pageRoot) {
 
     let reqPath;
     try {
-      reqPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+      // D-66: GET / is routed to page/index.html explicitly — there is no
+      // src/index.html now that the root is src/, not src/page/.
+      reqPath = url.pathname === "/" ? "/page/index.html" : decodeURIComponent(url.pathname);
     } catch {
       return false;
     }
     const resolved = normalize(join(root, reqPath));
-    // Traversal guard: the resolved path must stay inside root.
+    // Traversal guard: the resolved path must stay inside root. Anchored at
+    // whatever root is passed in, so widening the root (D-66) re-anchors the
+    // guard for free — server/, a sibling of src/, stays unreachable.
     if (!resolved.startsWith(root)) return false;
 
     let info;
