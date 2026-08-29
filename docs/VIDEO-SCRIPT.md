@@ -214,8 +214,11 @@ visible in one frame.
 - **Do not read the one-time value in the sign dialog aloud, and do not frame a
   close-up of it.** It is delivered only into that dialog's rendered markup and
   that placement is the whole of its value.
-- **Do not say "on the spot."** The surface reaches the agent on its next turn.
-  Every cue above already says it that way; keep it that way if you ad-lib.
+- **Say "on its next turn."** That is what V2 measured: the surface reaches the
+  agent on its next turn, with no page reload. Every cue above already words it
+  that way; keep it that way if you ad-lib. Do not substitute any wording that
+  implies the agent noticed during the turn already in progress — that class of
+  phrasing is banned as **BW-33** in `kb/webmcp/BANNED.txt`.
 - **Do not state a tool count as a fixed number** in narration or caption. The
   write set is computed per state from `readOnlyHint`, and the inspector prints
   whatever that yields.
