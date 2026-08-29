@@ -23,12 +23,10 @@
     "S3"
   ],
   "in_flight": {
-    "S1 static route": "I3 \u2014 D-50 scope addition, 0.5 h. TOP OF THE BOARD: blocks T2, which is ON THE CRITICAL PATH (S4->T2->H3), plus F1 span 0 and D1.",
-    "H2 --smoke-login": "I1 \u2014 D-50, 0.5 h. The mode F1's accept runs and no node was told to build.",
-    "V1 optional fields": "I1 \u2014 D-48. Transcribe chromiumMajor/navigatorAliasPresent/isSecureContext from the screenshot into fields the schema already defines. OPPOSITE of D-43, not an exception to it.",
-    "V1 human gate": "QA \u2014 D-46. QA's refusal was AFFIRMED; 'QA' in an accept is a review duty, not node ownership. Gates the COMPLETED file once, after I1 transcribes.",
-    "G5 hook chaining": "I4 \u2014 DEV-005, the sprint's only SEND-BACK. .githooks/pre-commit must invoke pre-commit-ownership. Deadline Day 2 09:00 PT.",
-    "F1": "UX \u2014 HALF-GREEN and recorded as BLOCKED, not failed: span 1 MEASURED, span 0 blocked on both D-50 items above."
+    "H2 --smoke-login": "I1 \u2014 D-50, 0.5 h. F1's span 0 still needs it.",
+    "V1 optional fields": "I1 \u2014 D-48 transcription, then QA gates once (D-46).",
+    "V1 human gate": "QA \u2014 dispatched, waiting on I1's transcription first.",
+    "F1": "UX \u2014 HALF-GREEN. Span 1 MEASURED. Span 0's static-route blocker is now CLEARED; --smoke-login remains."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
@@ -40,5 +38,6 @@
     "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
   },
   "deviation_queue": "TEN tickets, ALL ADJUDICATED: 6 adopt, 2 debt (DEV-004 G0, DEV-008 F0), 1 send-back (DEV-005 G5), plus the Day-0 ticket. 67% adopt. Verdicts transcribed by L1 under clause 6b.",
-  "note": "Day 2. 121 edges after D-50 added H2->F1 \u2014 the same three totals as pre-D-30 by coincidence, not reversion (D-30 deleted G1->G3, D-50 added H2->F1). Ten deviation tickets all adjudicated: 6 adopt, 2 debt, 1 send-back."
+  "note": "Day 2. 121 edges after D-50 added H2->F1 \u2014 the same three totals as pre-D-30 by coincidence, not reversion (D-30 deleted G1->G3, D-50 added H2->F1). Ten deviation tickets all adjudicated: 6 adopt, 2 debt, 1 send-back.",
+  "closed_today": "DEV-005 (the only send-back) closed ahead of its 09:00 deadline. S1 static route merged \u2014 T2 unblocked on the critical path."
 }
