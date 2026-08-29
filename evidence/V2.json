@@ -1,13 +1,205 @@
 {
+  "node": "V2",
   "question": "Does the built-in browser refresh the tool list mid-session, without a page reload?",
   "verdict": "refreshes",
-  "origin": "http://localhost:8795",
-  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
-  "chromiumMajor": 151,
-  "method": "probe_flip registered a sixth tool at runtime via registerTool with an AbortController signal; the agent was then asked to list tools again without reloading.",
-  "agentAnswer": "Yes - probe_extra is now available. The page exposes six tools.",
-  "pageState": { "toolsRegistered": 6, "probe_extra": "REGISTERED" },
-  "precision": "No page reload was needed. The agent picked the sixth tool up on a subsequent turn in the same conversation. This does NOT establish that a surface change reaches the model mid-turn with no prompt at all, so keep the storyboard narration at 'on its next turn'.",
-  "consequence": "Demo beat 1 works on camera. The plan's hedge - re-prompt after the flip, never claim the phrasing BW-33 bans - is satisfied and can stay as written.",
-  "observedAt": "2026-08-29T07:56:32.695Z"
+  "verdictScope": "MEASURED at the BROWSER layer on the installed Chrome 152 against the remote origin: the tool surface goes 5 -> 6 on one un-reloaded document and the browser PUSHES WebMCP.toolsAdded naming probe_extra to an already-attached client 1 ms after the invoke was sent, unprompted and with no poll. The CLIENT layer is a separate reading and a weaker one: in the ChatGPT desktop built-in browser a human saw the sixth tool on the agent's NEXT TURN of the same conversation. Both point the same way and neither licenses the phrasing BW-33 bans. THE NARRATION CONSTRAINT IS UNCHANGED AND UNRELAXED: no document, storyboard, video cue or Devpost answer may claim the surface changes instantly; the honest phrasing stays \"on its next turn\".",
+  "observationPair": {
+    "note": "The accept's pair. Both observations are Runtime.evaluate readings of (await document.modelContext.getTools()).length under awaitPromise:true (IR-18 — the un-awaited form is recorded beside each and reads \"undefined\"), cross-checked against the surface enumerated from WebMCP.toolsAdded/toolsRemoved. The sixth tool was registered BETWEEN them by invoking probe_flip BY NAME over the CDP WebMCP domain (IR-17/19), never through Runtime.evaluate and never by document.modelContext.executeTool(name, args), which throws.",
+    "before": {
+      "label": "before",
+      "at": "2026-08-29T20:36:01.825Z",
+      "atMs": 1788035761825,
+      "toolCount": 5,
+      "toolNames": [
+        "probe_echo",
+        "probe_flip",
+        "probe_hang",
+        "probe_status",
+        "probe_whoami"
+      ],
+      "cdpEnumeratedCount": 5,
+      "cdpEnumeratedNames": [
+        "probe_status",
+        "probe_echo",
+        "probe_whoami",
+        "probe_flip",
+        "probe_hang"
+      ],
+      "documentNonce": "v2-glbiyag4r5m-1788035761823",
+      "navigationsSinceLoad": 0,
+      "readyState": "complete",
+      "unAwaitedGetToolsLength": "undefined"
+    },
+    "after": {
+      "label": "after",
+      "at": "2026-08-29T20:36:01.828Z",
+      "atMs": 1788035761828,
+      "toolCount": 6,
+      "toolNames": [
+        "probe_echo",
+        "probe_extra",
+        "probe_flip",
+        "probe_hang",
+        "probe_status",
+        "probe_whoami"
+      ],
+      "cdpEnumeratedCount": 6,
+      "cdpEnumeratedNames": [
+        "probe_status",
+        "probe_echo",
+        "probe_whoami",
+        "probe_flip",
+        "probe_hang",
+        "probe_extra"
+      ],
+      "documentNonce": "v2-glbiyag4r5m-1788035761823",
+      "navigationsSinceLoad": 0,
+      "readyState": "complete",
+      "unAwaitedGetToolsLength": "undefined"
+    },
+    "gapMs": 3,
+    "gapNote": "Wall clock between the two observations, end to end, including the completed probe_flip round trip. It is small because nothing in the path waits: the flip answered in 1 ms and the toolsAdded push arrived in 1 ms. An earlier run of this rig reported a 4048 ms gap; that number was an artifact of a defect in the rig's own push detector and is NOT reported here. See kb/pits/V2.md."
+  },
+  "noReloadProof": {
+    "note": "Two independent witnesses that the pair was taken on ONE document instance. A reload would discard window.__v2_nonce and would emit a second Page.frameNavigated.",
+    "documentNonceBefore": "v2-glbiyag4r5m-1788035761823",
+    "documentNonceAfter": "v2-glbiyag4r5m-1788035761823",
+    "documentNonceIdentical": true,
+    "frameNavigatedEvents": 1,
+    "navigationsAfterInitialLoad": 0,
+    "readyStateBefore": "complete",
+    "readyStateAfter": "complete"
+  },
+  "flip": {
+    "note": "probe_flip is code the system is supposed to RUN, so this records it running. A completed WebMCP.toolResponded with a MATCHING invocationId is the only field that discriminates a live surface from an empty launch (IR-17); the tool's own returned text is the page speaking.",
+    "toolName": "probe_flip",
+    "invocationId": "C3F83B3373293362DE967164AAA7E95A",
+    "matched": true,
+    "status": "Completed",
+    "roundTrip": true,
+    "output": {
+      "content": [
+        {
+          "type": "text",
+          "text": "probe_extra is now REGISTERED. List your tools again."
+        }
+      ]
+    },
+    "respondLatencyMs": 1
+  },
+  "push": {
+    "note": "THE FINDING THAT SEPARATES THE TWO LAYERS. Chrome 152 does not make an attached client poll: it emits WebMCP.toolsAdded for probe_extra unprompted. So the next-turn behaviour seen in the ChatGPT built-in browser is a CLIENT POLICY, not a browser limitation — the same shape of finding as V6-consent-gate, and it closes nothing. A different client, or a future version, may behave differently. Also MEASURED here: toolsAdded fires ONE EVENT PER registerTool CALL (six events, one tool each), where H2's single-tool fixture could only show one event carrying a one-element array. Neither channel contradicts the other.",
+    "probeExtraPushed": true,
+    "pushLatencyMsFromInvokeSend": 1,
+    "toolsAddedEventCount": 6,
+    "toolsAddedEvents": [
+      {
+        "atMs": 1788035761814,
+        "names": [
+          "probe_status"
+        ]
+      },
+      {
+        "atMs": 1788035761814,
+        "names": [
+          "probe_echo"
+        ]
+      },
+      {
+        "atMs": 1788035761814,
+        "names": [
+          "probe_whoami"
+        ]
+      },
+      {
+        "atMs": 1788035761814,
+        "names": [
+          "probe_flip"
+        ]
+      },
+      {
+        "atMs": 1788035761814,
+        "names": [
+          "probe_hang"
+        ]
+      },
+      {
+        "atMs": 1788035761827,
+        "names": [
+          "probe_extra"
+        ]
+      }
+    ],
+    "toolsRemovedEventCount": 0
+  },
+  "environment": {
+    "origin": "https://webmcp-probe.onrender.com",
+    "originNote": "THE REMOTE ORIGIN, DELIBERATELY. A green localhost run is not evidence in this project: V6-consent-gate is a finding that localhost hid entirely, and the prior V2 reading below was taken on http://localhost:8795.",
+    "chromeVersion": "Google Chrome 152.0.7977.64",
+    "chromeMajor": 152,
+    "chromeBinary": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "flag": "--enable-features=WebMCP",
+    "headless": true,
+    "frameId": "DA9AB12F6A324FE47E6714F525ABFFDF",
+    "cdpDomainEnabled": true,
+    "cdpDomainEnabledNote": "RECORDED AND NEVER ASSERTED ON. WebMCP.enable returns OK with no flag, no tools and no page API at all (FACTS §1 IR-16(b), retracted claim). Nothing in this file branches on it.",
+    "negativeControlNote": "No no-flag arm is run here, because a no-flag launch has no page API and therefore cannot produce a pair at all. The control for THIS pair is internal and stronger: the same document, read twice, differed only across the flip. The flag-vs-no-flag control on Chrome 152 is already MEASURED in evidence/H2-reachability.json and evidence/V0.json.",
+    "method": "cdp",
+    "agentConnected": false,
+    "agentConnectedNote": "No agent was connected to this browser. These are renderer-side readings only, and registerTool returns a Promise resolving to undefined in that condition."
+  },
+  "reproduction": {
+    "note": "The rig is a THROWAWAY and is deliberately NOT in the repo: V2's only declared output is evidence/V2.json, and harness/** was out of scope for this dispatch. The CDP sequence is recorded here so the pair is auditable and re-runnable without it. The launch flags come from tools/chrome.mjs scenario `cdp` (H1), imported and not re-derived, so the run carries a label.",
+    "rigSha256": "726da7736d4fa02b1baaf5fc9e2bf3ce9ede688292da3b3191941c69e5ef9a97",
+    "steps": [
+      "launch: tools/chrome.mjs flagsFor(\"cdp\", {headless:true}) -> --enable-features=WebMCP, fresh --user-data-dir",
+      "Target.createTarget about:blank; Target.attachToTarget {flatten:true}; Page.enable; Runtime.enable",
+      "subscribe to WebMCP.toolsAdded / toolsRemoved / Page.frameNavigated BEFORE navigating — toolsAdded fires at registration time",
+      "WebMCP.enable (recorded, never asserted on)",
+      "Page.navigate to the remote origin; await Page.loadEventFired",
+      "Runtime.evaluate: window.__v2_nonce = \"<random>\"   (the no-reload witness)",
+      "OBSERVE before: (await document.modelContext.getTools()).length and .map(t=>t.name), awaitPromise:true",
+      "WebMCP.invokeTool {frameId, toolName:\"probe_flip\", input:{}} -> {invocationId}; await the MATCHING WebMCP.toolResponded",
+      "await the WebMCP.toolsAdded naming probe_extra (bounded; its absence would itself be the measurement)",
+      "OBSERVE after: same two reads, plus window.__v2_nonce and the navigation count",
+      "gapMs = after.atMs - before.atMs"
+    ]
+  },
+  "confirmingRerun": {
+    "note": "NOT the graded pair. An independent second run of the identical sequence, recorded because a single run of a rig that had already been wrong once is not worth much. It agrees exactly.",
+    "before": {
+      "toolCount": 5,
+      "at": "2026-08-29T20:38:12.245Z"
+    },
+    "after": {
+      "toolCount": 6,
+      "at": "2026-08-29T20:38:12.248Z"
+    },
+    "gapMs": 3,
+    "documentNonceIdentical": true,
+    "navigationsAfterInitialLoad": 0,
+    "probeExtraPushed": true,
+    "pushLatencyMsFromInvokeSend": 1,
+    "flipRoundTrip": true
+  },
+  "builtInBrowserReading": {
+    "note": "TRANSCRIBED from the previous evidence/V2.json, not re-run and not altered. It is the CLIENT layer reading and it is the one that answers the node title literally, since the ChatGPT built-in browser cannot be driven by CDP (HANDOVER §3 rule 8). graph.json R-43 already grades it: a manual reading, decisive enough to steer the design and NOT sufficient to close this node — it carries no before-count and no wall-clock gap, which is exactly what the pair above supplies. No document may cite it as a passed gate.",
+    "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+    "origin": "http://localhost:8795",
+    "chromiumMajor": 151,
+    "method": "probe_flip registered a sixth tool at runtime via registerTool with an AbortController signal; the agent was then asked to list tools again without reloading.",
+    "agentAnswer": "Yes - probe_extra is now available. The page exposes six tools.",
+    "pageState": {
+      "toolsRegistered": 6,
+      "probe_extra": "REGISTERED"
+    },
+    "observedAt": "2026-08-29T07:56:32.695Z",
+    "grade": "MANUAL READING"
+  },
+  "openItems": [
+    "The CLIENT-layer reading has NOT been re-run on the remote origin. It was taken on http://localhost:8795 in Chromium 151, and V6-consent-gate is proof that this client's behaviour differs between localhost and a remote origin. The graded pair above is on the remote origin but is Chrome 152 with no agent attached, so it does not discharge this. Re-reading the tool list in the built-in browser on https://webmcp-probe.onrender.com after a probe_flip is a HUMAN action and would fold naturally into the next attended session; V2 is not listed in graph.json.human_gated, so no such session is currently scheduled. Recorded as open, not closed.",
+    "The built-in browser is Chromium 151 and the graded pair is Chrome 152. Two engines. The gap is recorded, not resolved — the same gap graph.json R-43 already records for the whole V lane."
+  ],
+  "observedAt": "2026-08-29T20:41:42.734Z",
+  "supersedes": "The manual reading previously stored at this path, which is preserved above under builtInBrowserReading. Nothing captured was discarded and no captured value was altered."
 }
