@@ -9,7 +9,61 @@
 
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { extname, join, normalize, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { policyHandler } from "./routes/policy.mjs";
+
+// D-50, PM 2026-08-29: S1's accept never specified a static route, but the
+// graph's own edge contracts always assumed one (S1 -> T2 "there is no
+// server to serve the page under test"; F1 -> D1 "something to serve").
+// Default root is src/page/ — F1's output. Parameterized (not hardcoded) so
+// tests can point it at a fixture without depending on F1 having landed.
+const DEFAULT_PAGE_ROOT = fileURLToPath(new URL("../src/page/", import.meta.url));
+
+const MIME_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+};
+
+function makeStaticHandler(pageRoot) {
+  const root = pageRoot.endsWith(sep) ? pageRoot : pageRoot + sep;
+
+  return async function serveStatic(req, res, url) {
+    if (req.method !== "GET" && req.method !== "HEAD") return false;
+    if (url.pathname.startsWith("/api/")) return false;
+
+    let reqPath;
+    try {
+      reqPath = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+    } catch {
+      return false;
+    }
+    const resolved = normalize(join(root, reqPath));
+    // Traversal guard: the resolved path must stay inside root.
+    if (!resolved.startsWith(root)) return false;
+
+    let info;
+    try {
+      info = await stat(resolved);
+    } catch {
+      return false;
+    }
+    if (!info.isFile()) return false;
+
+    const contentType = MIME_TYPES[extname(resolved).toLowerCase()] ?? "application/octet-stream";
+    res.writeHead(200, { "Content-Type": contentType });
+    res.end(req.method === "HEAD" ? undefined : await readFile(resolved));
+    return true;
+  };
+}
 
 const PERSONAS = {
   chen: Object.freeze({ persona: "chen", role: "employee" }),
@@ -51,8 +105,9 @@ function sendJson(res, status, body) {
  * Kept as a factory (rather than module-level state) so tests can spin up
  * independent servers with independent sessions in the same process.
  */
-export function createApp() {
+export function createApp({ pageRoot = DEFAULT_PAGE_ROOT } = {}) {
   const sessions = new Map(); // sid -> persona id
+  const serveStatic = makeStaticHandler(pageRoot);
 
   function sessionFromRequest(req) {
     const sid = parseCookies(req.headers.cookie).sid;
@@ -92,12 +147,14 @@ export function createApp() {
 
     if (policyHandler(req, res, url)) return;
 
+    if (await serveStatic(req, res, url)) return;
+
     sendJson(res, 404, { error: "E_NOT_FOUND" });
   };
 }
 
-export function createHttpServer() {
-  return createServer(createApp());
+export function createHttpServer(opts) {
+  return createServer(createApp(opts));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
