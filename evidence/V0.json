@@ -1,11 +1,52 @@
 {
-  "question": "navigator.modelContext alias status on the client under test",
-  "verdict": "absent",
-  "chromiumMajor": 151,
-  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
-  "documentPresent": true,
+  "node": "V0",
+  "question": "navigator.modelContext alias status on the INSTALLED Chrome major",
+  "verdict": "alias-absent",
+  "chromeMajor": 152,
+  "flag": "--enable-features=WebMCP",
+  "headless": true,
   "navigatorAlias": false,
-  "method": "page-side feature detection, read off typeof - never off whether a CDP domain enables",
-  "note": "The 150 removal holds. Also MEASURED separately on standalone Chrome 152: navigator.modelContext undefined there too.",
-  "observedAt": "2026-08-29T07:53:18.841Z"
+  "documentPresent": true,
+  "toolCount": 5,
+  "cdpDomainEnabled": true,
+  "invokeToolRoundTrip": true,
+  "method": "cdp",
+  "chromeVersion": "Google Chrome 152.0.7977.64",
+  "chromeBinary": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "origin": "https://webmcp-probe.onrender.com",
+  "observedAt": "2026-08-29T14:46:19.899Z",
+  "rawTypeof": "{\"document\":\"object\",\"navigator\":\"undefined\"}",
+  "unAwaitedGetToolsLength": "undefined",
+  "invokeTool": {
+    "toolName": "probe_status",
+    "invocationId": "509D4689E36D1563FD37A6A70EACDA01",
+    "matched": true,
+    "status": "Completed",
+    "output": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"origin\":\"https://webmcp-probe.onrender.com\",\"modelContextPresent\":true,\"navigatorAliasPresent\":false,\"chromiumMajor\":152,\"toolCount\":5,\"tools\":[\"probe_status\",\"probe_echo\",\"probe_whoami\",\"probe_flip\",\"probe_hang\"],\"registrationError\":null,\"isSecureContext\":true,\"observedAt\":\"2026-08-29T14:46:18.943Z\"}"
+        }
+      ]
+    }
+  },
+  "negativeControl": {
+    "note": "Same binary, same page, no --enable-features. documentPresent:false here is what makes documentPresent:true above a fact about Chrome 152 and not about our command line. cdpDomainEnabled is recorded on BOTH arms on purpose: it reads true with the feature off, which is why nothing asserts on it.",
+    "flag": null,
+    "headless": true,
+    "documentPresent": false,
+    "navigatorAlias": false,
+    "toolCount": 0,
+    "cdpDomainEnabled": true,
+    "rawTypeof": "{\"document\":\"undefined\",\"navigator\":\"undefined\"}"
+  },
+  "notes": [
+    "chromeMajor is parsed from `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --version`, never from a user-agent string.",
+    "Every boolean above was produced by CDP Runtime.evaluate on a live page; the comparison is evaluated IN THE PAGE.",
+    "toolCount is (await document.modelContext.getTools()).length under awaitPromise:true. The un-awaited form is recorded above as unAwaitedGetToolsLength to keep IR-18 visible.",
+    "cdpDomainEnabled is recorded and never asserted on (FACTS §1 IR-16(b), retracted): WebMCP.enable returns OK with no flag, no tools and no page API — see negativeControl.",
+    "invokeToolRoundTrip is the only field that discriminates a live surface from an empty launch: WebMCP.invokeTool + a matching WebMCP.toolResponded carrying status \"Completed\" (FACTS §1 IR-17).",
+    "No agent was connected. These are renderer-side readings only."
+  ]
 }
