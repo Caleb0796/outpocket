@@ -182,6 +182,47 @@ if (has('--skip-accept')) {
 }
 }
 
+// ---- (1b) THE NODE'S DECLARED OUTPUTS EXIST AND ARE NON-EMPTY ------------------
+// D-90, pointed at this gate's own accept clause: a control satisfiable by the subject
+// being ABSENT is not a control. The accept clause checks that a command EXITED 0. It
+// never checked that the node PRODUCED anything.
+//
+// MEASURED 2026-08-30, which is why this exists: `codex exec` EXITS 0 WHEN THE ACCOUNT
+// IS OUT OF CREDITS. A dispatch to C4 reported completed / exit code 0 and produced no
+// file, no commit and no branch. A Codex seat out of credits is indistinguishable BY
+// EXIT CODE from one that succeeded -- the same family as L0's gate (4), where
+// `-p <missing-profile>` also exits 0 and silently falls back to the base config.
+//
+// Checked against git objects rather than a worktree, because the merged worktree the
+// accept may have used is deleted by the time this runs. An output counts as present
+// if it exists on the BRANCH or already on the base -- a node that edits an existing
+// file does not have to create it.
+{
+  const node_ = (JSON.parse(fs.readFileSync('erp/graph.json', 'utf8')).nodes || [])
+    .find((n) => n.id === node);
+  const outs = node_ && Array.isArray(node_.outputs) ? node_.outputs : [];
+  if (!outs.length) {
+    record('outputs', true, `${node} declares no outputs; nothing to verify`);
+  } else {
+    const lines = [];
+    let allOk = true;
+    for (const o of outs) {
+      if (/[*?\[]/.test(o)) { lines.push(`  SKIP     ${o}  (a glob, not a path)`); continue; }
+      let where = null, size = 0;
+      for (const ref of [branch, mainline]) {
+        const r = run('git', ['cat-file', '-s', `${ref}:${o}`]);
+        if (r.status === 0) { where = ref; size = Number((r.stdout || '0').trim()); break; }
+      }
+      if (!where) { allOk = false; lines.push(`  MISSING  ${o}`); }
+      else if (size === 0) { allOk = false; lines.push(`  EMPTY    ${o}  (0 bytes on ${where})`); }
+      else lines.push(`  ok       ${o}  (${size} bytes on ${where})`);
+    }
+    if (!allOk) lines.push('  A NODE THAT DECLARES AN OUTPUT AND DID NOT PRODUCE IT HAS NOT RUN,');
+    if (!allOk) lines.push('  however cleanly its accept command exited.');
+    record('outputs', allOk, lines.join('\n'));
+  }
+}
+
 // ---- (2) Layer-0 lint -------------------------------------------------------------
 const lint = run('node', ['tools/lint-layer0.mjs']);
 record('layer0-lint', lint.status === 0, (lint.stdout + lint.stderr).trim().split('\n').slice(-3).join('\n'));
