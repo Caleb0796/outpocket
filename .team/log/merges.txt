@@ -1273,3 +1273,12 @@ MERGED E8 96ca184 pits:kb/pits/E8.md accept:PASS
 #   PRE-REGISTERED AND BANKABLE: C1 picked list_receipts, not link_receipt. The key
 #   said before the run that link_receipt would be the most important result in the
 #   whole run. Seven of eight inside the frozen accepted set.
+#   E8 ARTIFACT HASHES, recorded because I verified byte-identity through the merge
+#   round trip and then did not write the hashes down -- the artifact was verified
+#   and the VERIFICATION was not repeatable by anyone else. QA re-derived both from
+#   a fresh clone of origin/main and they match exactly:
+#     2b4749ea28fbca1821f83c85bb24f1fa835336b633f257e774bbfe41b81b72f0  evals/blind/C1-verdict.json
+#     cf0271e686fbabac74ecd931e412e445a314441944581675a17b2441e09bcb27  evals/blind/C1-transcript.jsonl
+#   This is a one-shot instrument that cannot be re-run (L2: re-firing would be
+#   re-rolling after seeing the number, EVAL.md 8.5). Anyone can now re-derive the
+#   check without asking L1.
