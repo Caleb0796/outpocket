@@ -993,6 +993,76 @@ async function modeGate({ headless }) {
 // de-registration path there is. It is a string in this file rather than a file on disk for
 // the same reason FIXTURE_HTML is: a seat writes only what it declared.
 
+// EXISTENCE IS NOT EXECUTION. A file on disk and a module the page evaluated are
+// different facts, and today the repo produced two page modules that were green on
+// the first and absent on the second. This asks the PAGE, in two independent ways:
+// the module's own global (proof it evaluated) and whether the served document even
+// references the file (proof of intent). A module can be referenced and still fail
+// to evaluate, so "referenced but no global" is reported as its own outcome rather
+// than folded into either neighbour.
+const MODULE_GLOBALS = {
+  'fallback-agent.js': 'outpocketFallbackAgent',
+  'register.js': 'outpocketTools',
+};
+
+async function pageMountsModule(cdp, sessionId, origin, producerFile) {
+  const base = producerFile.split('/').pop();
+  const globalName = MODULE_GLOBALS[base] ?? null;
+  if (globalName) {
+    const r = await evalInPage(cdp, sessionId, `typeof globalThis[${JSON.stringify(globalName)}]`);
+    if (r.ok && r.value !== 'undefined') {
+      return { loaded: true, how: `globalThis.${globalName} is present in the page` };
+    }
+  }
+  let html = '';
+  try { html = await (await fetch(origin)).text(); } catch { /* reported as unmounted below */ }
+
+  // A SCRIPT TAG, not a substring. index.html carries a comment table naming
+  // every page module and its owning node, so `html.includes('fallback-agent.js')`
+  // is true on a page that never loads it — a grep hit reported as a mount. The
+  // first version of this check did exactly that and printed a message that
+  // contradicted its own next sentence.
+  const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const scriptTag = new RegExp(`<script\\b[^>]*\\bsrc\\s*=\\s*["'][^"']*${esc}["']`, 'i');
+  const mountedInHtml = scriptTag.test(html);
+  // Comment-only mentions are worth telling apart from silence: they mean the
+  // page KNOWS about the module and still does not load it.
+  const mentionedOnly = !mountedInHtml && html.includes(base);
+
+  return {
+    loaded: false,
+    how: mountedInHtml
+      ? `the served document has a <script src> for ${base}, but globalThis.${globalName} is ` +
+        'undefined — so the module was requested and failed to evaluate (a 404, or it threw on load)'
+      : mentionedOnly
+        ? `the served document mentions ${base} only in a comment — there is no <script src> for it`
+        : `the served document does not reference ${base} at all`,
+    mountedInHtml,
+  };
+}
+
+// --inject-fallback: append the module from the harness, for a page that does not
+// mount it yet. THIS IS NOT THE ACCEPT AND MUST NEVER BE TREATED AS ONE — H3's
+// predicate is the bare `--fallback --scenario happy`, against the page as a judge
+// would load it. This mode exists so the module can be proven correct while the
+// one-line mount is in another seat's file, and every run of it says so.
+async function injectFallbackModule(cdp, sessionId) {
+  const r = await evalInPage(cdp, sessionId, `(async () => {
+    if (globalThis.outpocketFallbackAgent) return { already: true };
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = './fallback-agent.js';
+    const done = new Promise((res) => { s.onload = () => res(null); s.onerror = () => res('load failed'); });
+    document.head.appendChild(s);
+    const err = await done;
+    return { already: false, err, global: typeof globalThis.outpocketFallbackAgent,
+             installed: globalThis.outpocketFallbackAgent?.installResult ?? null };
+  })()`, true);
+  if (!r.ok) return { ok: false, why: r.error };
+  if (r.value?.err) return { ok: false, why: `<script src="./fallback-agent.js"> ${r.value.err}` };
+  return { ok: true, ...r.value };
+}
+
 const SUBMIT = 'submit_expense_report';
 const EMPLOYEE = 'chen'; // the employee persona; server/personas.json owns the enum, not this file
 
@@ -1381,7 +1451,7 @@ sync();
 
 // ---- the modes ---------------------------------------------------------------------------
 
-async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenarioName }) {
+async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenarioName, injectFallback }) {
   const { MEMBERSHIP } = await import(resolve(REPO, 'src', 'page', 'tools', 'compile.js'));
   const { LIMITS } = await import(resolve(REPO, 'src', 'policy.js'));
 
@@ -1411,7 +1481,34 @@ async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenari
         `in --fallback: run --fallback --selftest to exercise this mode today.\n`);
       return 1;
     }
+    // THE SCENARIO FILE IS READ, NOT MERELY OPENED. A file whose only job is to
+    // exist is a check that discovered nothing; these numbers have to be able to
+    // be WRONG. Each walk row is cross-checked against MEMBERSHIP in the frozen
+    // contract, and a mismatch fails here rather than surfacing four steps later
+    // as a mysterious count error.
     process.stderr.write(`drive: --scenario ${scenarioName} <- ${f}\n`);
+    let scen = null;
+    try { scen = JSON.parse(readFileSync(f, 'utf8')); }
+    catch (e) { process.stderr.write(`drive: ${f} is not valid JSON — ${e.message}\n`); return 1; }
+    if (!Array.isArray(scen.walk) || scen.walk.length !== WALK.length) {
+      process.stderr.write(`drive: ${f} needs a \`walk\` array of ${WALK.length} rows, one per step ` +
+        `(got ${Array.isArray(scen.walk) ? scen.walk.length : typeof scen.walk}).\n`);
+      return 1;
+    }
+    const bad = [];
+    scen.walk.forEach((row, i) => {
+      const want = MEMBERSHIP[WALK[i].state]?.length;
+      if (row.state !== WALK[i].state) bad.push(`row ${i}: state ${JSON.stringify(row.state)} != ${WALK[i].state}`);
+      else if (row.count !== want) bad.push(`row ${i} (${row.state}): scenario says ${row.count}, the frozen contract says ${want}`);
+    });
+    if (bad.length) {
+      process.stderr.write(`drive: ${f} disagrees with MEMBERSHIP in src/page/tools/compile.js:\n` +
+        bad.map((b) => `drive:   ${b}\n`).join('') +
+        'drive: the contract is the authority — fix the scenario, not the contract.\n');
+      return 1;
+    }
+    process.stderr.write(`drive: scenario walk cross-checked against the frozen contract: ` +
+      `${scen.walk.map((r) => `${r.state}=${r.count}`).join(' -> ')}\n`);
   }
 
   // --assert-flips is specified over --enable-features=WebMCP; --fallback over
@@ -1449,6 +1546,22 @@ async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenari
     }
 
     const { sessionId, surface, frameId } = await openPage(b, origin);
+
+    // NOT THE ACCEPT. Said on every run, loudly, because a green injected run and
+    // a green mounted run must never be confusable — the whole point of H3 is that
+    // a judge loading the page gets the fallback, and injection proves only that
+    // the module works, not that the page has it.
+    if (injectFallback && fallback && !selftest) {
+      const inj = await injectFallbackModule(b.cdp, sessionId);
+      process.stderr.write(inj.ok
+        ? `drive: *** --inject-fallback: src/page/fallback-agent.js was appended BY THE HARNESS ` +
+          `(${inj.already ? 'the page had already loaded it' : 'the page had not loaded it'}). ` +
+          `THIS IS NOT H3's ACCEPT. The accept is the bare --fallback --scenario happy against the ` +
+          `page as a judge loads it; that stays red until src/page/index.html mounts the module. ***\n`
+        : `drive: --inject-fallback failed: ${inj.why}\n`);
+      if (!inj.ok) return 1;
+    }
+
     const call = fallback ? pageChannel(b.cdp, sessionId) : cdpChannel(b.cdp, sessionId, frameId);
 
     // NAME THE ORDERING FACT IN THE ERROR TEXT. --smoke-login's own failure message is what let
@@ -1473,8 +1586,25 @@ async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenari
             `DOES NOT EXIST YET. That is an ordering fact, not a defect in ` +
             `${fallback ? '--fallback' : '--assert-flips'}: run it with --selftest to exercise ` +
             `this mode against the frozen per-state membership today.\n`
-          : `drive: ${producer.file} (node ${producer.node}) EXISTS, so this is not the ordering ` +
-            `fact — the page loaded it and still registered nothing. That is a real failure.\n`));
+          : `drive: ${producer.file} (node ${producer.node}) EXISTS on disk.\n`));
+
+      // EXISTENCE IS NOT EXECUTION, and the previous version of this message
+      // conflated them: it said "the page loaded it and still registered
+      // nothing" on the strength of an existsSync, which is exactly the defect
+      // that let two page modules merge green today without ever being
+      // evaluated by the page. Ask the PAGE which modules it actually pulled.
+      if (!missing) {
+        const mounted = await pageMountsModule(b.cdp, sessionId, origin, producer.file);
+        process.stderr.write(mounted.loaded
+          ? `drive: and the page DID load it (${mounted.how}) — so it evaluated and still produced no ` +
+            `surface. That is a real failure in ${producer.file}.\n`
+          : `drive: but the page NEVER LOADED IT — ${mounted.how}. src/page/index.html has no ` +
+            `<script type="module" src="./${producer.file.split('/').pop()}"> tag, so the module is an ` +
+            `ORPHAN: correct on disk, never evaluated in the page. index.html is node F1's output and ` +
+            `not this seat's to edit, so this is one line from F1/UX, not a defect in ${producer.file}. ` +
+            `Run with --inject-fallback to prove the module works before that line lands — that mode ` +
+            `is deliberately NOT the accept.\n`);
+      }
       return 1;
     }
 
@@ -1524,6 +1654,7 @@ function parseArgv(argv) {
     else if (a === '--fallback') out.fallback = true;
     else if (a === '--scenario') out.scenarioName = argv[++i];
     else if (a === '--selftest') out.selftest = true;
+    else if (a === '--inject-fallback') out.injectFallback = true;
     else if (a === '--headed') out.headless = false;
     else if (a === '--headless') out.headless = true;
     else throw new Error(`unknown argument ${a}`);
