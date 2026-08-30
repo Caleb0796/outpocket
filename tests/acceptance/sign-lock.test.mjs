@@ -270,12 +270,18 @@ test("revision is carried in the sign request from the server's own counter, not
 });
 
 // ── the atomic pairing, under genuine concurrency ────────────────────────
+// S2 (server/authz.mjs) now gates POST /api/sign to `employee` sessions
+// only, so this race is between two INDEPENDENT chen sessions (two logins,
+// two cookies, same persona) rather than chen-vs-ruiz — an auditor session
+// racing this endpoint gets 403 deterministically now, which is S2's own
+// property, not this node's. What S12 owns and this test still proves is
+// unchanged: two sessions that are BOTH authorized never both win the lock.
 test("two concurrent opens for the SAME report_id never both win, and the loser leaves no residual lock", async () => {
   const gate = createSignGate({ ttlMs: 30_000 });
   await withApp(gate, async (base) => {
     const reportId = freshReportId();
     const cookieA = await login(base, "chen");
-    const cookieB = await login(base, "ruiz");
+    const cookieB = await login(base, "chen");
 
     const [a, b] = await Promise.all([
       postJson(base, "/api/sign", cookieA, openBody(reportId)),
