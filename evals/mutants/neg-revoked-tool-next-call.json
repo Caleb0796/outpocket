@@ -1,0 +1,14 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-revoked-tool-next-call",
+  "brokenBy": "keep submit_expense_report registered after the clean-to-dirty transition",
+  "operation": {
+    "kind": "expose_tools",
+    "tools": [
+      {
+        "state_id": "S3-emp-draft-dirty",
+        "tool": "submit_expense_report"
+      }
+    ]
+  }
+}

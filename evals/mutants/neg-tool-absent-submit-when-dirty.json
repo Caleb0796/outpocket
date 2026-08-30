@@ -1,0 +1,22 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-tool-absent-submit-when-dirty",
+  "brokenBy": "expose submit_expense_report outside the clean-draft surface",
+  "operation": {
+    "kind": "expose_tools",
+    "tools": [
+      {
+        "state_id": "S1-emp-home",
+        "tool": "update_expense_line"
+      },
+      {
+        "state_id": "S3-emp-draft-dirty",
+        "tool": "submit_expense_report"
+      },
+      {
+        "state_id": "S4-emp-submitted",
+        "tool": "update_expense_line"
+      }
+    ]
+  }
+}

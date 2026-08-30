@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-auditor-write",
+  "brokenBy": "make server/authz.mjs fall through for the auditor role",
+  "operation": {
+    "kind": "permit_response",
+    "status": 201
+  }
+}

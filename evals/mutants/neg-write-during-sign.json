@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-write-during-sign",
+  "brokenBy": "remove the report mutation lock while a sign request is open",
+  "operation": {
+    "kind": "permit_response",
+    "status": 200
+  }
+}

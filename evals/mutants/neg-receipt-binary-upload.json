@@ -1,0 +1,11 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-receipt-binary-upload",
+  "brokenBy": "add a file, data, base64, contentEncoding, or format byte field to a registered tool input schema",
+  "operation": {
+    "kind": "add_binary_input",
+    "state_id": "S0-anon",
+    "tool": "get_signin_status",
+    "property": "file"
+  }
+}

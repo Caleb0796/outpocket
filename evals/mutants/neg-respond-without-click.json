@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-respond-without-click",
+  "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond",
+  "operation": {
+    "kind": "permit_response",
+    "status": 200
+  }
+}

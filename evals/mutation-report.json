@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "baseline": "refused",
+      "brokenBy": "let commit accept a sign request still in state open",
+      "id": "neg-commit-without-human",
+      "provingNode": "S5",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-commit-without-human.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond",
+      "id": "neg-respond-without-click",
+      "provingNode": "S5",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-respond-without-click.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "make server/authz.mjs fall through for the auditor role",
+      "id": "neg-auditor-write",
+      "provingNode": "S2",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-auditor-write.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "skip server-side re-canonicalisation and compare the stored digest to itself",
+      "id": "neg-post-signature-tamper",
+      "provingNode": "S6",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-post-signature-tamper.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "remove the report mutation lock while a sign request is open",
+      "id": "neg-write-during-sign",
+      "provingNode": "S12",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-write-during-sign.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "keep submit_expense_report registered after the clean-to-dirty transition",
+      "id": "neg-revoked-tool-next-call",
+      "provingNode": "T2",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-revoked-tool-next-call.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "expose submit_expense_report outside the clean-draft surface",
+      "id": "neg-tool-absent-submit-when-dirty",
+      "provingNode": "T2",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-tool-absent-submit-when-dirty.json"
+    },
+    {
+      "baseline": "passed",
+      "brokenBy": "drop violation_history from the committed artifact contract",
+      "id": "neg-cap-split-visible",
+      "provingNode": "S4",
+      "flipped": null,
+      "mutant": "not-applicable",
+      "mutant_file": null
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "add a file, data, base64, contentEncoding, or format byte field to a registered tool input schema",
+      "id": "neg-receipt-binary-upload",
+      "provingNode": "F3",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-receipt-binary-upload.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "drop policy_digest from the signed snapshot projection or stop comparing it with the current served policy digest",
+      "id": "neg-policy-content-swap",
+      "provingNode": "S5",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-policy-content-swap.json"
+    },
+    {
+      "baseline": "refused",
+      "brokenBy": "remove the one-shot guard on /respond so a second answer overwrites the first",
+      "id": "neg-decline-to-unlock",
+      "provingNode": "S5",
+      "flipped": true,
+      "mutant": "permitted",
+      "mutant_file": "evals/mutants/neg-decline-to-unlock.json"
+    }
+  ],
+  "declared_case_count": 11,
+  "flipped_count": 10,
+  "must_fail_count": 10,
+  "row_count": 11,
+  "schema": "outpocket.mutation_report/1",
+  "suite": "negative"
+}
