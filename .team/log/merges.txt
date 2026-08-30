@@ -1088,3 +1088,14 @@ MERGED E2  f31e3ba pits:kb/pits/E2.md accept:PASS (verified by hand — the gate
 #   would only check my copy against my copy".
 #   The crossover cost C4 investigation time as well: exported S2-emp-draft-clean is the
 #   compiler's internal S3. Four documents and a seat now. D-99 exists for this.
+
+FOLLOWUP D-94-beats a338a5a pits:kb/pits/D-94-beats.md accept:N/A (a ruling, not a node)
+#   All three off-page beats ENOUGH IF; F6 unblocks on DOCUMENTS ALONE, zero code.
+#   THE TWO MECHANISM FINDINGS OUTRANK THE VERDICT: the SURFACE column appended as a
+#   7th field is matched by NO group and SILENTLY IGNORED, so D-94 would have landed as
+#   DECORATION and three miscategorised shots could then go GREEN. And SB-07 is a FOURTH
+#   miscategorisation, green today, that would have stayed green after the ruling landed.
+#   A SEAT DISCOVERING THAT THE RULING IT WAS HANDED WOULD NOT HAVE WORKED, BEFORE
+#   EXECUTING IT -- found by running the parser regex of a node it was not reviewing.
+#   SB-04 needs a REWRITE not a relabel: the surface compiles from (role x report-state x
+#   verdict) and POLICY IS NOT AN AXIS, so an absent tool refuses nothing.
