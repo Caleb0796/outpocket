@@ -36,14 +36,15 @@
     "F3",
     "S12",
     "V6",
-    "H3"
+    "H3",
+    "T5"
   ],
   "in_flight": {
-    "H6": "next on the critical path \u2014 H3 is done.",
     "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide.",
     "V4": "I1 \u2014 parked at c98016f; D-73 amended its accept, run 2 not taken with the reason recorded.",
-    "pit debts": "H5 G2 T4 S5 T2 S12 H3 \u2014 five-field reports; H5 is evidenced-unrecoverable and stays PENDING.",
-    "D6 prep": "QA \u2014 runs LAST, against the final public state."
+    "pit debts": "H5 G2 T4 S5 T2 S12 T5 \u2014 five-field reports; H5 is evidenced-unrecoverable and stays PENDING.",
+    "D6 prep": "QA \u2014 runs LAST, against the final public state.",
+    "H4": "I1 \u2014 dispatched, head of the critical path; H6 unblocks on it."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
