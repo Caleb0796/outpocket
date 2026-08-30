@@ -154,11 +154,24 @@ function sendJson(res, status, body) {
  * Kept as a factory (rather than module-level state) so tests can spin up
  * independent servers with independent sessions in the same process.
  */
-export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignGate() } = {}) {
+export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSignGate } = {}) {
   const sessions = new Map(); // sid -> persona id
   const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
   const stateDigestHandler = createStateDigestHandler(() => state);
   const serveStatic = makeStaticHandler(pageRoot);
+
+  function findReport(reportId) {
+    return state.reports.find((r) => r.id === reportId) ?? null;
+  }
+
+  // S6: the default signGate is wired to THIS app's own live report store,
+  // so re-canonicalisation-on-commit is real for any report a real write
+  // route created. A caller that constructs its own signGate (every
+  // existing sign-state/sign-lock test does, with synthetic report_ids and
+  // no S2 store behind them) gets that instance's own getLiveReport instead
+  // — createSignGate()'s own default (`() => null`) if it didn't set one,
+  // which is exactly the pre-S6 behaviour those tests were written against.
+  const signGate = providedSignGate ?? createSignGate({ getLiveReport: findReport });
 
   function sessionFromRequest(req) {
     const sid = parseCookies(req.headers.cookie).sid;
@@ -168,7 +181,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
   }
 
   function sendSignError(res, err) {
-    if (err instanceof SignError) return sendJson(res, err.http, { error: err.code, message: err.message });
+    if (err instanceof SignError) return sendJson(res, err.http, { error: err.code, message: err.message, ...err.detail });
     throw err;
   }
 
@@ -198,9 +211,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
   // via src/policy.js) is deliberately not reimplemented here — that is a
   // separate, deeper node's job. Every mutation below is honest but small:
   // a real in-memory state change, an id you can read back, nothing more.
-  function findReport(reportId) {
-    return state.reports.find((r) => r.id === reportId) ?? null;
-  }
+  // (findReport is defined above, shared with S6's getLiveReport wiring.)
   function findLine(report, lineId) {
     return report?.lines.find((l) => l.id === lineId) ?? null;
   }
@@ -339,7 +350,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
             http_status: err.http,
             confirmation: null,
             committed_revision: null,
-            error: { code: err.code, message: err.message },
+            error: { code: err.code, message: err.message, ...err.detail },
           });
         }
       }
