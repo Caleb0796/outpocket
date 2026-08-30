@@ -1,0 +1,80 @@
+{
+  "schema": "blind.answer_key/1",
+  "_README": [
+    "The pre-registered answer key for the blind run. Held by L2. NEVER SHOWN TO C1 and never copied into the packet — evals/blind/make-blind-packet.mjs asserts both.",
+    "WHAT THIS IS FOR, AND THE SENTENCE THAT KEEPS IT HONEST: a mismatch between C1's firstTool and `expect` is A FINDING ABOUT OUR DESCRIPTIONS, NOT A MARK AGAINST C1. C1 is the instrument, not the subject. If C1 picks a different tool, the surface let it.",
+    "`mismatchMeans` is pre-registered for the same reason the expectation is. Writing down in advance what a miss would TELL us is what stops us reading a bad result as a quirk of the grader after we have seen it. EVAL.md 8.5 already forbids quietly re-rolling until we like the number; this forbids quietly re-interpreting.",
+    "BOUND TO ONE SURFACE. `export_app_commit` and `export_policy_digest` are the export this key was registered against. If the export moves, this key is stale and must be re-registered BEFORE the next run, never adjusted after seeing a verdict."
+  ],
+  "frozen_at": "2026-08-29",
+  "frozen_by": "L2",
+  "export_app_commit": "5ba890a73a81cac617b0e778f0fd5d65a74b00c5",
+  "export_policy_version": "2026-08.1",
+  "export_policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+  "tasks": [
+    {
+      "task": "T1",
+      "state": "S0-anon",
+      "expect": "get_signin_status",
+      "alsoAcceptable": [],
+      "why": "Signed out, two tools registered, and only one of them answers the question asked. This is the easiest task in the set on purpose: it is the control. If C1 misses T1 the packet or the run is broken, not the surface.",
+      "mismatchMeans": "Something is wrong with the run itself, not with our descriptions. Check the packet and the transcript before reading anything else in the verdict."
+    },
+    {
+      "task": "T2",
+      "state": "S1-emp-home",
+      "expect": "create_expense_report",
+      "alsoAcceptable": ["list_expense_reports"],
+      "why": "No report is open. `create_expense_report` is the only tool that makes one. `list_expense_reports` is accepted as a read-first move — checking whether a Lyon report already exists is defensible, not a misread.",
+      "mismatchMeans": "If C1 picks `open_expense_report`, our two descriptions do not distinguish making a report from opening an existing one, and that pair should appear in R1's ambiguousWith."
+    },
+    {
+      "task": "T3",
+      "state": "S2-emp-draft-clean",
+      "expect": "add_expense_line",
+      "alsoAcceptable": [],
+      "why": "A draft is open and a new line is being described. The one unambiguous write in the set.",
+      "mismatchMeans": "If C1 picks `update_expense_line`, add and update are not separable from their descriptions. That is a direct R1 finding and the single most likely confusable pair on this surface."
+    },
+    {
+      "task": "T4",
+      "state": "S2-emp-draft-clean",
+      "expect": "",
+      "alsoAcceptable": ["list_receipts", "explain_missing_tool"],
+      "why": "DELIBERATELY IMPOSSIBLE. No registered tool takes a file-shaped argument, so an agent cannot deliver a photo; it may only link a receipt id that already exists. The expected answer is that nothing fits, with wouldAskHuman true. `list_receipts` is accepted (checking whether it is already uploaded) and so is asking the absence register.",
+      "mismatchMeans": "IF C1 PICKS `link_receipt`, THAT IS THE MOST IMPORTANT RESULT IN THE WHOLE RUN. It would mean our description let a competent agent believe it could put a photo into the system, when the asymmetry between the human upload channel and the agent link-by-id channel is a thing we claim as a feature. Treat it as a defect in the description, fix the description, and say so in the report."
+    },
+    {
+      "task": "T5",
+      "state": "S3-emp-draft-dirty",
+      "expect": "validate_expense_report",
+      "alsoAcceptable": ["get_open_report", "explain_missing_tool"],
+      "why": "The draft is dirty and the question is what is wrong and how to clear it. Validation returns the violation envelope, which carries both the complaint and its fix.",
+      "mismatchMeans": "If C1 cannot tell which tool reports a problem, R3 (failure legibility) is the dimension to read, and the surface does not say where a refusal or a violation is discoverable."
+    },
+    {
+      "task": "T6",
+      "state": "S2-emp-draft-clean",
+      "expect": "submit_expense_report",
+      "alsoAcceptable": ["validate_expense_report"],
+      "why": "Clean draft, so submit is registered. Validating first is accepted — a cautious agent re-checking before a one-way action is behaving well, not misreading.",
+      "mismatchMeans": "If C1 reports it could not find a way to submit while in the CLEAN state, the submit description does not identify itself as the terminal action of the workflow."
+    },
+    {
+      "task": "T7",
+      "state": "S3-emp-draft-dirty",
+      "expect": "explain_missing_tool",
+      "alsoAcceptable": ["validate_expense_report"],
+      "why": "THIS TASK IS THE WHOLE REASON THE ABSENCE REGISTER EXISTS. The draft is dirty, so `submit_expense_report` is not registered, and the agent is asked directly why it cannot see it. A surface that answers this scores 2 on R4; one that cannot scores 0.",
+      "mismatchMeans": "If C1 reports no signal at all — firstTool empty, no missingInfo naming a way to ask — then the absence register is not discoverable from its own description, and node T3 bought nothing a blind agent can reach. That is a finding about `explain_missing_tool`'s own description and nothing else."
+    },
+    {
+      "task": "T8",
+      "state": "S5-aud",
+      "expect": "explain_missing_tool",
+      "alsoAcceptable": [""],
+      "why": "The auditor session registers no write tools at all, so `add_expense_line` is simply not there. Either answer shows the absence was legible: asking the register is the better one, reporting that nothing fits is honest. The empty string is accepted rather than treated as a failure.",
+      "mismatchMeans": "If C1 names ANY write tool here it is reporting a tool that is not in the state's list, which means the export was misread or the states are not distinguishable from their preconditions — a packet problem, not a description problem. If C1 instead reports it could not tell WHY the tool was absent, that is R4 again, from the role direction rather than the verdict direction."
+    }
+  ]
+}
