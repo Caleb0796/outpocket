@@ -1,0 +1,977 @@
+{
+  "app_commit": "3a3f11207ac42ed66c4a072e81ba0594be0ecf20",
+  "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+  "policy_version": "2026-08.1",
+  "schema": "outpocket.tool_export/1",
+  "states": [
+    {
+      "accounting": {
+        "description_bytes": 266,
+        "estimated_tokens": 79,
+        "schema_bytes": 33,
+        "tool_count": 1,
+        "total_bytes": 316
+      },
+      "label": "Nobody is signed in",
+      "preconditions": {
+        "open_report": "none",
+        "role": "none",
+        "verdict": "n_a"
+      },
+      "state_id": "S0-anon",
+      "surface_digest": "sha256:6d7df5d241b26b80aaee6f3bd7c228a5c4a87e603799347285a5c44231ce3233",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read whether an employee is signed in to Countinghouse, Meridian Fabrication's expense desk. Sign-in is the employee's own act, done in the page via company SSO — agents never see or present credentials. Returns the current sign-in state and what this page is for.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_signin_status"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "description_bytes": 1051,
+        "estimated_tokens": 405,
+        "schema_bytes": 474,
+        "tool_count": 5,
+        "total_bytes": 1620
+      },
+      "label": "Employee signed in, no report open",
+      "preconditions": {
+        "open_report": "none",
+        "role": "employee",
+        "verdict": "n_a"
+      },
+      "state_id": "S1-emp-home",
+      "surface_digest": "sha256:2c92d2afd19d748d47dbfcc235eff66ccad26fd808b66b3397d72364049a94fd",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_session_scope"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_expense_policy"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_expense_reports"
+        },
+        {
+          "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "project": {
+                "description": "Project code from the employee's scope, e.g. FALCON",
+                "type": "string"
+              },
+              "title": {
+                "description": "Short human-readable title, e.g. 'Boston client workshop'",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "project"
+            ],
+            "type": "object"
+          },
+          "name": "create_expense_report"
+        },
+        {
+          "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
+          "inputSchema": {
+            "properties": {
+              "report_id": {
+                "description": "e.g. RP-1018",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id"
+            ],
+            "type": "object"
+          },
+          "name": "open_expense_report"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "description_bytes": 2668,
+        "estimated_tokens": 1478,
+        "schema_bytes": 3008,
+        "tool_count": 13,
+        "total_bytes": 5909
+      },
+      "label": "Employee with a clean draft open; the report can be submitted",
+      "preconditions": {
+        "open_report": "draft",
+        "role": "employee",
+        "verdict": "clean"
+      },
+      "state_id": "S2-emp-draft-clean",
+      "surface_digest": "sha256:337f3cdf0d252bb0229f1ad16707fd57a33ca17578fea7a79e33002457ed8806",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_session_scope"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_expense_policy"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_expense_reports"
+        },
+        {
+          "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "project": {
+                "description": "Project code from the employee's scope, e.g. FALCON",
+                "type": "string"
+              },
+              "title": {
+                "description": "Short human-readable title, e.g. 'Boston client workshop'",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "project"
+            ],
+            "type": "object"
+          },
+          "name": "create_expense_report"
+        },
+        {
+          "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
+          "inputSchema": {
+            "properties": {
+              "report_id": {
+                "description": "e.g. RP-1018",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id"
+            ],
+            "type": "object"
+          },
+          "name": "open_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_open_report"
+        },
+        {
+          "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
+          "inputSchema": {
+            "properties": {
+              "amount": {
+                "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "type": "number"
+              },
+              "attendees": {
+                "description": "Meals: number of people on the receipt",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "category": {
+                "enum": [
+                  "meals",
+                  "lodging",
+                  "transport",
+                  "airfare",
+                  "supplies",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "currency": {
+                "description": "Defaults to USD",
+                "enum": [
+                  "USD",
+                  "EUR",
+                  "GBP",
+                  "CNY",
+                  "JPY"
+                ],
+                "type": "string"
+              },
+              "date": {
+                "description": "Receipt date, YYYY-MM-DD",
+                "type": "string"
+              },
+              "description": {
+                "description": "One-line business purpose",
+                "type": "string"
+              },
+              "itemization": {
+                "description": "Line items transcribed from the receipt: [{label, amount}]. Required for meals ≥ $75.",
+                "items": {
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "amount"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "merchant": {
+                "description": "Merchant name as printed on the receipt",
+                "type": "string"
+              },
+              "nights": {
+                "description": "Lodging: number of nights on the folio",
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "date",
+              "merchant",
+              "category",
+              "amount"
+            ],
+            "type": "object"
+          },
+          "name": "add_expense_line"
+        },
+        {
+          "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
+          "inputSchema": {
+            "properties": {
+              "amount": {
+                "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "type": "number"
+              },
+              "attendees": {
+                "description": "Meals: number of people on the receipt",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "category": {
+                "enum": [
+                  "meals",
+                  "lodging",
+                  "transport",
+                  "airfare",
+                  "supplies",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "currency": {
+                "description": "Defaults to USD",
+                "enum": [
+                  "USD",
+                  "EUR",
+                  "GBP",
+                  "CNY",
+                  "JPY"
+                ],
+                "type": "string"
+              },
+              "date": {
+                "description": "Receipt date, YYYY-MM-DD",
+                "type": "string"
+              },
+              "description": {
+                "description": "One-line business purpose",
+                "type": "string"
+              },
+              "itemization": {
+                "description": "Line items transcribed from the receipt: [{label, amount}]. Required for meals ≥ $75.",
+                "items": {
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "amount"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "line_id": {
+                "description": "e.g. ln_3",
+                "type": "string"
+              },
+              "merchant": {
+                "description": "Merchant name as printed on the receipt",
+                "type": "string"
+              },
+              "nights": {
+                "description": "Lodging: number of nights on the folio",
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "line_id"
+            ],
+            "type": "object"
+          },
+          "name": "update_expense_line"
+        },
+        {
+          "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
+          "inputSchema": {
+            "properties": {
+              "line_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "line_id"
+            ],
+            "type": "object"
+          },
+          "name": "remove_expense_line"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_receipts"
+        },
+        {
+          "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "line_id": {
+                "type": "string"
+              },
+              "receipt_id": {
+                "description": "From list_receipts, e.g. rc_2",
+                "type": "string"
+              }
+            },
+            "required": [
+              "line_id",
+              "receipt_id"
+            ],
+            "type": "object"
+          },
+          "name": "link_receipt"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "validate_expense_report"
+        },
+        {
+          "description": "Submit the open expense report to the approver. This suspends while the employee reviews the report next to the attached receipt images and signs it in the page; it returns the signed confirmation, or the employee's reason for sending it back. Submission is the employee's act — this tool only requests it.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "submit_expense_report"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "description_bytes": 2360,
+        "estimated_tokens": 1387,
+        "schema_bytes": 2975,
+        "tool_count": 12,
+        "total_bytes": 5547
+      },
+      "label": "Employee with a draft that carries a blocking violation",
+      "preconditions": {
+        "open_report": "draft",
+        "role": "employee",
+        "verdict": "dirty"
+      },
+      "state_id": "S3-emp-draft-dirty",
+      "surface_digest": "sha256:14efa107ffffc14fea890ecb89bf6565043810e5e8671d13578c1ba850adbb23",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_session_scope"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_expense_policy"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_expense_reports"
+        },
+        {
+          "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "project": {
+                "description": "Project code from the employee's scope, e.g. FALCON",
+                "type": "string"
+              },
+              "title": {
+                "description": "Short human-readable title, e.g. 'Boston client workshop'",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "project"
+            ],
+            "type": "object"
+          },
+          "name": "create_expense_report"
+        },
+        {
+          "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
+          "inputSchema": {
+            "properties": {
+              "report_id": {
+                "description": "e.g. RP-1018",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id"
+            ],
+            "type": "object"
+          },
+          "name": "open_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_open_report"
+        },
+        {
+          "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
+          "inputSchema": {
+            "properties": {
+              "amount": {
+                "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "type": "number"
+              },
+              "attendees": {
+                "description": "Meals: number of people on the receipt",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "category": {
+                "enum": [
+                  "meals",
+                  "lodging",
+                  "transport",
+                  "airfare",
+                  "supplies",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "currency": {
+                "description": "Defaults to USD",
+                "enum": [
+                  "USD",
+                  "EUR",
+                  "GBP",
+                  "CNY",
+                  "JPY"
+                ],
+                "type": "string"
+              },
+              "date": {
+                "description": "Receipt date, YYYY-MM-DD",
+                "type": "string"
+              },
+              "description": {
+                "description": "One-line business purpose",
+                "type": "string"
+              },
+              "itemization": {
+                "description": "Line items transcribed from the receipt: [{label, amount}]. Required for meals ≥ $75.",
+                "items": {
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "amount"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "merchant": {
+                "description": "Merchant name as printed on the receipt",
+                "type": "string"
+              },
+              "nights": {
+                "description": "Lodging: number of nights on the folio",
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "date",
+              "merchant",
+              "category",
+              "amount"
+            ],
+            "type": "object"
+          },
+          "name": "add_expense_line"
+        },
+        {
+          "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
+          "inputSchema": {
+            "properties": {
+              "amount": {
+                "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "type": "number"
+              },
+              "attendees": {
+                "description": "Meals: number of people on the receipt",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "category": {
+                "enum": [
+                  "meals",
+                  "lodging",
+                  "transport",
+                  "airfare",
+                  "supplies",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "currency": {
+                "description": "Defaults to USD",
+                "enum": [
+                  "USD",
+                  "EUR",
+                  "GBP",
+                  "CNY",
+                  "JPY"
+                ],
+                "type": "string"
+              },
+              "date": {
+                "description": "Receipt date, YYYY-MM-DD",
+                "type": "string"
+              },
+              "description": {
+                "description": "One-line business purpose",
+                "type": "string"
+              },
+              "itemization": {
+                "description": "Line items transcribed from the receipt: [{label, amount}]. Required for meals ≥ $75.",
+                "items": {
+                  "properties": {
+                    "amount": {
+                      "type": "number"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "amount"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "line_id": {
+                "description": "e.g. ln_3",
+                "type": "string"
+              },
+              "merchant": {
+                "description": "Merchant name as printed on the receipt",
+                "type": "string"
+              },
+              "nights": {
+                "description": "Lodging: number of nights on the folio",
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "line_id"
+            ],
+            "type": "object"
+          },
+          "name": "update_expense_line"
+        },
+        {
+          "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
+          "inputSchema": {
+            "properties": {
+              "line_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "line_id"
+            ],
+            "type": "object"
+          },
+          "name": "remove_expense_line"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_receipts"
+        },
+        {
+          "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "line_id": {
+                "type": "string"
+              },
+              "receipt_id": {
+                "description": "From list_receipts, e.g. rc_2",
+                "type": "string"
+              }
+            },
+            "required": [
+              "line_id",
+              "receipt_id"
+            ],
+            "type": "object"
+          },
+          "name": "link_receipt"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "validate_expense_report"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "description_bytes": 1256,
+        "estimated_tokens": 469,
+        "schema_bytes": 507,
+        "tool_count": 6,
+        "total_bytes": 1873
+      },
+      "label": "Employee viewing a report already submitted; the surface has shrunk",
+      "preconditions": {
+        "open_report": "submitted",
+        "role": "employee",
+        "verdict": "n_a"
+      },
+      "state_id": "S4-emp-submitted",
+      "surface_digest": "sha256:97ded9978bf370f3e1333dee87f28dc3a03d8b65cfa774007d10d1bb032ecfc4",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_session_scope"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_expense_policy"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_expense_reports"
+        },
+        {
+          "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
+          "inputSchema": {
+            "properties": {
+              "project": {
+                "description": "Project code from the employee's scope, e.g. FALCON",
+                "type": "string"
+              },
+              "title": {
+                "description": "Short human-readable title, e.g. 'Boston client workshop'",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "project"
+            ],
+            "type": "object"
+          },
+          "name": "create_expense_report"
+        },
+        {
+          "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
+          "inputSchema": {
+            "properties": {
+              "report_id": {
+                "description": "e.g. RP-1018",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id"
+            ],
+            "type": "object"
+          },
+          "name": "open_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_open_report"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "description_bytes": 1414,
+        "estimated_tokens": 447,
+        "schema_bytes": 281,
+        "tool_count": 6,
+        "total_bytes": 1787
+      },
+      "label": "Auditor signed in; every tool on this surface is read-only",
+      "preconditions": {
+        "open_report": "none",
+        "role": "auditor",
+        "verdict": "n_a"
+      },
+      "state_id": "S5-aud",
+      "surface_digest": "sha256:5e195f1c1f0d482099947c767c55c68b7834add55fba0570756cc88e25424f1f",
+      "tools": [
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_session_scope"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_expense_policy"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "list_expense_reports"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read one expense report by id: header, status, every line with amounts, receipt links and provenance, totals, and the blocking and warning counts. A pure read — it does not open the report in the page and writes nothing, so the page keeps showing whatever it was showing. Ids come from list_expense_reports.",
+          "inputSchema": {
+            "properties": {
+              "report_id": {
+                "description": "e.g. RP-1018",
+                "type": "string"
+              }
+            },
+            "required": [
+              "report_id"
+            ],
+            "type": "object"
+          },
+          "name": "get_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_open_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Read the day book: the append-only log of everything that happened in this session — tool calls by agents, sign-ins, receipt attachments, signatures. Auditor sessions read it; nothing in any session can edit it.",
+          "inputSchema": {
+            "properties": {},
+            "type": "object"
+          },
+          "name": "get_day_book"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "distinct_tool_count": 16,
+    "max_description_bytes": 309,
+    "state_count": 6
+  }
+}

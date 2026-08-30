@@ -56,8 +56,40 @@ a9413096bd65c6c3b699dfa55b262b7bcd5a247d7b03cc4834e215f60c6410ed  erp/contracts/
 4f839c13dd6d07758b1ef74138ad632be0fb4f7fbb4ced552e7ed489103b1485  erp/contracts/probe-verdict.schema.json
 fb729b21555efafa9f38adec1e767063e35ca5038210207eeb85982f59b525da  erp/contracts/provenance.schema.json
 3ddedc9ec3775b6313abdc991377af2182df251a67b880b80f4d70f04f36e2a8  erp/contracts/signature.schema.json
-f363e1b4d3c29c549a2ac40f5c8fd20d20e95138e8899e2c818efceba3051ff6  erp/contracts/tool-export.schema.json
+df4134e7ec98d326b94777e6b1efda58554bc6ec6238252da40d668876d4129b  erp/contracts/tool-export.schema.json
 562d5cec6b6ae82f25c8c7e81a910d2129b4a9aa722374b71ae80e4c725735ce  erp/contracts/violation.schema.json
-7f61ee1c3e66b6bc519f090471009bed17f47bcb83cb79ea7aa758553ceedf0a  erp/contracts/tool-surface.contract.md
+20a6984e992f5901a296d02dfbb41f4b192676ee38402f86e3739b41fb051400  erp/contracts/tool-surface.contract.md
 
 *(`FREEZE.md` cannot hash itself; git does that. `git log -1 --format=%s -- erp/contracts/FREEZE.md` carries this node's own freeze subject, which is the probe `S10.accept` runs — and the reason it does not probe `violation.schema.json` instead is that `L0` commits that path once, under `bootstrap: outpocket sprint A`, and nothing in the graph ever touches it again, so the old probe could never have gone green.)*
+
+
+## Amendment log
+
+**2026-08-29 — D-77, the T3 bump.** Two hashes moved: `tool-export.schema.json` and
+`tool-surface.contract.md`. `explain_missing_tool` (the absence register, node **T3**) is
+published on the surface in all six states, so every per-state count rose by one.
+
+THIS IS A BUMP, NOT A BREAK, AND THE DISTINCTION IS THE WHOLE POINT OF THE FREEZE.
+`x-requiredStates`' own note recorded that its six counts were MEASURED by reading the
+countinghouse spike compiler — **a pre-port spike that had no absence register, because T3 did
+not exist.** They were a stale measurement, never a decision about where that tool belongs.
+A freeze exists to catch ACCIDENTAL surface change; the sanctioned mechanism for an
+intentional reviewed one is a bump, adjudicated and recorded. Leaving the numbers frozen would
+have given a deleted compiler veto power over a live design choice.
+
+**THE TWO DOCUMENTS DO NOT AGREE DIGIT FOR DIGIT AND MUST NOT.** §1 of
+`tool-surface.contract.md` is written in the COMPILER'S INTERNAL ids, where `S2` is the DIRTY
+draft and `S3` is the CLEAN one; `x-requiredStates` is written in EXPORT ids, where
+`S2-emp-draft-clean` is the clean one. So §1 reads `… 13, 14 …` and `x-requiredStates` reads
+`… 14, 13 …`, and **both are correct. If they ever agree in row order, one of them is wrong.**
+I first wrote this amendment as "2/6/14/13/7/7 down both" — which would have put 14 on the
+DIRTY row and propagated into `MEMBERSHIP`, the mirror image of the exact bug T5 exists to
+prevent. Caught by I2 before it was applied.
+
+A SECOND RE-CUT IS EXPECTED. `tool-surface.contract.md` §2 carries `set by T3 / 500` in the
+description-budget cell, because the tool does not exist yet. T3 fills the real byte count and
+this manifest is re-cut again when it lands. Two honest re-cuts beat one that guesses a number.
+
+Also corrected here, under D-78: the note's claim that `S4-emp-submitted` and `S5-aud` "differ
+by exactly one name" — MEASURED, they differ by TWO each way. True when written, stale since
+T6, and the argument it supports (set equality over count equality) is slightly stronger for it.

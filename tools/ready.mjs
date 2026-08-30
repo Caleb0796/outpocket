@@ -4,7 +4,10 @@
 // graph that cites a checker is OUR-ESTIMATE and not MEASURED — including the cut invariant,
 // whose own grade block says so in as many words.
 //
-//   node tools/ready.mjs                        the ready set, from erp/graph.state.json
+//   node tools/ready.mjs                        the ready set, RANKED: critical path, then cut,
+//                                               then day. Ranking exists because its absence
+//                                               cost two dispatch errors in one session.
+//   node tools/ready.mjs --owner <SEAT>         the same, filtered to one seat
 //   node tools/ready.mjs --check-cuts           key(u) >= key(v) on every qualifying hard edge
 //   node tools/ready.mjs --path                 longest hard-edge horizon-A path and its total
 //   node tools/ready.mjs --check-accept-paths   every path named in any accept resolves
@@ -38,24 +41,40 @@ function readState() {
   return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
 }
 
-function readySet() {
+function readySet(ownerFilter = null) {
   const st = readState();
   const done = new Set(st.done || []);
   const inFlight = st.in_flight || {};
   const sched = dayOf();
+  // THE RANK, and it exists because its absence cost two real errors in one
+  // session. This mode printed cut and day and NEVER SORTED BY EITHER against
+  // the critical path — so PM's own cut-0 node V6 sat READY AND UNSTARTED all
+  // day while every other seat had work, and L1 dispatched I1 to V4 (cut 3, off
+  // the path) while H3 (cut 0, ON it) queued behind it on the same seat. Neither
+  // of us ever asked this tool to rank, because it never offered to.
+  // Order: on the critical path first, then cut rank (0 is never cut), then day,
+  // then id. --owner <SEAT> filters, because the tool also never knew who was
+  // reading it.
+  const onPath = new Set(G.capacity.graph_depth_path.split(' -> '));
   const rows = [];
   for (const n of G.nodes) {
     if (n.horizon !== 'A' || done.has(n.id)) continue;
     const blockers = HARD.filter((e) => e.to === n.id && !done.has(e.from)).map((e) => e.from);
     if (blockers.length) continue;
-    rows.push({ id: n.id, owner: n.owner, hours: n.hours, cut: n.cut, day: sched.get(n.id), flight: inFlight[n.id] || '' });
+    if (ownerFilter && n.owner !== ownerFilter) continue;
+    rows.push({ id: n.id, owner: n.owner, hours: n.hours, cut: n.cut, day: sched.get(n.id),
+                path: onPath.has(n.id), flight: inFlight[n.id] || '' });
   }
-  rows.sort((a, b) => (a.day - b.day) || a.id.localeCompare(b.id));
+  rows.sort((a, b) =>
+    (Number(b.path) - Number(a.path)) ||
+    ((a.cut === 0 ? -1 : a.cut) - (b.cut === 0 ? -1 : b.cut)) ||
+    (a.day - b.day) || a.id.localeCompare(b.id));
   console.log(`state: ${STATE_PATH} — done ${[...done].join(',') || '(none)'}`);
   console.log('READY (hard edges satisfied, horizon A, not done):');
   for (const r of rows) {
     const tag = r.flight ? `  <- ${r.flight}` : '';
-    console.log(`  ${r.id.padEnd(4)} ${String(r.owner).padEnd(4)} ${String(r.hours).padStart(4)}h cut ${r.cut}  day ${r.day}${tag}`);
+    const p = r.path ? ' **PATH**' : '        ';
+    console.log(`  ${r.id.padEnd(4)} ${String(r.owner).padEnd(4)} ${String(r.hours).padStart(4)}h cut ${r.cut}  day ${r.day}${p}${tag}`);
   }
   const today = rows.filter((r) => !r.flight);
   console.log(`\n${rows.length} ready, ${rows.length - today.length} already dispatched, ${today.length} undispatched.`);
@@ -534,17 +553,77 @@ function checkOrphans() {
   for (const t of targets) {
     const base = t.path.split('/').pop();
     let via = null;
+    const hits = [];
     for (const [f, text] of stripped) {
       if (f === t.path) continue;
-      // A reference is a quoted specifier ending in this basename: import,
-      // require, dynamic import, or a <script src>. Bare prose cannot match
-      // because the quote characters are required.
-      const re = new RegExp(`["'\\\`][^"'\\\`]*${base.replace(/\./g, '\\.')}["'\\\`]`);
-      if (re.test(text)) { via = f; break; }
+      // A REFERENCE IN HTML IS AN src= OR href= ATTRIBUTE, NOT ANY QUOTED STRING.
+      // UX predicted this hole and I reproduced it: delete the real <script src>
+      // from index.html, leave the comment table, the block comment and the
+      // onerror MESSAGE — all of which quote the filename — and this check still
+      // reported the module as mounted and exited 0. A FALSE GREEN IN THE
+      // INSTRUMENT BOUGHT TO PREVENT FALSE GREENS. index.html names
+      // fallback-agent.js four times and register.js eleven; exactly one of each
+      // is a mount.
+      // JS IS SPECIFIER-ONLY TOO, and this is a REVERSAL I am stating rather than
+      // making quietly. I first kept it broad — any quoted string bearing the
+      // basename — to avoid inventing an orphan for `const mod = "./x.js";
+      // import(mod)`. But harness/drive.mjs names src/page/fallback-agent.js in a
+      // DIAGNOSTIC MESSAGE TABLE, and that string alone made the module look
+      // mounted. A message about a file is not an execution path.
+      // The stripper's conservatism stands unchanged (it may leave a comment in,
+      // it must never remove live code). The MATCHER's rule is different and now
+      // says: only from/import/require specifiers count. A dynamic specifier
+      // assembled at run time will be reported as an orphan — a FALSE FAIL, which
+      // is LOUD and gets investigated, where the false PASS it replaces was
+      // silent and shipped.
+      const b = base.replace(/\./g, '\\.');
+      const re = f.endsWith('.html')
+        ? new RegExp(`(?:src|href)\\s*=\\s*["'][^"']*${b}["']`)
+        : base.endsWith('.html')
+          // AN HTML ENTRY POINT IS SERVED, NEVER IMPORTED. src/page/index.html is
+          // referenced by server/index.mjs as a PATH, not a specifier, so the
+          // specifier rule invented it as an orphan on its first run. Caught before
+          // shipping by running the checker against the real tree — the same way the
+          // missing tests/ corpus was caught the first time this mode was built.
+          ? new RegExp("[\"'`][^\"'`]*" + b + "[\"'`]")
+          : new RegExp("(?:from|import|require)\\s*\\(?\\s*[\"'`][^\"'`]*" + b + "[\"'`]");
+      if (re.test(text)) { hits.push(f); if (!via) via = f; }
     }
     if (!via && new RegExp(`["'][^"']*${base.replace(/\./g, '\\.')}`).test(pkg)) via = 'package.json scripts';
     if (!via && acceptText.includes(t.path)) via = 'named in an accept';
-    if (via) { referenced.push(`${t.path} (${t.node}) <- ${via}`); continue; }
+
+    // REFERRER CLASSIFICATION — D-80, and it is a FALSE GREEN IN THIS TOOL that UX
+    // found by running it AT THE MOMENT IT SHOULD HAVE FAILED rather than at the
+    // moment it wanted a pass. Before mounting src/page/ui/sign-dialog.js it ran
+    // this mode expecting to be caught. It printed
+    //     src/page/ui/sign-dialog.js (F4) <- tests/acceptance/sign-dialog.test.mjs
+    //     ok    every built src/ output is loaded from somewhere real
+    // A TEST IMPORT SATISFIED IT. Every node output has a test, so every node
+    // output has a referrer, so "loaded from somewhere real" was true and was NOT
+    // the property this mode was bought for. It would not have caught the
+    // env-banner orphan either: banner.test.mjs imports env-banner.js directly,
+    // which is exactly why H5 was green while the banner never rendered.
+    //
+    // A src/page/** module is code the BROWSER must load. A referrer under tests/
+    // proves the file parses, never that any page reaches it. So for src/page/**
+    // the referrer set must contain at least one PAGE referrer — another src/ file,
+    // or an HTML src=/href= attribute. Outside src/page/** any referrer still
+    // counts: src/erp.js is a library and server/ importing it is a real load.
+    // AN HTML ENTRY POINT IS EXEMPT AND I LEARNED THAT THE SAME WAY THE ORIGINAL
+    // AUTHOR OF THIS FUNCTION DID: my first cut of this rule REPORTED
+    // src/page/index.html AS AN ORPHAN. It is SERVED, never imported — server/
+    // names it as a path — so it can never have a "page referrer" and demanding one
+    // INVENTS A VIOLATION, which the comments twenty lines up already say is worse
+    // than missing one. Two separate rules in this one function have now made this
+    // exact mistake. Run the checker against the real tree before shipping it.
+    const isPage = t.path.startsWith('src/page/') && !t.path.endsWith('.html');
+    const pageHits = hits.filter((f) => f.startsWith('src/'));
+    if (isPage && via && !pageHits.length && via !== 'package.json scripts' && via !== 'named in an accept') {
+      bad(`${t.path} is a declared output of ${t.node} (${t.owner}) under src/page/, so a BROWSER must load it, and its only referrers are ${hits.join(', ')} — a test import proves it parses, never that any page reaches it`);
+      orphans++;
+      continue;
+    }
+    if (via) { referenced.push(`${t.path} (${t.node}) <- ${via}${pageHits.length ? '  [page]' : hits.length ? '  [non-page]' : ''}`); continue; }
     bad(`${t.path} is a declared output of ${t.node} (${t.owner}), EXISTS on disk, and is referenced from NO non-comment context — nothing loads it`);
     orphans++;
   }
@@ -566,13 +645,17 @@ function selftestOrphans() {
     ['import "./ghost.js";\n', true, 'real import'],
     ['<!-- <script src="./ghost.js"></script> -->', false, 'html comment', true],
     ['<script src="./ghost.js"></script>', true, 'real script tag', true],
+    ['<div onerror="./ghost.js is missing"></div>', false, 'an onerror MESSAGE quoting a filename is NOT a mount', true],
+    ['<!-- table: #x  H3/I1  src/page/ghost.js -->', false, 'a comment table naming the file is NOT a mount', true],
     ['const mod = "./ghost.js";\n', true, 'a quoted specifier in live code, after a stripper pass'],
     ['const s = "not a path";\n// import "./ghost.js"\n', false, 'comment AFTER live code still stripped'],
   ];
   let fails = 0;
   for (const [src, want, label, isHtml] of cases) {
     const out = isHtml ? stripHtmlComments(src) : stripJsComments(src);
-    const got = /["'`][^"'`]*ghost\.js["'`]/.test(out);
+    const got = isHtml
+      ? /(?:src|href)\s*=\s*["'][^"']*ghost\.js["']/.test(out)
+      : /["'`][^"'`]*ghost\.js["'`]/.test(out);
     if (got !== want) { bad(`selftest-orphans: ${label} — expected reference ${want}, got ${got}`); fails++; }
     else ok(`selftest-orphans: ${label}`);
   }
@@ -606,7 +689,20 @@ function checkRecord() {
       const r = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]);
       if (r.status !== 0) { bad(`${node}: sha ${sha} is not a commit in this repository`); violations++; }
     }
-    if (pit !== 'PENDING' && !fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+    if (pit !== 'PENDING') {
+      // TWO checks, because for one revision this was one. EXISTENCE was checked and
+      // IDENTITY was not, so on 2026-08-29 a bad replace() put `pits:kb/pits/H3.md` on
+      // H5's row -- H5 being the one node whose pit is evidenced UNRECOVERABLE and must
+      // stay PENDING -- and this mode exited 0 and printed "every row names ... a pit
+      // that exists". It did. It was the wrong node's pit. That is the same defect the
+      // whole sprint is about (existence reported as the thing you wanted to know), and
+      // it was in the instrument built to catch it.
+      if (!fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+      else if (path.basename(pit, '.md') !== node) {
+        bad(`${node}: names ${pit}, which is ANOTHER NODE'S PIT (basename ${path.basename(pit, '.md')})`);
+        violations++;
+      }
+    }
   }
   const done = new Set(st.done || []);
   const rowsNotDone = seen.filter((n) => !done.has(n));
@@ -787,6 +883,10 @@ const MODES = [
 
 const argv = process.argv.slice(2);
 if (!argv.length) { readySet(); process.exit(0); }
+if (argv[0] === '--owner') {
+  if (!argv[1]) { console.error('usage: ready.mjs --owner <SEAT>'); process.exit(2); }
+  readySet(argv[1]); process.exit(0);
+}
 
 if (argv[0] === '--all') {
   let allOk = true;

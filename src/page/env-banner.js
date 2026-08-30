@@ -43,14 +43,31 @@ const UA_MAJOR = /Chrome\/(\d+)/;
 export function readEnv({ navigator = {}, document = {}, simulated = false } = {}) {
   const matched = String(navigator.userAgent ?? "").match(UA_MAJOR);
 
+  // A SIMULATED CONTEXT IS NOT A PRESENT ONE, and reading it as one made this
+  // banner lie. MEASURED 2026-08-29: with --disable-features=WebMCP and H3's
+  // fallback agent mounted, this function reported "WebMCP present" — because
+  // src/page/fallback-agent.js installs a shim AT document.modelContext, and the
+  // old check asked only whether that property existed. The page then told a
+  // judge that WebMCP was working on a browser where it is switched off, which
+  // is precisely the claim this banner exists to prevent.
+  //
+  // The shim marks itself with __simulated. Reading the marker here — rather
+  // than trusting every caller to pass `simulated: true` — is what makes the
+  // honesty label STRUCTURAL: the banner tells the truth even if the caller
+  // forgets, and even if the fallback agent installs after the shell has
+  // already mounted the banner once.
+  const mc = document.modelContext;
+  const anyContext = typeof mc !== "undefined" && mc !== null;
+  const isSimulated = Boolean(anyContext && mc.__simulated) || Boolean(simulated);
+
   return {
     // 0, not null: the accept regex requires \d+, so an engine we could not identify still has
     // to render digits. 0 is also conservative — it is below 153, so the warning shows rather
     // than being silently suppressed on an unknown browser.
     chromiumMajor: matched ? parseInt(matched[1], 10) : 0,
     majorSource: matched ? "user-agent" : "unknown",
-    webmcpPresent: typeof document.modelContext !== "undefined" && document.modelContext !== null,
-    simulatedAgent: Boolean(simulated),
+    webmcpPresent: anyContext && !(anyContext && mc.__simulated),
+    simulatedAgent: isSimulated,
   };
 }
 

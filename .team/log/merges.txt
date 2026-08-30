@@ -673,9 +673,9 @@ MERGED E1  90dc51f pits:kb/pits/E1.md accept:PASS
 #   WHAT I DID NOT DO: revert the mount, which would reopen the D6 failure; or
 #   edit src/page/index.html myself, which is UX's declared F1 output.
 
-MERGED V3  dd6d662 pits:PENDING accept:PASS
+MERGED V3  dd6d662 pits:kb/pits/V3.md accept:PASS
 
-MERGED T4  da68e78 pits:PENDING accept:PASS
+MERGED T4  da68e78 pits:kb/pits/T4.md accept:PASS
 # --check-modes CAUGHT THE NEXT INSTANCE AT THE MOMENT THE PRODUCER LANDED, which
 #   is precisely what PM bought it for. E2, E3 and E5 all name
 #   `webmcp-eval-kit/bin/eval.mjs --suite`; E1 shipped eval.mjs WITHOUT --suite,
@@ -686,7 +686,7 @@ MERGED T4  da68e78 pits:PENDING accept:PASS
 #   and the first one caught at merge time rather than when a downstream seat was
 #   dispatched into it.
 
-MERGED S5  75861f9 pits:PENDING accept:PASS
+MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 # S5 — the human sign gate. Its accept MANDATES a scheduled frozen-file edit, and
 #   both target paths resolve to L1: eval-case.schema.json by the erp/contracts/**
 #   glob, FREEZE.md as a declared S10 output. I3 hit the ownership hook, DID NOT
@@ -715,3 +715,192 @@ MERGED S5  75861f9 pits:PENDING accept:PASS
 #   C4's EARLIER is addressed to MY loop and is now in it: "run --check-modes
 #   immediately when a producer artifact lands." That is exactly when this became
 #   visible.
+
+MERGED T2  0483c20 pits:PENDING accept:PASS
+# T2 — THE CORK IS OUT. 7/7 clauses, 1 -> 5 -> 12 -> 13, submit_expense_report
+#   appearing at S3 and vanishing after a violation raised through the REAL policy
+#   engine. Merged as a TRIO with I3's browser-safe canonicaliser and C4's
+#   byte-identity re-sync; none of the three is valid alone.
+#
+#   ROOT CAUSE, and it is the sharpest instance of today's family: src/canonical.js
+#   imported node:crypto, which a browser cannot resolve, so the page's module
+#   graph FETCHED 200 ON EVERY HOP AND FAILED TO LINK. I probed that graph twice
+#   and reported it healthy both times BECAUSE I WAS MEASURING FETCHES. Fetch
+#   succeeds, linking fails, and no probe I wrote could see the difference.
+#   Found by I2 in a file it does not own, which it did not touch.
+#
+#   C4's byte-identity test caught the knock-on at the earliest deterministic
+#   boundary — the vindication of its choice to satisfy R-11 BY IDENTITY rather
+#   than by agreement, verified here by blob hash: both files are
+#   8fa0bedd4d8aeaad33c10e7140e678b6b72ffdaa.
+#
+#   DEV-006 VINDICATED: W found T1's clause passing on ZERO call sites, PM moved
+#   it to T2 with --selftest mandatory, and it now scans a real call site where
+#   the invariant can fail.
+#
+#   AND IT RETIRES THE DANGLING register.js REFERENCE I PUT ON MAIN when I split
+#   the earlier gate. UX corrected my framing of that and was right: not "a
+#   console error if a judge opens devtools" but a page with NO TOOLS AT ALL that
+#   said nothing about it.
+
+MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
+
+MERGED S12 be34298 pits:kb/pits/S12.md accept:PASS
+
+# kb/pits/H5.md IS UNRECOVERABLE AND THE ROW STAYS PENDING. I1 did not assert
+#   that — it evidenced it. Commit 2d2854b carries a DIFFERENT session id of the
+#   same seat; its body ends "No pit file committed, per D-31; the five fields are
+#   reported to L1", so that session DID report and the report did not arrive.
+#   I1 then swept every transcript under the project directory for an assistant
+#   message containing both TRIED and GRADE together with H5/env-banner/banner.test:
+#   ZERO HITS. Two transcripts reference that session id; neither carries the
+#   report. So the fields exist nowhere reachable.
+#   It declined to reconstruct from the diff and the commit body, which is what I
+#   asked and what it had already refused once. PENDING is the honest state and
+#   --check-record enforces that PENDING cannot silently become a filename.
+#   FOURTH report today made and lost in transit — after QA's V1 verdict, I3's S9
+#   and I4's. Reports are not a channel we can rely on; the branch sweep is.
+#   RECOVERABLE AND NOT A PIT: 2d2854b's own body carries real technical content
+#   (presence graded off document.modelContext never navigator.modelContext; the
+#   warn node is a SIBLING of the banner text node because nesting puts its prose
+#   into textContent and breaks the accept regex; --headless=new reports
+#   HeadlessChrome/152.0.0.0 which matches only because it contains "Chrome/152").
+#   That is the seat's own words and it stays where it is. IT MUST NOT BE
+#   RELABELLED A PIT, and I1 was right to say so unprompted.
+#
+# V4 IS PARKED AT c98016f, NOT ABANDONED, and it is blocked on a HUMAN not on
+#   time. Delivered and committed: harness/compare-runs.mjs (--selftest 11/11) and
+#   evidence/V4-run1.json, run 1 TRANSCRIBED from evidence/V4.json rather than
+#   re-measured, on the D-48 precedent.
+#   NOT delivered: run 2. Run 1's raw error is a 22.267 s timeout that is THE
+#   CHATGPT CLIENT'S OWN CDP-WRAPPER TIMEOUT — a property of that client. On plain
+#   Chrome the harness IS the client, so its timeout is a parameter we choose:
+#   measuring it would be CIRCULAR, would discover nothing, and would then agree
+#   with itself. The only faithful run 2 is a second BUILT-IN-BROWSER run on the
+#   remote origin.
+#   compare-runs.mjs therefore carries a CLIENT-IDENTITY GUARD: two runs naming
+#   different clients are REFUSED with a distinct message rather than folded into
+#   "they disagreed by more than 20 percent", which would report a measurement
+#   dispute where there is none. Its selftest also pins the three other ways the
+#   gate could pass while discovering nothing — missing observations comparing
+#   equal, a no-timeout run averaging with a numeric one, malformed run files.
+
+MERGED V6  b6313e6 pits:kb/pits/V6.md accept:PASS
+
+MERGED H3  8123246 pits:kb/pits/H3.md accept:PASS
+# H3 — the in-page fallback agent, and the honesty defect it caught on the way.
+#   Under --disable-features=WebMCP with the fallback mounted, the first screen
+#   read "Chromium 152 · WebMCP present" ON A BROWSER WHERE WebMCP IS OFF, because
+#   readEnv graded presence off whether document.modelContext EXISTED and the shim
+#   installs exactly there. MOUNTING THE COMPONENT WHOSE PURPOSE IS TO BE HONEST
+#   ABOUT BEING A SIMULATION MADE THE BANNER CLAIM REAL WebMCP WAS WORKING.
+#   No test caught it: every existing test passed a real context, and the flip walk
+#   was 7/7 green throughout because THE WALK CANNOT SEE THE BANNER.
+#   I1's line, and it is today's lesson in a new register: A GREEN NODE IS NOT
+#   EVIDENCE THAT ITS OUTPUT TELLS THE TRUTH.
+#   Fixed STRUCTURALLY rather than cooperatively: the shim marks itself
+#   __simulated and readEnv reads the marker, so the label survives the caller
+#   forgetting to pass simulated:true — which happened immediately, because with
+#   the tag in the earliest slot outpocketShell does not exist yet and
+#   refreshEnvBanner never fires.
+#   I VERIFIED THE REGRESSION TESTS CAN FAIL rather than taking the claim:
+#   reverting the marker read turns EXACTLY tests 15 and 16 red; test 17 (a real
+#   context is never labelled simulated) passes either way, which is what a
+#   control is for.
+#
+# THE TAG, and two seats measuring the same thing on different trees.
+#   UX measured that the tag BEFORE the shell leaves the env banner unlabelled
+#   while #agent-banner still reads correctly — it does not throw, does not log,
+#   and THE PAGE LOOKS CORRECTLY LABELLED. I1 measured both ends of the range and
+#   got EXIT 0 either way. Not a contradiction: I1's marker fix makes the label
+#   structural, so the constraint UX measured against the PRE-FIX module no longer
+#   binds. Both were right about the tree they measured.
+#   UX's rule is the keeper: A MODULE'S OWN STATEMENT OF ITS CONSTRAINTS IS SCOPED
+#   TO THE CONCERNS ITS AUTHOR HAD IN MIND, AND A MOUNT IS WHERE A SECOND CONCERN
+#   CAN APPEAR THAT THE AUTHOR NEVER HAD TO CONSIDER.
+
+MERGED T5  c747c38 pits:kb/pits/T5.md accept:PASS
+#   The blind surface export. All four accept clauses green bare, suite 161/161.
+#   THE TRAP, AND WHY THE PREDICATE COULD NOT HAVE CAUGHT IT: the state ids cross
+#   over at 2/3 — the export's S2-emp-draft-clean is compile.js's internal S3 and
+#   S3-emp-draft-dirty is internal S2. Mapping by the digit would have published
+#   submit_expense_report ON THE SURFACE THAT CARRIES A BLOCKING VIOLATION, and the
+#   state count, the id order and EVERY DIGEST WOULD STILL CHECK OUT — all four
+#   clauses are satisfied by an internally consistent export OF THE WRONG THING.
+#   I checked the mapping independently rather than reading the code that implements
+#   it: clean minus dirty is exactly [submit_expense_report], dirty minus clean is
+#   empty. Correct direction.
+#   app_commit is deliberately NOT `git rev-parse HEAD` — committing the artifact
+#   would move HEAD and E5's drift guard would false-alarm forever.
+
+MERGED F4  c526b56 pits:kb/pits/F4.md accept:PASS
+#   The signing dialog. UNDISCLOSABLE THEREFORE UNSIGNABLE: when the facts cannot
+#   be named the sentence returns null, [data-worst-case] renders empty, and the
+#   POST is refused. A generic fallback sentence was the natural choice and would
+#   have passed this accept forever.
+#   The guard sits on the PATH THAT SENDS, not on the button: the test strips the
+#   disabled attribute, calls submit directly, and asserts fetch.calls == [].
+#   Three controls, because an assertion nobody has seen fail is a claim.
+#   AND UX FOUND A FALSE GREEN IN MY OWN TOOL on the way (D-80): --check-orphans
+#   counted a TEST import as a mount, so every node output had a referrer and a
+#   module no page loads passed. It would not have caught the env-banner orphan
+#   either. Fixed here; one true orphan now stands, S5's sign-bridge.js.
+
+MERGED S2  e790b38 pits:kb/pits/S2.md accept:PASS
+#   Authz. THE PREDICATE WAS PASSED PERFECTLY BY A SERVER THAT 403s EVERYONE, and
+#   the fix is a POSITIVE CONTROL beside every negative: same route, employee
+#   cookie, asserted not-403 AND pinned to the expected success status. Also 403
+#   distinguished from 404 by exact status AND authz code; the route table asserted
+#   NON-EMPTY before iteration (a for-loop over nothing exits 0); and the table READ
+#   from the server's own export rather than transcribed.
+#   I3 SABOTAGED ITS OWN authz.mjs TWICE -- always-throw, empty table -- to watch the
+#   script fail before trusting it green.
+#   And gating /api/sign broke its OWN merged S12 test; it fixed the FIXTURE rather
+#   than weakening the gate to avoid touching prior work.
+
+MERGED H4  55d3485 pits:kb/pits/H4.md accept:PASS
+#   The seeded demo. Predicate was the weak kind -- two runs at the SAME seed compared
+#   with diff, WHICH TWO EMPTY FILES PASS -- so the node was built around the
+#   falsifiability rather than to the accept: seed 7 gives 3 lines/$4395, seed 8 gives
+#   1 line/$1711, differing in title, count, merchants, dates and amounts.
+#   SEEDED RATHER THAN SCRIPTED, deliberately: a hard-coded script is also
+#   deterministic and would have passed forever while proving nothing.
+#   I1's first run exited 0, reported ALL SEVEN STEPS ok, and had created NO REPORT.
+#   toolset.call NEVER THROWS for the two failures that matter, so try/catch reports
+#   success for a demo that did nothing. Caught by an incidental stderr line reading
+#   "reached S1". THE LOG LINE WAS THE ONLY HONEST WITNESS IN THE ROOM.
+#   Exclusion list carried IN the dump with paths and reasons; dates RELATIVISED not
+#   excluded, which also keeps the dump stable across the 17 unattended midnights of
+#   the judging window.
+#   MY OWN ERROR, RECORDED: I pushed H4 without its mount tag because `git merge -F -`
+#   cannot read a message from stdin, the merge errored mid-block, and I read the last
+#   line of the output instead of every line. main briefly carried the module with
+#   nothing loading it. Fixed in the next push; caught by re-running --check-orphans
+#   rather than trusting the echo.
+
+MERGED S6  46fe9d1 pits:kb/pits/S6.md accept:PASS
+#   TOCTOU re-canonicalisation. THE PREDICATE'S OWN SCENARIO IS UNREACHABLE: S12's
+#   lock refuses the "mutate then submit" mutation with 423 before S6 could run.
+#   I3 PROVED THAT FIRST against the real server rather than quietly testing
+#   something adjacent, then exercised the case the lock is NOT there to catch
+#   through a bootstrap documented plainly as outside the lock.
+#   False-positive safety is the half that matters and it is tested: five
+#   canonicalisation attacks prove an honestly-reformatted report is NEVER rejected,
+#   beside two real content changes that ARE caught. A check that rejects everything
+#   is as useless as one that rejects nothing.
+
+MERGED H6  12ea923 pits:kb/pits/H6.md accept:PASS
+#   The rehearsal rig. Grader written BEFORE the runner, because "5 of 5 under 120s
+#   with per-step timings" is satisfied by a rig that starts and stops.
+#   Both falsifiability arms verified by me, not taken: --break-run gives 4/5 with
+#   run 3 named and exit 1; --selftest drives all eight grading clauses to failure
+#   on synthetic dumps, including one carrying ONLY the pre-seeded archive -- which
+#   is exactly what a rehearsal that did nothing produces. That second arm exists
+#   because the clauses that carry the weight CANNOT BE REACHED BY A LIVE RUN, and
+#   an unexercised branch in a grader is indistinguishable from one that does not work.
+#   I1 DID NOT BELIEVE ITS OWN GREEN: 0.6s per run including a Chrome launch is the
+#   exact shape of a rig that did nothing, so it timed one invocation independently.
+#   EARLIER is a new rule: A DERIVED MEASUREMENT AND THE THING IT MEASURES MUST NOT
+#   SHARE A CHANNEL WHEN ONE OF THEM IS GRADED FOR BYTE-STABILITY. Putting per-step
+#   ms in the dump would have broken H4's byte-identical accept and looked like
+#   non-determinism in the demo.

@@ -1,0 +1,21 @@
+{
+  "run": 1,
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol, Chromium 151",
+  "origin": "http://localhost:8795",
+  "observation": {
+    "timedOut": true,
+    "seconds": 22.267
+  },
+  "provenance": "TRANSCRIBED, not re-run. Every value here is copied from evidence/V4.json as it stood at commit e1bf38b, which recorded this measurement on 2026-08-29T07:58:00Z. Nothing was re-measured and no captured value was altered; the only change is the shape, from that file's `timeoutMs: 22267` into the { timedOut, seconds } form harness/compare-runs.mjs reads. 22267 ms / 1000 = 22.267 s. This mirrors the D-48 transcription precedent used for evidence/V1.json.",
+  "method": "probe_hang returns a Promise that never settles. The agent was told not to give up on its own initiative and to report what the client did.",
+  "clientError": "Error: Timed out running CDP command \"Runtime.evaluate\" for tab 1",
+  "whatThisNumberIs": "The CHATGPT CLIENT'S OWN CDP-wrapper timeout, not a WebMCP timeout and not a browser-engine timeout. The raw error names Runtime.evaluate, so this client drives tool execution over CDP via Runtime.evaluate rather than the CDP WebMCP domain's invokeTool. That makes 22.267 s a property of that client, which is why compare-runs.mjs refuses to compare this run against one taken from any other client.",
+  "limitations": [
+    "ONE run, and on LOCALHOST — not the remote origin. evidence/V6-consent-gate.json is the standing proof that this client behaves differently on a remote origin, so this reading does not carry there unexamined.",
+    "It does not separate a WebMCP client timeout from a CDP evaluation-wrapper timeout.",
+    "It does not show the underlying execute() was cancelled. MEASURED separately on Chrome 152: a suspended execute keeps running and the page never learns, and opts carries no AbortSignal.",
+    "It supports neither 'decisive' nor 'it times out every time'."
+  ],
+  "observedAt": "2026-08-29T07:58:00Z",
+  "transcribedAt": "2026-08-29T23:05:00Z"
+}

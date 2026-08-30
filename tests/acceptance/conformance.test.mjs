@@ -1,6 +1,7 @@
 // Node T4 (QA). Conformance of the tool surface against the frozen contract,
 // erp/contracts/tool-surface.contract.md §2, in every one of the six canonical
 // states S0-S5 (§1). Four properties, exactly as the accept predicate states them:
+// (plus a fifth added test guarding the copy below against drift from its source)
 //
 //   1. every description length <= 500
 //   2. the annotations object contains only keys from {readOnlyHint, untrustedContentHint}
@@ -17,10 +18,20 @@
 // in a comment. It is assembled below from two non-matching halves for that reason.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { makeWorld, buildCleanReport } from "../helpers.mjs";
 import { DESC_BUDGET } from "../../src/tools.js";
 
-// Frozen, erp/contracts/tool-surface.contract.md §2. Sixteen tools, "read-only" column.
+const CONTRACT_PATH = fileURLToPath(new URL("../../erp/contracts/tool-surface.contract.md", import.meta.url));
+
+// Frozen, erp/contracts/tool-surface.contract.md §2. Seventeen tools, "read-only" column.
+// This is a deliberate COPY, not a derivation — the point of a conformance test is to
+// pin what the contract SAID independently of what the code does. But a copy can go
+// stale silently: nothing here would go red if §2 grew a tool and this object didn't.
+// parseFrozenReadonlyTable() below re-reads §2 at test time and readOnlyTableMatchesContract
+// asserts this copy still equals its source, so drift becomes a failure instead of a
+// silent narrowing of coverage.
 const READONLY = Object.freeze({
   get_signin_status: true,
   get_session_scope: true,
@@ -38,7 +49,28 @@ const READONLY = Object.freeze({
   submit_expense_report: false,
   get_report: true,
   get_day_book: true,
+  explain_missing_tool: true,
 });
+
+// Parses the "| tool | read-only | states | description budget |" table out of §2 —
+// located by its own header row, not by a line number, so it survives the document
+// being re-cut around it. Stops at the first line after the header that isn't a
+// "| `name` | yes|NO | ... |" row.
+function parseFrozenReadonlyTable(contractText) {
+  const lines = contractText.split("\n");
+  const headerIdx = lines.findIndex((l) => /^\|\s*tool\s*\|\s*read-only\s*\|/.test(l));
+  assert.ok(headerIdx >= 0, "could not find the §2 tool/read-only table header in the frozen contract");
+
+  const rowPattern = /^\|\s*`([a-zA-Z0-9_]+)`\s*\|\s*(yes|NO)\s*\|/;
+  const table = {};
+  for (let i = headerIdx + 2; i < lines.length; i++) {
+    const m = lines[i].match(rowPattern);
+    if (!m) break;
+    table[m[1]] = m[2] === "yes";
+  }
+  assert.ok(Object.keys(table).length > 0, "parsed zero rows out of the §2 table — parser or table shape has drifted");
+  return table;
+}
 
 const ALLOWED_ANNOTATION_KEYS = new Set(["readOnlyHint", "untrustedContentHint"]);
 
@@ -97,6 +129,16 @@ function assertConformance(stateId, defs) {
       assert.equal(d.annotations?.readOnlyHint, true, `${stateId}/${d.name}: frozen contract marks this read-only but readOnlyHint !== true`);
   }
 }
+
+test("the copied read-only table still matches erp/contracts/tool-surface.contract.md §2", () => {
+  const contractText = readFileSync(CONTRACT_PATH, "utf8");
+  const fromContract = parseFrozenReadonlyTable(contractText);
+  assert.deepEqual(
+    { ...READONLY },
+    fromContract,
+    "READONLY in this file has drifted from §2 of the frozen contract — update the copy, not this assertion"
+  );
+});
 
 test("tool surface conforms to the frozen contract in every one of the six canonical states", async () => {
   const states = await sixStates();

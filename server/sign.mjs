@@ -31,13 +31,20 @@
 //
 // NOT THIS NODE (read before extending this file):
 //   - E_SIGN_IN_PROGRESS / HTTP 423 / "the sign lock" — that is S12's atomic
-//     report-mutation lock (x-freeze layer 2), a hard edge downstream of S5.
-//     This module's per-report `openByReport` bookkeeping exists ONLY to make
-//     the ticket-expiry/reopen test meaningful; it is NOT layer 2 and must
-//     never be described as such.
-//   - E_SNAPSHOT_MISMATCH / E_REVISION_MISMATCH from a server-side rebuild —
-//     that is S6's re-canonicalisation-on-commit. commit() here trusts its
-//     own stored record; it does not re-derive the snapshot from live state.
+//     report-mutation lock (x-freeze layer 2), server/locks.mjs, wired in
+//     below (`locks.acquire` in open(), `locks.release` in respond()/
+//     commit()/settleExpiry()). This module's OWN per-report `openByReport`
+//     bookkeeping is a separate, narrower thing that exists ONLY to make the
+//     ticket-expiry/reopen test meaningful (it stops a second /api/sign for
+//     the same report; it says nothing about a write route that never goes
+//     through /api/sign at all) — it is NOT layer 2 and must never be
+//     described as such.
+//   - E_SNAPSHOT_MISMATCH: S6 has landed (server/recanon.mjs). commit() below
+//     calls reconcile() against opts.getLiveReport(reportId) before treating
+//     anything as committed — GIVEN a single server instance (S1), true by
+//     construction, same argument as S12's lock. Still not this node's own
+//     concern in one sense: the canonicalisation logic itself lives entirely
+//     in recanon.mjs, unit-tested there; this module only calls it.
 //   - The persisted, verifiable hash chain — that is S7's server/chain.mjs.
 //     commit() computes one schema-correct chain_entry (same OCF-1 formula,
 //     same digest prefix) so this node's own tests can observe "a chain
@@ -48,8 +55,10 @@
 //     (already present on every line), not fabricated.
 import { randomBytes } from "node:crypto";
 import { canon, digest } from "../src/canonical.js";
+import { createReportLocks } from "./locks.mjs";
+import { reconcile, SNAPSHOT_DIGEST_PREFIX } from "./recanon.mjs";
 
-export const SNAPSHOT_DIGEST_PREFIX = "outpocket/snapshot/1";
+export { SNAPSHOT_DIGEST_PREFIX };
 export const CHAIN_DIGEST_PREFIX = "outpocket/chain/1";
 export const GENESIS_DIGEST = "sha256:" + "0".repeat(64);
 
@@ -60,11 +69,12 @@ export const CONFIRM_TOKEN_RE = /^ct_[0-9a-f]{32}$/;
 export const TICKET_RE = /^tk_[0-9a-f]{32}$/;
 
 export class SignError extends Error {
-  constructor(code, http, message) {
+  constructor(code, http, message, detail) {
     super(message || code);
     this.name = "SignError";
     this.code = code;
     this.http = http;
+    this.detail = detail;
   }
 }
 
@@ -140,8 +150,25 @@ function countProvenance(snapshot) {
  *   `enforced` one — see tests/acceptance/sign-state.test.mjs N-16 and
  *   .team/deviations/DEV-E3-eval-case-known-open.md. Never false in
  *   createHttpServer()'s default wiring.
+ * opts.locks: S12's report lock/revision module. Defaults to a fresh
+ *   createReportLocks({now}) sharing THIS gate's clock — a caller that
+ *   injects its own `now` and wants to observe locks.mjs's expiry from a
+ *   test must also inject the same `locks` instance, built with the same
+ *   `now`, or the two modules disagree about what "expired" means.
+ * opts.getLiveReport: (reportId) -> report | null. S6's hook into live
+ *   report state (S2's store). Defaults to `() => null` — every commit
+ *   then behaves exactly as it did before S6 existed (recon.skipped, no
+ *   check performed), which is what every synthetic-report_id test in this
+ *   repo relies on. The real server (server/index.mjs) wires this to its
+ *   own findReport().
  */
-export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS, requireConfirmToken = true } = {}) {
+export function createSignGate({
+  now = () => new Date(),
+  ttlMs = DEFAULT_TTL_MS,
+  requireConfirmToken = true,
+  locks = createReportLocks({ now }),
+  getLiveReport = () => null,
+} = {}) {
   const records = new Map(); // request_id -> record
   const byTicket = new Map(); // ticket -> request_id
   const openByReport = new Map(); // report_id -> request_id (bookkeeping only — see NOT THIS NODE)
@@ -157,6 +184,7 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
     if ((rec.state === "open" || rec.state === "answered") && now().getTime() > new Date(rec.expires_at).getTime()) {
       rec.state = "expired";
       releaseReport(rec.report_id, rec.request_id);
+      locks.release(rec.report_id, rec.request_id); // S12: expiry frees the report lock too
     }
     return rec;
   }
@@ -188,7 +216,7 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
     personaId,
     personaName,
     reportId,
-    revision,
+    revision: claimedRevision,
     policyVersion,
     policyDigest,
     report,
@@ -211,6 +239,21 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
     const requestId = newRequestId();
     const createdAt = now();
     const expiresAt = new Date(createdAt.getTime() + ttlMs);
+
+    // S12: the revision carried in the sign request is the server's own
+    // count (locks.getRevision), not whatever the caller happened to send —
+    // `claimedRevision` is trusted only the first time this report_id is
+    // ever seen (there is nothing yet to disagree with it).
+    const revision = locks.getRevision(reportId, claimedRevision);
+
+    // S12: acquire the report lock in the SAME synchronous step as the
+    // snapshot below — no `await` sits between this line and the one that
+    // builds `snapshot`, so no other request can observe a state where one
+    // exists without the other. Throws 423 E_SIGN_IN_PROGRESS if some other
+    // holder already has this report_id locked (should not happen given the
+    // openByReport check above, since both are released together, but this
+    // is the real, load-bearing check — the one above is not).
+    locks.acquire(reportId, requestId, expiresAt.toISOString());
 
     const snapshot = {
       kind: "outpocket.snapshot",
@@ -344,6 +387,7 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
       // — release happens at the decision, not at a commit that may never
       // come.
       releaseReport(rec.report_id, rec.request_id);
+      locks.release(rec.report_id, rec.request_id); // S12: decline frees the report lock
     }
 
     return toSignResponse(rec);
@@ -411,6 +455,19 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
       throw new SignError("E_NOT_SIGNED", 409, `sign request is ${rec.state}${rec.decision ? `/${rec.decision}` : ""}, not answered+signed`);
     }
 
+    // S6: re-canonicalise against LIVE state before treating anything as
+    // committed. GIVEN a single server instance, synchronous with no await
+    // between the fetch and the comparison — true by construction.
+    const recon = reconcile(rec.snapshot, getLiveReport(rec.report_id));
+    if (!recon.ok) {
+      throw new SignError(
+        "E_SNAPSHOT_MISMATCH",
+        409,
+        `report ${rec.report_id} changed between sign and commit: signed ${recon.signedDigest}, recomputed ${recon.recomputedDigest}`,
+        { signed_digest: recon.signedDigest, recomputed_digest: recon.recomputedDigest },
+      );
+    }
+
     confirmCounter += 1;
     const confirmation = `CH-${String(confirmCounter).padStart(4, "0")}`;
     chainSeq += 1;
@@ -423,6 +480,7 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
       label: `signed & submitted ${rec.report_id}`,
       detail: confirmation,
       payload_digest: rec.snapshot_digest,
+      recomputed_digest: recon.recomputedDigest ?? rec.snapshot_digest,
       prev: chainHead,
     };
     const entryDigest = digest(CHAIN_DIGEST_PREFIX, entryWithoutDigest);
@@ -431,6 +489,7 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
 
     rec.state = "committed";
     releaseReport(rec.report_id, rec.request_id);
+    locks.release(rec.report_id, rec.request_id); // S12: commit frees the report lock
 
     return {
       schema: "outpocket.commit_result/1",
@@ -450,5 +509,9 @@ export function createSignGate({ now = () => new Date(), ttlMs = DEFAULT_TTL_MS,
     };
   }
 
-  return { open, get, respond, continueTicket, commit, peekConfirmTokenForDialog, peekOpenRequestId };
+  // `locks` is exposed so a real write route (S2/S4, not this node) shares
+  // THIS gate's own lock/revision instance rather than accidentally
+  // constructing a second one that would never see these acquire/release
+  // calls.
+  return { open, get, respond, continueTicket, commit, peekConfirmTokenForDialog, peekOpenRequestId, locks };
 }

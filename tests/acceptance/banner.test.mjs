@@ -212,6 +212,45 @@ test("WebMCP reads absent when only the navigator alias exists", () => {
   assert.equal(bannerText(env), "Chromium 152 · WebMCP absent");
 });
 
+// ---------------------------------------------------------------------------
+// REGRESSION — a SIMULATED context is not a present one. MEASURED 2026-08-29:
+// with --disable-features=WebMCP and H3's fallback agent mounted, this banner
+// rendered "Chromium 152 · WebMCP present", because the old check asked only
+// whether document.modelContext EXISTED and src/page/fallback-agent.js installs
+// a shim there. The page told a judge WebMCP was working on a browser where it
+// is switched off — the exact claim this banner exists to prevent. The shim
+// marks itself __simulated; these two pin the reading of that marker, because
+// removing it would restore a lie that every other test still passes through.
+// ---------------------------------------------------------------------------
+
+const API_SIMULATED = {
+  modelContext: { __simulated: true, registerTool() {}, getTools() {}, executeTool() {} },
+};
+
+test("a SIMULATED document.modelContext reads absent, not present", () => {
+  const env = readEnv(win({ doc: API_SIMULATED, nav: {} }));
+  assert.equal(env.webmcpPresent, false);
+});
+
+test("a simulated context labels itself even when the caller forgets to pass simulated", () => {
+  // Structural, not caller-dependent. src/page/fallback-agent.js and
+  // src/page/ui/shell.js are separate module tags, so the fallback agent may
+  // install BEFORE the shell exists to be told — MEASURED, that is exactly what
+  // happens when the mount tag sits in the earliest slot. The banner still has
+  // to say "simulated agent", so the marker is read here rather than trusted to
+  // arrive as an argument.
+  const env = readEnv(win({ doc: API_SIMULATED, nav: {} }));   // note: no `simulated: true`
+  assert.equal(env.simulatedAgent, true);
+  assert.equal(bannerText(env), "Chromium 152 · WebMCP absent · simulated agent");
+  assert.match(bannerText(env), /^Chromium \d+ · WebMCP (present|absent)( · simulated agent)?$/);
+});
+
+test("a real context is never labelled simulated", () => {
+  const env = readEnv(win({ doc: API_PRESENT, nav: {} }));
+  assert.equal(env.simulatedAgent, false);
+  assert.equal(bannerText(env), "Chromium 152 · WebMCP present");
+});
+
 test("a null document.modelContext reads absent", () => {
   // probe/index.html:74 tests `!== undefined && !== null`. Same rule here.
   const env = readEnv(win({ doc: { modelContext: null } }));
