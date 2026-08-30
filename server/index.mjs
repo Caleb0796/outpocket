@@ -17,6 +17,8 @@ import { policyHandler } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
 import { createSignGate, SignError } from "./sign.mjs";
+import { authorizeWrite, AuthzError } from "./authz.mjs";
+import { LockError } from "./locks.mjs";
 
 // S5's persona display names, read from F1's own file (server/personas.json)
 // rather than retyped — signed_by must resolve the same name F1 shows.
@@ -170,6 +172,39 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
     throw err;
   }
 
+  function sendAuthzError(res, err) {
+    if (err instanceof AuthzError) return sendJson(res, err.http, { error: err.code, message: err.message });
+    throw err;
+  }
+
+  // S12's lock: while a sign request is open for report_id, every one of
+  // these six routes must refuse rather than mutate. Returns true (and has
+  // already sent the 423 response) if the caller should stop.
+  function blockedByLock(res, reportId) {
+    try {
+      signGate.locks.assertUnlocked(reportId);
+      return false;
+    } catch (err) {
+      if (!(err instanceof LockError)) throw err;
+      sendJson(res, err.http, { error: err.code, message: err.message });
+      return true;
+    }
+  }
+
+  // ── S2: minimal report-content mutation, gated by authorizeWrite() ──────
+  // These six routes exist ONLY to give per-request role authorization
+  // something real to gate: the server's write path for report content
+  // (FX conversion, itemization, receipt hashing, policy-engine validation
+  // via src/policy.js) is deliberately not reimplemented here — that is a
+  // separate, deeper node's job. Every mutation below is honest but small:
+  // a real in-memory state change, an id you can read back, nothing more.
+  function findReport(reportId) {
+    return state.reports.find((r) => r.id === reportId) ?? null;
+  }
+  function findLine(report, lineId) {
+    return report?.lines.find((l) => l.id === lineId) ?? null;
+  }
+
   return async function handle(req, res) {
     let url;
     try {
@@ -203,6 +238,16 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
     if (req.method === "POST" && url.pathname === "/api/sign") {
       const session = sessionFromRequest(req);
       if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      // S2: opening a sign request is submit_expense_report's write — only
+      // an employee session may start one. /respond and /commit are not
+      // separately gated (see server/authz.mjs's WRITE_ROUTES comment):
+      // both already require the caller's session to be the one that
+      // opened it, which after this check can only ever be an employee's.
+      try {
+        authorizeWrite(session);
+      } catch (err) {
+        return sendAuthzError(res, err);
+      }
       const body = await readJsonBody(req);
       if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
       try {
@@ -297,6 +342,132 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate = createSignG
             error: { code: err.code, message: err.message },
           });
         }
+      }
+    }
+
+    // ── S2: the six report-content write routes (see WRITE_ROUTES comment
+    // above and server/authz.mjs) ────────────────────────────────────────
+    if (req.method === "POST" && url.pathname === "/api/reports") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      try {
+        authorizeWrite(session);
+      } catch (err) {
+        return sendAuthzError(res, err);
+      }
+      const body = await readJsonBody(req);
+      if (!body || typeof body.title !== "string" || !body.title.trim() || typeof body.project !== "string" || !body.project.trim()) {
+        return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "title and project are required, non-empty strings" });
+      }
+      const id = `RP-${state.counters.report++}`;
+      const report = { id, title: body.title, project: body.project, status: "draft", owner: session.personaId, opened_by: null, lines: [] };
+      state.reports.push(report);
+      return sendJson(res, 201, { report_id: id, report });
+    }
+
+    {
+      const openMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/open$/);
+      if (openMatch && req.method === "POST") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
+        const report = findReport(openMatch[1]);
+        if (!report) return sendJson(res, 404, { error: "E_REPORT_NOT_FOUND" });
+        if (blockedByLock(res, report.id)) return;
+        report.opened_by = session.personaId;
+        return sendJson(res, 200, { report_id: report.id, opened_by: report.opened_by });
+      }
+    }
+
+    {
+      const linesMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/lines$/);
+      if (linesMatch && req.method === "POST") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
+        const report = findReport(linesMatch[1]);
+        if (!report) return sendJson(res, 404, { error: "E_REPORT_NOT_FOUND" });
+        if (blockedByLock(res, report.id)) return;
+        const body = await readJsonBody(req);
+        if (!body || typeof body.merchant !== "string" || !body.merchant.trim() || !Number.isInteger(body.amount_cents) || body.amount_cents < 0) {
+          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "merchant (string) and amount_cents (non-negative integer) are required" });
+        }
+        const line = {
+          id: `ln_${++state.counters.line}`,
+          date: body.date ?? null,
+          merchant: body.merchant,
+          category: body.category ?? null,
+          amount_cents: body.amount_cents,
+          currency: body.currency ?? "USD",
+          receipt_id: null,
+        };
+        report.lines.push(line);
+        const revision = signGate.locks.bumpRevision(report.id);
+        return sendJson(res, 201, { report_id: report.id, line, revision });
+      }
+    }
+
+    {
+      const lineMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/lines\/([^/]+)$/);
+      if (lineMatch && (req.method === "PATCH" || req.method === "DELETE")) {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
+        const report = findReport(lineMatch[1]);
+        const line = findLine(report, lineMatch[2]);
+        if (!report || !line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND" });
+        if (blockedByLock(res, report.id)) return;
+
+        if (req.method === "DELETE") {
+          report.lines = report.lines.filter((l) => l.id !== line.id);
+          const revision = signGate.locks.bumpRevision(report.id);
+          return sendJson(res, 200, { report_id: report.id, line_id: line.id, revision });
+        }
+
+        const body = await readJsonBody(req);
+        if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+        for (const key of ["date", "merchant", "category", "currency"]) {
+          if (typeof body[key] === "string") line[key] = body[key];
+        }
+        if (Number.isInteger(body.amount_cents) && body.amount_cents >= 0) line.amount_cents = body.amount_cents;
+        const revision = signGate.locks.bumpRevision(report.id);
+        return sendJson(res, 200, { report_id: report.id, line, revision });
+      }
+    }
+
+    {
+      const receiptMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/lines\/([^/]+)\/receipt$/);
+      if (receiptMatch && req.method === "POST") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
+        const report = findReport(receiptMatch[1]);
+        const line = findLine(report, receiptMatch[2]);
+        if (!report || !line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND" });
+        if (blockedByLock(res, report.id)) return;
+        const body = await readJsonBody(req);
+        if (!body || typeof body.receipt_id !== "string" || !body.receipt_id.trim()) {
+          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "receipt_id is required" });
+        }
+        line.receipt_id = body.receipt_id;
+        const revision = signGate.locks.bumpRevision(report.id);
+        return sendJson(res, 200, { report_id: report.id, line, revision });
       }
     }
 
