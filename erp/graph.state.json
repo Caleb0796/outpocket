@@ -50,13 +50,14 @@
     "V4",
     "F5",
     "E4",
-    "E2"
+    "E2",
+    "F6"
   ],
   "in_flight": {
-    "D4": "ALL THREE TRIGGER CONDITIONS NOW HOLD: F7 merged, D1 green, D-89 merged. Ready for the user's 1-day window notice.",
-    "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
-    "E2/E3": "C4 \u2014 E5 done; both ready to fire.",
-    "D1 re-verify": "D-98 corrected D1's predicate to one that CAN fail (test \"$(...)\" = 200, and a real comparison against git rev-parse HEAD). Re-run under it: spans 0-2 green, SPAN 3 RED because main moved to 35a77d0 while the deploy serves 8173b46 \u2014 exactly D-92(b)'s expected mid-sprint state. D1 stays done: the green was recorded from an EXPLICIT manual check of the real conditions (200 asserted, sha equality asserted), not from the four exit-0s the old predicate produced. RE-VERIFIED IN THE FINAL PASS WITH D6."
+    "D4": "UX \u2014 the video. All inputs done: H6, F0, F7, D1. F6 green. Shoot gated on QA's browser run (blocked on QA's user).",
+    "E8": "C1 \u2014 blind run, HELD until the packet is ruled ready to grade against.",
+    "QA browser run": "OPEN \u2014 blocked on QA's own user approving automated browser control performing a real write on production. Correctly refused, not routed around.",
+    "pit debts": "H5 and T2 evidenced-unrecoverable; G2 collectable from I4."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

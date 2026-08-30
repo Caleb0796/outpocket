@@ -1121,3 +1121,26 @@ FOLLOWUP E4-answer-key 60bae7e pits:kb/pits/E4-answer-key.md accept:PASS (all fo
 #   AND ONE ROUTED CLAIM WAS WRONG: compile.js's header is NOT label-swapped -- it
 #   describes INTERNAL ids and MEMBERSHIP confirms it. L2 compared against the EXPORT's
 #   ids. The D-99 error, made by the seat that received D-99. Not routed to I2.
+
+MERGED F6  33e100a pits:kb/pits/F6.md accept:PASS
+#   13 of 13 shots resolving; storyboard is L2's ruling TRANSCRIBED, not UX's judgement.
+#   I VERIFIED THE SAFEGUARD MYSELF: restoring SB-07's forbidden #agent-banner gives
+#   "declared surface agent-client but its selector resolves on OUR page" -- exit 1, 0 on
+#   restore. A transcription that drifted in UX's favour is caught by UX's own instrument.
+#   MY FIRST SABOTAGE DID NOT APPLY (doubled backticks -> invalid selector -> 0 hits) and
+#   LOOKED EXACTLY LIKE THE SAFEGUARD PASSING. Second time in one day.
+#   AND MY OWN INFERENCE WAS THE NEAR-MISS: I told UX SB-12 was agent-client; L2 ruled
+#   page. Had UX accepted my list, its own tool would have forbidden SB-12 a page selector
+#   and F6 would have gone GREEN on a storyboard that had lost beat 3's page proxy.
+#   A REFUSAL TO INFER DOES NOT ONLY PROTECT THE REFUSER -- IT FORCES THE DECIDER TO STATE
+#   THE DECISION, AND STATING IT IS WHERE THE ERROR SURFACED.
+
+FOLLOWUP F5-sweep bdebf08 pits:kb/pits/F5-sweep.md accept:N/A (a sweep, not a node)
+#   Three instances of the presence-check class in ~17 candidates, ONE OF THEM UX'S OWN --
+#   and it LOOKED correct, because it genuinely WAS document.modelContext (our shim).
+#   THE FIX BROKE NO TEST, which is how the real gap surfaced: the F5 tests launch WITH
+#   the WebMCP flag and CANNOT REACH THE BRANCH THE DEMO RUNS IN.
+#   THE TESTED CONFIGURATION AND THE SHIPPED CONFIGURATION DIVERGE WHEREVER A TEST HAD TO
+#   CHOOSE SOMETHING, AND THE CHOICE IS INVISIBLE FROM INSIDE THE TEST.
+#   The CLEARED cases were measured too -- probe/ and the v3 fixture load no shim, so H2's
+#   gate cannot be fooled. A classification, not a list of suspicions.
