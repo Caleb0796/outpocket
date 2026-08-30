@@ -728,7 +728,16 @@ function checkRecord() {
         bad(`${node} (partial): names ${pit}, ANOTHER NODE'S PIT`); violations++;
       }
     }
-    if (done.has(node)) { bad(`${node} has a PARTIAL row but IS in done -- promote it to MERGED`); violations++; }
+    // A PARTIAL row is legal once the node is done IF a MERGED row promoted it -- that is
+    // the documented lifecycle ("when it finishes it becomes a MERGED row and the PARTIAL
+    // line stays as history"), and D1 hit it within the hour. What is NOT legal is a node
+    // sitting in `done` on the strength of a PARTIAL row alone, which would let half-landed
+    // work be counted as finished. I wrote the assertion without the exception my own
+    // comment had already promised, and it went red on the first node to complete the cycle.
+    if (done.has(node) && !seen.includes(node)) {
+      bad(`${node} is in done but its only row is PARTIAL -- half-landed work counted as finished`);
+      violations++;
+    }
   }
   const rowsNotDone = seen.filter((n) => !done.has(n));
   const doneNotRows = [...done].filter((n) => !seen.includes(n));
