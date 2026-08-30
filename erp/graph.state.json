@@ -55,7 +55,7 @@
     "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
     "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM.",
     "E2/E3": "C4 \u2014 E5 done; both ready to fire.",
-    "D1 re-verify": "D1 GRADED GREEN at c92372587a728300dd5bbd0686d2e31bcb01f7f0 with live /version == HEAD. D-92(b) still requires the version clause RE-VERIFIED in the final pass with D6, because the next push moves main and Render redeploys. Done means observed, not permanently true."
+    "D1 re-verify": "D-98 corrected D1's predicate to one that CAN fail (test \"$(...)\" = 200, and a real comparison against git rev-parse HEAD). Re-run under it: spans 0-2 green, SPAN 3 RED because main moved to 35a77d0 while the deploy serves 8173b46 \u2014 exactly D-92(b)'s expected mid-sprint state. D1 stays done: the green was recorded from an EXPLICIT manual check of the real conditions (200 asserted, sha equality asserted), not from the four exit-0s the old predicate produced. RE-VERIFIED IN THE FINAL PASS WITH D6."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
