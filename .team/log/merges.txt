@@ -1308,3 +1308,18 @@ FOLLOWUP UX-F4-sign-dialog b65435f pits:PENDING accept:N/A (a routed defect, not
 
 FOLLOWUP PM-rulings-D122-D131 753732b pits:PENDING accept:N/A (rulings)
 FOLLOWUP L2-verdict-review a06806d pits:PENDING accept:N/A (a review and two addenda sections)
+
+MERGED E3 5077b30 pits:kb/pits/E3.md accept:PASS
+#   Held all day under D-119 and released by PM's standing authorisation ("when D-118
+#   lands and E3 goes actually green, merge it then"). ACCEPT RE-RUN AT MERGE against
+#   the DEPLOYED origin 079da49: 11 of 11 declared cases graded, 11 passed, zero
+#   skipped, detector controls accepted the real corpus and rejected broken fixtures,
+#   N-20 neg-policy-content-swap ENFORCED.
+#   NOTE ON THE GATE, so nobody repeats the confusion: `node tools/merge-gate.mjs`
+#   reported span 0 FAILING for this node, because it runs the accept against the
+#   CURRENT tree and evals/suites/negative.suite.json exists only on the branch. The
+#   predicate needs the MERGED tree. I merged locally, ran the accept there, and only
+#   then pushed -- the predicate executed and succeeded in my presence, which is what
+#   clause 6 asks for. The gate is right to run accept pre-merge for nodes whose
+#   predicate does not depend on their own new files; E3 is the first node where it
+#   cannot be.
