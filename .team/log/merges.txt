@@ -717,6 +717,13 @@ MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 #   visible.
 
 MERGED T2  0483c20 pits:PENDING accept:PASS
+#   T2's PIT IS UNRECOVERABLE FROM I2's CURRENT SEAT, on the same footing as H5, and
+#   I2 said so rather than writing one. T2 was already merged and green when that
+#   session opened; everything it knows about the node -- 7/7 clauses, the walk,
+#   submit appearing and vanishing -- it knows FROM MY SUMMARY, not from having done
+#   it. Five fields written from that would be a seat TRANSCRIBING THE FOREMAN AND
+#   SIGNING ITS OWN NAME TO IT, which is the exact failure D-31 exists to prevent
+#   and worse than the PENDING row. Carried as unrecoverable; not waiting on I2.
 # T2 — THE CORK IS OUT. 7/7 clauses, 1 -> 5 -> 12 -> 13, submit_expense_report
 #   appearing at S3 and vanishing after a violation raised through the REAL policy
 #   engine. Merged as a TRIO with I3's browser-safe canonicaliser and C4's
@@ -946,3 +953,72 @@ PARTIAL D1  7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b)
 #   TIME while claiming ephemeral ports. Both passed throughout. A TEST THAT PASSES ON
 #   THE WRONG PORT PASSES.
 #   FIRST PIT DELIVERED UNDER CLAUSE 6e -- arrived inside the commit, no chasing.
+
+MERGED E5  c522af8 pits:kb/pits/E5.md accept:PASS
+#   The accounting eval under a network denial PROVEN TO HAVE FIRED. Three of four
+#   accept clauses can pass while proving nothing and I verified each myself:
+#   running the eval WITHOUT the preload exits 1 with E_NETWORK_DISABLED, so the
+#   denial arms; byte-identity holds over 2 declared/2 emitted cases with verdicts
+#   rather than over an empty file; and webmcp-eval-kit/src/ is non-empty so the
+#   negative grep is a search that actually ran.
+#   C4 added an arm I had not asked for: hooks REPLACED AFTER preload are rejected,
+#   because a marker identifying a hook by its function NAME is satisfied by anything
+#   wearing that name.
+#   Header names the MECHANISM, not a boolean -- an opinion vs a measurement.
+
+MERGED D1  c923725 pits:kb/pits/D1.md accept:PASS
+#   GRADED IN THE WINDOW. All four clauses observed to hold SIMULTANEOUSLY against the
+#   live host at c92372587a728300dd5bbd0686d2e31bcb01f7f0:
+#     (1) Origin-Agent-Cluster ABSENT from evidence/headers.txt
+#     (2) GET / returns 200            (checked EXPLICITLY -- the accept's own span
+#         prints the code with -o /dev/null and exits 0 whatever it is, so exit 0 on
+#         that span proves nothing on its own)
+#     (3) live /version == git rev-parse HEAD, both c923725...
+#     (4) evidence/D1-url.txt records ONE INSTANCE **with the reason** -- free tier,
+#         single-instance BY NATURE, not a configured replica count
+#   D-92(b) STILL BINDS: the version clause is RE-VERIFIED IN THE FINAL PASS WITH D6.
+#   The next push to main moves the sha and Render redeploys, so this row records an
+#   OBSERVATION AT A MOMENT, not a permanent property. DONE MEANS OBSERVED.
+#   The PARTIAL D1 row above stays as history: the route and mount landed hours before
+#   the clause could be graded.
+
+MERGED V4  48fa7b8 pits:kb/pits/V4.md accept:PASS
+#   The comparator, rebuilt because the STANDARD MOVED after it was written. I1 re-read
+#   its own selftest against UX's fail-open rule and D-90 and failed it: 11 cases, every
+#   one asking "does this refusal FIRE", not one asking "does it HOLD ITS FIRE when it
+#   should". Rebuilt as fires/declines PAIRS, 11 -> 20.
+#   Broken twice on purpose: fail-OPEN turns 1 red, fail-CLOSED turns 13 red. The suite
+#   now catches an instrument that cannot say NO **and** one that cannot say YES.
+#   D-90 case changed SHAPE, not assertions: it asserts the COUNTERFACTUAL -- the two
+#   malformed docs ARE naively equal -- so the trap is proven reachable rather than
+#   assumed. Without it the case is satisfied by absence.
+#   FILED A DEFECT AGAINST ITS OWN MERGED H6 unprompted: that selftest is one-directional
+#   too. A SUITE THAT ONLY TESTS ONE DIRECTION OF A DECISION CANNOT TELL A WORKING GUARD
+#   FROM A STUCK ONE, AND WHICH DIRECTION IT TESTS IS DECIDED BY WHICH FAILURE YOU WERE
+#   AFRAID OF THAT DAY.
+
+MERGED F5  f7e4259 pits:kb/pits/F5.md accept:PASS
+#   The inspector. Closes TWO of F6's five reds; only the three miscategorised shots
+#   remain, with L2.
+#   THE PREDICATE'S ONE HOLLOW PATH is both sides coming from the same place. Rows are
+#   walked from the RENDERED DOM, tools from document.modelContext.getTools(). And the
+#   panel reads modelContext rather than our registry ON PURPOSE: the registry is what
+#   we TRIED to register, modelContext is what the browser HOLDS, and they differ
+#   exactly when something is wrong.
+#   FOUR IDENTICAL COMPARISONS ARE ONE COMPARISON -- the four counts are asserted NOT
+#   ALL EQUAL, a guard UX added after noticing they happened to differ.
+
+# D-98: D1's PREDICATE COULD NOT FAIL ON THE TWO CLAUSES THAT MATTER MOST, and I found it
+#   while reporting the node GREEN. `curl -w '%{http_code}'` PRINTS the code and exits 0
+#   WHATEVER IT IS; and the version clause said "equals git rev-parse HEAD" in PROSE while
+#   the runner ran the two as separate spans and NEVER COMPARED THEM. FOUR GREEN SPANS WERE
+#   CONSISTENT WITH A 500 AND A MISMATCHED SHA.
+#   The only reason it was caught rather than banked is that I checked the four clauses
+#   EXPLICITLY instead of trusting four exit-0s. A PREDICATE THAT CANNOT FAIL IS NOT A
+#   WEAKER PREDICATE, IT IS A DECORATION -- the fourth artifact class this sprint has found
+#   one in, after a lint that never ran, a hook git never invoked, and a clause that passed
+#   on zero call sites.
+#   Corrected by PM and proven in the FAILING direction: 500-vs-200 exits 1, 200-vs-200
+#   exits 0. Re-run now: spans 0-2 green, span 3 RED because main moved under the deploy --
+#   which is D-92(b) working, not a regression. D1's done status rests on the explicit
+#   manual observation, and is re-verified in the final pass with D6.
