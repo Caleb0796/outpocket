@@ -1214,3 +1214,12 @@ FOLLOWUP readme-and-D1-evidence d44313c pits:PENDING accept:N/A (not a node)
 #   STRUCTURAL GATE (autoscale needs a Pro plan; workspace is Hobby), replacing the
 #   free-tier property the 21:32 upgrade retired. I4's recorded REASON announced its own
 #   expiry -- a recorded FACT would have gone stale in silence.
+
+FOLLOWUP DEV-017 b95f511 pits:PENDING accept:N/A (a deviation ticket)
+#   W's README time-capsule finding, renumbered after an ID COLLISION THAT IS NOT ITS
+#   ERROR: nothing allocates deviation ids, D-101 lets nodes declare their own tickets,
+#   and W cannot see what another seat committed on a branch. Raised as its own item.
+#   Category SILENT-DESCOPE and that is why nothing caught it: G2's test asserts the two
+#   login lines and NEVER LOOKED AT THE STATUS BANNER.
+#   SEVERITY INVERTED FROM THE WHOLE SPRINT: every other defect was a document claiming
+#   MORE than we measured; this one claimed dramatically LESS.
