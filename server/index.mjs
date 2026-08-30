@@ -500,6 +500,15 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       }
     }
 
+    // S7: the day book, on the auditor surface — D-116 ruled it the DURABLE
+    // witness for a signature, not the ephemeral sign-request record — so
+    // any signed-in session may read it, employee or auditor alike.
+    if (req.method === "GET" && url.pathname === "/api/daybook") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      return sendJson(res, 200, { entries: signGate.chain.list() });
+    }
+
     if (policyHandler(req, res, url)) return;
 
     if (stateDigestHandler(req, res, url)) return;

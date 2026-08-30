@@ -46,11 +46,12 @@
 //     construction, same argument as S12's lock. Still not this node's own
 //     concern in one sense: the canonicalisation logic itself lives entirely
 //     in recanon.mjs, unit-tested there; this module only calls it.
-//   - The persisted, verifiable hash chain — that is S7's server/chain.mjs.
-//     commit() computes one schema-correct chain_entry (same OCF-1 formula,
-//     same digest prefix) so this node's own tests can observe "a chain
-//     entry attesting Chen Xiao at a genuine server time", but it is a
-//     single-process, in-memory stand-in, not S7's day book.
+//   - The persisted, verifiable hash chain: S7 has landed
+//     (server/chain.mjs). commit() below appends a real entry to it — the
+//     earlier single-process, in-memory chain_entry stand-in this module
+//     used to build itself is gone, replaced, not duplicated. Verification
+//     (verifyChain, the byte-flip-at-an-index property) lives entirely in
+//     chain.mjs; this module only calls append().
 //   - Per-field provenance ledger — that is S8's. artifact.provenance_summary
 //     below is counted honestly from the snapshot's own provenance map
 //     (already present on every line), not fabricated.
@@ -58,10 +59,9 @@ import { randomBytes } from "node:crypto";
 import { canon, digest } from "../src/canonical.js";
 import { createReportLocks } from "./locks.mjs";
 import { reconcile, SNAPSHOT_DIGEST_PREFIX } from "./recanon.mjs";
+import { createChain, CHAIN_DIGEST_PREFIX, GENESIS_DIGEST } from "./chain.mjs";
 
-export { SNAPSHOT_DIGEST_PREFIX };
-export const CHAIN_DIGEST_PREFIX = "outpocket/chain/1";
-export const GENESIS_DIGEST = "sha256:" + "0".repeat(64);
+export { SNAPSHOT_DIGEST_PREFIX, CHAIN_DIGEST_PREFIX, GENESIS_DIGEST };
 
 const DEFAULT_TTL_MS = 300_000; // 300s — R-43: now the human's budget, not a client-timeout guess.
 
@@ -162,6 +162,12 @@ function countProvenance(snapshot) {
  *   check performed), which is what every synthetic-report_id test in this
  *   repo relies on. The real server (server/index.mjs) wires this to its
  *   own findReport().
+ * opts.chain: S7's real hash chain (server/chain.mjs). Defaults to a fresh
+ *   createChain({now}) sharing THIS gate's clock. commit() appends to it —
+ *   this REPLACES the earlier single-process, in-memory chain_entry
+ *   stand-in this module used to build itself; that stand-in is gone, not
+ *   duplicated. Exposed on the returned gate as `chain` so a caller (the
+ *   real server's GET /api/daybook) can list() it.
  */
 export function createSignGate({
   now = () => new Date(),
@@ -169,12 +175,11 @@ export function createSignGate({
   requireConfirmToken = true,
   locks = createReportLocks({ now }),
   getLiveReport = () => null,
+  chain = createChain({ now }),
 } = {}) {
   const records = new Map(); // request_id -> record
   const byTicket = new Map(); // ticket -> request_id
   const openByReport = new Map(); // report_id -> request_id (bookkeeping only — see NOT THIS NODE)
-  let chainHead = GENESIS_DIGEST;
-  let chainSeq = 0;
   let confirmCounter = 0;
 
   function releaseReport(reportId, requestId) {
@@ -500,10 +505,11 @@ export function createSignGate({
 
     confirmCounter += 1;
     const confirmation = `CH-${String(confirmCounter).padStart(4, "0")}`;
-    chainSeq += 1;
-    const entryWithoutDigest = {
-      seq: chainSeq,
-      at: rec.at,
+    // S7: append to the REAL day book. `source` is 'human' here because
+    // this event is the human's act of signing and submitting — the one
+    // field an attacker would move, and the one server/chain.mjs's own
+    // digest formula covers along with everything else in the entry.
+    const chainEntry = chain.append({
       kind: "commit",
       source: "human",
       actor: rec.signed_by,
@@ -511,11 +517,7 @@ export function createSignGate({
       detail: confirmation,
       payload_digest: rec.snapshot_digest,
       recomputed_digest: recon.recomputedDigest ?? rec.snapshot_digest,
-      prev: chainHead,
-    };
-    const entryDigest = digest(CHAIN_DIGEST_PREFIX, entryWithoutDigest);
-    const chainEntry = { ...entryWithoutDigest, entry_digest: entryDigest };
-    chainHead = entryDigest;
+    });
 
     rec.state = "committed";
     releaseReport(rec.report_id, rec.request_id);
@@ -532,7 +534,7 @@ export function createSignGate({
         policy_version: rec.snapshot.policy_version,
         policy_digest: rec.snapshot.policy_digest,
         snapshot_digest: rec.snapshot_digest,
-        chain_head: entryDigest,
+        chain_head: chainEntry.entry_digest,
         provenance_summary: countProvenance(rec.snapshot),
         violation_history: [],
       },
@@ -542,6 +544,6 @@ export function createSignGate({
   // `locks` is exposed so a real write route (S2/S4, not this node) shares
   // THIS gate's own lock/revision instance rather than accidentally
   // constructing a second one that would never see these acquire/release
-  // calls.
-  return { open, get, respond, continueTicket, commit, peekConfirmTokenForDialog, peekOpenRequestId, locks };
+  // calls. `chain` is exposed the same way, for GET /api/daybook (S7).
+  return { open, get, respond, continueTicket, commit, peekConfirmTokenForDialog, peekOpenRequestId, locks, chain };
 }
