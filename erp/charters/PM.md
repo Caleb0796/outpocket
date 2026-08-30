@@ -61,8 +61,17 @@ owned no nodes at all, and `D-89` was a **ruling rather than a node** — so
 there was no `outputs` array for ownership clause (a) to match and clause (b)
 sent every path to whoever owned the glob.
 
-**Before ruling any follow-up, ask ONE question: does this work create a path
-that NO node declares?** Then take the cheapest sufficient option:
+**D-104 — L1 SHARPENED THIS QUESTION AND ITS VERSION SUPERSEDES MINE.** Mine
+caught three instances and missed the fourth, because `erp/RUBRIC.md`'s path
+EXISTS and IS declared — just to somebody else. **THE QUESTION THAT CATCHES
+ALL FOUR IS: DOES THE SEAT I AM GRANTING THIS TO OWN THE PATHS IT WILL HAVE
+TO WRITE?** Ask that before ruling any follow-up, writing any charter clause,
+or creating any node. The four granting artifacts were a NODE with a short
+outputs list (F7), a CHARTER for a seat owning no nodes (W), a RULING that
+created no node (D-89), and a CHARTER granting an edit to another node's
+declared file (L2) — **four different artifacts, one shape: a document that
+grants work cannot grant the right to commit it, because ownership lives in a
+different document.** Then take the cheapest sufficient option: Then take the cheapest sufficient option:
 
 1. **Every path already declared by the owning node** → nothing to do. Today's
    follow-ups on `H2` (drive.mjs), `S1` (index.mjs), `F1` (index.html), `E1`
