@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>outpocket — expense desk</title>
 
+<!-- An inline favicon, for the same reason the skin.css <link> came out: every
+     browser requests /favicon.ico unprompted, and without this the production
+     page logs a 404 for it on every single load. Found by the same measurement
+     that confirmed the skin.css one — a resource-timing sweep for status >= 400,
+     which is worth re-running before the shoot rather than trusting this list.
+     A data: URI so it costs no request of its own. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Cpath d='M9 21V11h4.6a3.2 3.2 0 010 6.4H12V21z' fill='%23fff'/%3E%3Ccircle cx='22' cy='19.5' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+
 <!--
   src/page/index.html — node F1 (lane F, owner UX): the application shell,
   the login, and the two personas.
@@ -37,14 +45,30 @@
   Tools are registered by src/page/register.js (node I2) at the top level of
   this document, never from inside a region and never from an iframe.
 
-  ./skin.css is node F6's output and does not exist yet; the link is here so
-  that F6 is a pure addition rather than an edit to this file.
+  THERE IS NO <link> FOR ./skin.css HERE, AND ITS ABSENCE IS THE POINT.
+  F1 shipped one so that F6 "would be a pure addition rather than an edit to
+  this file". That reasoning expired twice over: F6 edits this file anyway (the
+  link has to sit BELOW the <style> block to win on equal specificity), and
+  meanwhile the tag pointed at a file that does not exist, so every load of the
+  production page logged a 404 for it. Found independently by QA on the live
+  host, by I2 locally, and by L1 against production.
+
+  A DOCUMENTED 404 IS STILL A 404 IN A JUDGE'S NETWORK PANEL, on a project whose
+  pitch is that the page is honest about its own state. And it was the third
+  tag-without-its-file this sprint. The rule all three point at, and the reason
+  this file no longer carries the tag: A REFERENCE AND ITS REFERENT LAND IN THE
+  SAME COMMIT. F6 restores the <link>, below the <style> block, in the commit
+  that adds src/page/skin.css.
+
+  Removing it costs nothing because every panel's baseline styling already lives
+  in the block below rather than only in the skin — a deliberate choice made in
+  F5, so the page films correctly whether or not F6 has landed.
 -->
 
-<link rel="stylesheet" href="./skin.css">
 <style>
-  /* Shell-only styling. Enough that the page is legible and screenshot-safe
-     before F6's skin exists; F6's skin.css loads after this block and wins. */
+  /* Shell-only styling, and the page's ONLY styling until F6 lands: enough that
+     every panel is legible and screenshot-safe on its own. F6's skin.css
+     refines this; it does not replace it. */
   :root { color-scheme: light; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
          background: #f4f4f2; color: #16181d; }
