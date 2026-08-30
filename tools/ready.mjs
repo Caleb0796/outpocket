@@ -553,6 +553,7 @@ function checkOrphans() {
   for (const t of targets) {
     const base = t.path.split('/').pop();
     let via = null;
+    const hits = [];
     for (const [f, text] of stripped) {
       if (f === t.path) continue;
       // A REFERENCE IN HTML IS AN src= OR href= ATTRIBUTE, NOT ANY QUOTED STRING.
@@ -586,11 +587,43 @@ function checkOrphans() {
           // missing tests/ corpus was caught the first time this mode was built.
           ? new RegExp("[\"'`][^\"'`]*" + b + "[\"'`]")
           : new RegExp("(?:from|import|require)\\s*\\(?\\s*[\"'`][^\"'`]*" + b + "[\"'`]");
-      if (re.test(text)) { via = f; break; }
+      if (re.test(text)) { hits.push(f); if (!via) via = f; }
     }
     if (!via && new RegExp(`["'][^"']*${base.replace(/\./g, '\\.')}`).test(pkg)) via = 'package.json scripts';
     if (!via && acceptText.includes(t.path)) via = 'named in an accept';
-    if (via) { referenced.push(`${t.path} (${t.node}) <- ${via}`); continue; }
+
+    // REFERRER CLASSIFICATION — D-80, and it is a FALSE GREEN IN THIS TOOL that UX
+    // found by running it AT THE MOMENT IT SHOULD HAVE FAILED rather than at the
+    // moment it wanted a pass. Before mounting src/page/ui/sign-dialog.js it ran
+    // this mode expecting to be caught. It printed
+    //     src/page/ui/sign-dialog.js (F4) <- tests/acceptance/sign-dialog.test.mjs
+    //     ok    every built src/ output is loaded from somewhere real
+    // A TEST IMPORT SATISFIED IT. Every node output has a test, so every node
+    // output has a referrer, so "loaded from somewhere real" was true and was NOT
+    // the property this mode was bought for. It would not have caught the
+    // env-banner orphan either: banner.test.mjs imports env-banner.js directly,
+    // which is exactly why H5 was green while the banner never rendered.
+    //
+    // A src/page/** module is code the BROWSER must load. A referrer under tests/
+    // proves the file parses, never that any page reaches it. So for src/page/**
+    // the referrer set must contain at least one PAGE referrer — another src/ file,
+    // or an HTML src=/href= attribute. Outside src/page/** any referrer still
+    // counts: src/erp.js is a library and server/ importing it is a real load.
+    // AN HTML ENTRY POINT IS EXEMPT AND I LEARNED THAT THE SAME WAY THE ORIGINAL
+    // AUTHOR OF THIS FUNCTION DID: my first cut of this rule REPORTED
+    // src/page/index.html AS AN ORPHAN. It is SERVED, never imported — server/
+    // names it as a path — so it can never have a "page referrer" and demanding one
+    // INVENTS A VIOLATION, which the comments twenty lines up already say is worse
+    // than missing one. Two separate rules in this one function have now made this
+    // exact mistake. Run the checker against the real tree before shipping it.
+    const isPage = t.path.startsWith('src/page/') && !t.path.endsWith('.html');
+    const pageHits = hits.filter((f) => f.startsWith('src/'));
+    if (isPage && via && !pageHits.length && via !== 'package.json scripts' && via !== 'named in an accept') {
+      bad(`${t.path} is a declared output of ${t.node} (${t.owner}) under src/page/, so a BROWSER must load it, and its only referrers are ${hits.join(', ')} — a test import proves it parses, never that any page reaches it`);
+      orphans++;
+      continue;
+    }
+    if (via) { referenced.push(`${t.path} (${t.node}) <- ${via}${pageHits.length ? '  [page]' : hits.length ? '  [non-page]' : ''}`); continue; }
     bad(`${t.path} is a declared output of ${t.node} (${t.owner}), EXISTS on disk, and is referenced from NO non-comment context — nothing loads it`);
     orphans++;
   }
