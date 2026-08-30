@@ -37,7 +37,8 @@
     "S12",
     "V6",
     "H3",
-    "T5"
+    "T5",
+    "F4"
   ],
   "in_flight": {
     "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide.",

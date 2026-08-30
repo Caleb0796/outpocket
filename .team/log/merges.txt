@@ -832,3 +832,16 @@ MERGED T5  c747c38 pits:kb/pits/T5.md accept:PASS
 #   empty. Correct direction.
 #   app_commit is deliberately NOT `git rev-parse HEAD` — committing the artifact
 #   would move HEAD and E5's drift guard would false-alarm forever.
+
+MERGED F4  c526b56 pits:kb/pits/F4.md accept:PASS
+#   The signing dialog. UNDISCLOSABLE THEREFORE UNSIGNABLE: when the facts cannot
+#   be named the sentence returns null, [data-worst-case] renders empty, and the
+#   POST is refused. A generic fallback sentence was the natural choice and would
+#   have passed this accept forever.
+#   The guard sits on the PATH THAT SENDS, not on the button: the test strips the
+#   disabled attribute, calls submit directly, and asserts fetch.calls == [].
+#   Three controls, because an assertion nobody has seen fail is a claim.
+#   AND UX FOUND A FALSE GREEN IN MY OWN TOOL on the way (D-80): --check-orphans
+#   counted a TEST import as a mount, so every node output had a referrer and a
+#   module no page loads passed. It would not have caught the env-banner orphan
+#   either. Fixed here; one true orphan now stands, S5's sign-bridge.js.
