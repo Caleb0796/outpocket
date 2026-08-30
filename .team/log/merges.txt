@@ -1156,3 +1156,14 @@ MERGED S8  490f421 pits:kb/pits/S8.md accept:PASS
 #   the module LOAD, giving an import error dressed as a failing test. Disabling only the
 #   mislabel guard gives 5 pass / 1 fail, and the one failure is the D-100 test built for
 #   it. Second sabotage-that-proved-nothing I have written today.
+
+FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep, not a node)
+#   ONE instance and it is STRUCTURALLY BOUNDED: new AbortController() appears exactly
+#   ONCE in product code, so the class has exactly one generator and it was already fixed.
+#   Detector validated against the PRE-FIX file before the negative was trusted.
+#   ROUTED: sign-dialog.js discards submitDecision from the human Sign/Decline handlers
+#   with the fetch UNWRAPPED -- THE HUMAN CLICKS SIGN, THE REQUEST FAILS, AND NOTHING
+#   VISIBLY HAPPENS, on the surface the camera films. And fallback-agent's shim NEVER
+#   REJECTS, so it cannot reproduce the class -- a FALSE-NEGATIVE GENERATOR that nearly
+#   convinced I2 there was nothing to find.
+#   IN A CLASSIFICATION THE DANGEROUS CELL IS NOT THE INSTANCE, IT IS THE CLEARED ONE.
