@@ -38,14 +38,18 @@
     "V6",
     "H3",
     "T5",
-    "F4"
+    "F4",
+    "S2"
   ],
   "in_flight": {
+    "H4": "I1 \u2014 GREEN, awaiting the demo-mode mount tag from UX.",
+    "T3": "I2 \u2014 building (a) behind the D-77 freeze bump; two checks deliberately RED on main until it lands.",
+    "S6": "I3 \u2014 taken.",
+    "E5": "C4 \u2014 contract written, not yet fired.",
+    "F6/F5": "UX \u2014 ready.",
     "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide.",
-    "V4": "I1 \u2014 parked at c98016f; D-73 amended its accept, run 2 not taken with the reason recorded.",
-    "pit debts": "H5 G2 T4 S5 T2 S12 T5 \u2014 five-field reports; H5 is evidenced-unrecoverable and stays PENDING.",
-    "D6 prep": "QA \u2014 runs LAST, against the final public state.",
-    "H4": "I1 \u2014 dispatched, head of the critical path; H6 unblocks on it."
+    "V4": "I1 \u2014 parked.",
+    "pit debts": "H5 (evidenced unrecoverable), G2, T4, S5, S12, T2."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

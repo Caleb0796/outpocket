@@ -845,3 +845,15 @@ MERGED F4  c526b56 pits:kb/pits/F4.md accept:PASS
 #   counted a TEST import as a mount, so every node output had a referrer and a
 #   module no page loads passed. It would not have caught the env-banner orphan
 #   either. Fixed here; one true orphan now stands, S5's sign-bridge.js.
+
+MERGED S2  e790b38 pits:kb/pits/S2.md accept:PASS
+#   Authz. THE PREDICATE WAS PASSED PERFECTLY BY A SERVER THAT 403s EVERYONE, and
+#   the fix is a POSITIVE CONTROL beside every negative: same route, employee
+#   cookie, asserted not-403 AND pinned to the expected success status. Also 403
+#   distinguished from 404 by exact status AND authz code; the route table asserted
+#   NON-EMPTY before iteration (a for-loop over nothing exits 0); and the table READ
+#   from the server's own export rather than transcribed.
+#   I3 SABOTAGED ITS OWN authz.mjs TWICE -- always-throw, empty table -- to watch the
+#   script fail before trusting it green.
+#   And gating /api/sign broke its OWN merged S12 test; it fixed the FIXTURE rather
+#   than weakening the gate to avoid touching prior work.
