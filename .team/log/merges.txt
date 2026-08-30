@@ -716,7 +716,7 @@ MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 #   immediately when a producer artifact lands." That is exactly when this became
 #   visible.
 
-MERGED T2  0483c20 pits:PENDING-UNRECOVERABLE accept:PASS
+MERGED T2  0483c20 pits:PENDING accept:PASS
 #   T2's PIT IS UNRECOVERABLE FROM I2's CURRENT SEAT, on the same footing as H5, and
 #   I2 said so rather than writing one. T2 was already merged and green when that
 #   session opened; everything it knows about the node -- 7/7 clauses, the walk,
