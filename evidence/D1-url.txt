@@ -1,0 +1,27 @@
+https://outpocket.onrender.com
+
+ONE INSTANCE — TRUE TODAY, AND WHY, NOT JUST THAT:
+
+This deploy is on Render's FREE tier as of 2026-08-30. The free tier is
+single-instance by nature (no autoscale, no multi-replica option), so "exactly
+one instance" holds today as a PROPERTY OF THE TIER, not because anyone
+configured a replica count of 1 that could be changed later without anyone
+noticing.
+
+This is deliberate and temporary, not an oversight: no card is on file for
+this Render account, and the user intends to upgrade to D-08's paid 0.5 CPU /
+512 MB tier before Day-6 go-live so the 2026-09-04 -> 2026-09-21 unattended
+judging window does not hit the free tier's cold-start / 15-minute-sleep
+behavior. On that upgrade, "one instance" stops being incidental and must be
+explicitly configured and re-verified in the Render dashboard (autoscale off,
+replica count 1) — this file's claim is scoped to the free-tier deploy as it
+stands on 2026-08-30, not to whatever configuration follows the upgrade.
+
+Why it matters at all, restated for whoever reads this after the upgrade:
+S9's state digest lives in one process's in-memory Map, and S6's TOCTOU
+closure is true by construction of a single process. A second instance
+(intentional or accidental, e.g. Render's own zero-downtime rolling deploy
+briefly running two) would silently reintroduce both — the digest would
+diverge between instances and the lock race S6 closes would reopen. Re-check
+this file, not just the dashboard's instance count, after the paid-tier
+upgrade lands.
