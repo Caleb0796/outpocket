@@ -43,14 +43,15 @@
     "H4",
     "S6",
     "H6",
-    "F7"
+    "F7",
+    "T3"
   ],
   "in_flight": {
     "D1": "I4 (route) + I3 (wiring) \u2014 UNBLOCKED, the user deployed https://outpocket.onrender.com. /version is the only failing clause; server/routes/version.mjs is not on main. GATE THIS LAST: Render auto-deploys on push, so /version==HEAD is only true between a deploy and my next push.",
-    "T3": "I2 \u2014 green, HELD: accept span still omits --url and cannot run verbatim. Third defect, with PM.",
     "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
-    "E5/E2/E3": "C4 \u2014 contracts ready, held until T3 clears export-surface + validate-contracts.",
-    "pit debts": "H5 (evidenced unrecoverable), G2, T2."
+    "E5/E2/E3": "C4 \u2014 HOLD DISCHARGED, both deliberate reds cleared by T3. Ready to fire.",
+    "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
+    "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

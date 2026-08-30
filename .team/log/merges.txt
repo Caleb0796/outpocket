@@ -917,3 +917,19 @@ MERGED F7  64363da pits:kb/pits/F7.md accept:PASS
 #   never on the surface -- so "the submit must not complete" was true and tested
 #   nothing. A NEGATIVE CONTROL SATISFIABLE BY THE TOOL BEING ABSENT IS NOT A CONTROL.
 #   STILL OPEN: the page cannot COMPLETE a signature (403 E_NO_CONFIRM_TOKEN). D-89.
+
+MERGED T3  4b10265 pits:kb/pits/T3.md accept:PASS
+#   The absence register. BOTH DELIBERATE REDS FROM THE D-77 BUMP CLEARED HERE.
+#   The predicate asks only that code/severity/field/fix/candidates be PRESENT, and
+#   a body of code:"UNKNOWN", field:"", fix:"contact your administrator" satisfies it
+#   and is worthless. It answers the same question SIX different ways across the six
+#   states, names real validator codes, never reports ITSELF missing, and never
+#   invents an absence for a present tool.
+#   I2 OVERRULED MY BRIEF BY CITING THE FROZEN SCHEMA AND WAS RIGHT: allOf[0] forces
+#   candidates EMPTY for human_exception_required, because when only a human can act
+#   there is no value an agent could supply and a list of tools is a way forward that
+#   does not exist.
+#   FOUR states MEASURED in a real browser, TWO DERIVED -- and that distinction is now
+#   IN the predicate, so the honesty survives the seat that insisted on it.
+#   FOUR REVISIONS of this predicate, each checked by READING and none by RUNNING,
+#   until PM ran `sh -n` and caught a fifth defect its own fix had introduced.
