@@ -47,7 +47,7 @@
     "T3"
   ],
   "in_flight": {
-    "D1": "I4 (route) + I3 (wiring) \u2014 UNBLOCKED, the user deployed https://outpocket.onrender.com. /version is the only failing clause; server/routes/version.mjs is not on main. GATE THIS LAST: Render auto-deploys on push, so /version==HEAD is only true between a deploy and my next push.",
+    "D1": "MERGED but NOT DONE: 3 of 4 accept clauses pass on the live host; the /version==HEAD clause is deferred to the FINAL PASS with D6 per D-92(b), because Render auto-deploys on push and every merge invalidates it. Route + mount are in.",
     "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
     "E5/E2/E3": "C4 \u2014 HOLD DISCHARGED, both deliberate reds cleared by T3. Ready to fire.",
     "pit debts": "H5 (evidenced unrecoverable), G2, T2.",

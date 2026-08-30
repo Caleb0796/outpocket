@@ -933,3 +933,16 @@ MERGED T3  4b10265 pits:kb/pits/T3.md accept:PASS
 #   IN the predicate, so the honesty survives the seat that insisted on it.
 #   FOUR REVISIONS of this predicate, each checked by READING and none by RUNNING,
 #   until PM ran `sh -n` and caught a fifth defect its own fix had introduced.
+
+MERGED D1-partial 7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b))
+#   NOT counted as done. Header dump, Origin-Agent-Cluster ABSENT and 200 all pass on
+#   the live host; /version==HEAD is verified in the FINAL PASS with D6, because Render
+#   auto-deploys on push and a mid-sprint mismatch is expected.
+#   Ownership checked PER SEAT: four apparent violations against I3 all trace to
+#   commits authored by I4 on seat/I4-D1, and --seat I4 returns 0 on them. Ownership
+#   binds branches, not keystrokes.
+#   THE FIND: `Number(process.env.PORT) || 3000` treats 0 AS FALSY, so PORT=0 fell
+#   through to 3000 and curl-403.sh + toctou.sh were ACCIDENTALLY BINDING 3000 EVERY
+#   TIME while claiming ephemeral ports. Both passed throughout. A TEST THAT PASSES ON
+#   THE WRONG PORT PASSES.
+#   FIRST PIT DELIVERED UNDER CLAUSE 6e -- arrived inside the commit, no chasing.
