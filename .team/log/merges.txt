@@ -1079,3 +1079,12 @@ MERGED E4  50b8cd4 pits:kb/pits/E4.md accept:PASS (clause 1 verified BY HAND —
 #   pattern fired on its OWN schema ("in task order" != tool call order). A DETECTOR THAT
 #   FIRES ON EVERYTHING IS EXACTLY AS SATISFIABLE AS ONE THAT FIRES ON NOTHING, and the
 #   false-positive direction is the one that gets an instrument DISABLED.
+
+MERGED E2  f31e3ba pits:kb/pits/E2.md accept:PASS (verified by hand — the gate cannot supply $URL)
+#   Six canonical states by SET EQUALITY, never count. S4-emp-submitted and S5-aud carry
+#   THE SAME NUMBER of tools and are NOT the same set, so a count assertion passes even
+#   if THE AUDITOR IS HANDED THE EMPLOYEE'S SURFACE.
+#   Expected sets read from artifacts/tools.export.json AT RUNTIME -- "transcribing it
+#   would only check my copy against my copy".
+#   The crossover cost C4 investigation time as well: exported S2-emp-draft-clean is the
+#   compiler's internal S3. Four documents and a seat now. D-99 exists for this.
