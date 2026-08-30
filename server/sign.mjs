@@ -39,9 +39,12 @@
 //     the same report; it says nothing about a write route that never goes
 //     through /api/sign at all) — it is NOT layer 2 and must never be
 //     described as such.
-//   - E_SNAPSHOT_MISMATCH / E_REVISION_MISMATCH from a server-side rebuild —
-//     that is S6's re-canonicalisation-on-commit. commit() here trusts its
-//     own stored record; it does not re-derive the snapshot from live state.
+//   - E_SNAPSHOT_MISMATCH: S6 has landed (server/recanon.mjs). commit() below
+//     calls reconcile() against opts.getLiveReport(reportId) before treating
+//     anything as committed — GIVEN a single server instance (S1), true by
+//     construction, same argument as S12's lock. Still not this node's own
+//     concern in one sense: the canonicalisation logic itself lives entirely
+//     in recanon.mjs, unit-tested there; this module only calls it.
 //   - The persisted, verifiable hash chain — that is S7's server/chain.mjs.
 //     commit() computes one schema-correct chain_entry (same OCF-1 formula,
 //     same digest prefix) so this node's own tests can observe "a chain
@@ -53,8 +56,9 @@
 import { randomBytes } from "node:crypto";
 import { canon, digest } from "../src/canonical.js";
 import { createReportLocks } from "./locks.mjs";
+import { reconcile, SNAPSHOT_DIGEST_PREFIX } from "./recanon.mjs";
 
-export const SNAPSHOT_DIGEST_PREFIX = "outpocket/snapshot/1";
+export { SNAPSHOT_DIGEST_PREFIX };
 export const CHAIN_DIGEST_PREFIX = "outpocket/chain/1";
 export const GENESIS_DIGEST = "sha256:" + "0".repeat(64);
 
@@ -65,11 +69,12 @@ export const CONFIRM_TOKEN_RE = /^ct_[0-9a-f]{32}$/;
 export const TICKET_RE = /^tk_[0-9a-f]{32}$/;
 
 export class SignError extends Error {
-  constructor(code, http, message) {
+  constructor(code, http, message, detail) {
     super(message || code);
     this.name = "SignError";
     this.code = code;
     this.http = http;
+    this.detail = detail;
   }
 }
 
@@ -150,12 +155,19 @@ function countProvenance(snapshot) {
  *   injects its own `now` and wants to observe locks.mjs's expiry from a
  *   test must also inject the same `locks` instance, built with the same
  *   `now`, or the two modules disagree about what "expired" means.
+ * opts.getLiveReport: (reportId) -> report | null. S6's hook into live
+ *   report state (S2's store). Defaults to `() => null` — every commit
+ *   then behaves exactly as it did before S6 existed (recon.skipped, no
+ *   check performed), which is what every synthetic-report_id test in this
+ *   repo relies on. The real server (server/index.mjs) wires this to its
+ *   own findReport().
  */
 export function createSignGate({
   now = () => new Date(),
   ttlMs = DEFAULT_TTL_MS,
   requireConfirmToken = true,
   locks = createReportLocks({ now }),
+  getLiveReport = () => null,
 } = {}) {
   const records = new Map(); // request_id -> record
   const byTicket = new Map(); // ticket -> request_id
@@ -443,6 +455,19 @@ export function createSignGate({
       throw new SignError("E_NOT_SIGNED", 409, `sign request is ${rec.state}${rec.decision ? `/${rec.decision}` : ""}, not answered+signed`);
     }
 
+    // S6: re-canonicalise against LIVE state before treating anything as
+    // committed. GIVEN a single server instance, synchronous with no await
+    // between the fetch and the comparison — true by construction.
+    const recon = reconcile(rec.snapshot, getLiveReport(rec.report_id));
+    if (!recon.ok) {
+      throw new SignError(
+        "E_SNAPSHOT_MISMATCH",
+        409,
+        `report ${rec.report_id} changed between sign and commit: signed ${recon.signedDigest}, recomputed ${recon.recomputedDigest}`,
+        { signed_digest: recon.signedDigest, recomputed_digest: recon.recomputedDigest },
+      );
+    }
+
     confirmCounter += 1;
     const confirmation = `CH-${String(confirmCounter).padStart(4, "0")}`;
     chainSeq += 1;
@@ -455,6 +480,7 @@ export function createSignGate({
       label: `signed & submitted ${rec.report_id}`,
       detail: confirmation,
       payload_digest: rec.snapshot_digest,
+      recomputed_digest: recon.recomputedDigest ?? rec.snapshot_digest,
       prev: chainHead,
     };
     const entryDigest = digest(CHAIN_DIGEST_PREFIX, entryWithoutDigest);
