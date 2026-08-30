@@ -6,11 +6,11 @@
   "states": [
     {
       "accounting": {
-        "description_bytes": 266,
-        "estimated_tokens": 79,
-        "schema_bytes": 33,
-        "tool_count": 1,
-        "total_bytes": 316
+        "description_bytes": 600,
+        "estimated_tokens": 205,
+        "schema_bytes": 182,
+        "tool_count": 2,
+        "total_bytes": 819
       },
       "label": "Nobody is signed in",
       "preconditions": {
@@ -19,7 +19,7 @@
         "verdict": "n_a"
       },
       "state_id": "S0-anon",
-      "surface_digest": "sha256:6d7df5d241b26b80aaee6f3bd7c228a5c4a87e603799347285a5c44231ce3233",
+      "surface_digest": "sha256:f06bcc69e91399f550951ed1e7627b4999ba946884ec79503fc33aa8b2254d53",
       "tools": [
         {
           "annotations": {
@@ -31,16 +31,35 @@
             "type": "object"
           },
           "name": "get_signin_status"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     },
     {
       "accounting": {
-        "description_bytes": 1051,
-        "estimated_tokens": 405,
-        "schema_bytes": 474,
-        "tool_count": 5,
-        "total_bytes": 1620
+        "description_bytes": 1385,
+        "estimated_tokens": 531,
+        "schema_bytes": 623,
+        "tool_count": 6,
+        "total_bytes": 2123
       },
       "label": "Employee signed in, no report open",
       "preconditions": {
@@ -49,7 +68,7 @@
         "verdict": "n_a"
       },
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:2c92d2afd19d748d47dbfcc235eff66ccad26fd808b66b3397d72364049a94fd",
+      "surface_digest": "sha256:dddbdfd1bc404351540552bb5d16f91a701b2fbe8fba7d7872984e7fd2deea96",
       "tools": [
         {
           "annotations": {
@@ -120,16 +139,35 @@
             "type": "object"
           },
           "name": "open_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     },
     {
       "accounting": {
-        "description_bytes": 2668,
-        "estimated_tokens": 1478,
-        "schema_bytes": 3008,
-        "tool_count": 13,
-        "total_bytes": 5909
+        "description_bytes": 3002,
+        "estimated_tokens": 1603,
+        "schema_bytes": 3157,
+        "tool_count": 14,
+        "total_bytes": 6412
       },
       "label": "Employee with a clean draft open; the report can be submitted",
       "preconditions": {
@@ -138,7 +176,7 @@
         "verdict": "clean"
       },
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:337f3cdf0d252bb0229f1ad16707fd57a33ca17578fea7a79e33002457ed8806",
+      "surface_digest": "sha256:e251898e471645517d481d803bbb3e39f02aad8bdf72228e5e9a916276cf10f4",
       "tools": [
         {
           "annotations": {
@@ -450,16 +488,35 @@
             "type": "object"
           },
           "name": "submit_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     },
     {
       "accounting": {
-        "description_bytes": 2360,
-        "estimated_tokens": 1387,
-        "schema_bytes": 2975,
-        "tool_count": 12,
-        "total_bytes": 5547
+        "description_bytes": 2694,
+        "estimated_tokens": 1513,
+        "schema_bytes": 3124,
+        "tool_count": 13,
+        "total_bytes": 6050
       },
       "label": "Employee with a draft that carries a blocking violation",
       "preconditions": {
@@ -468,7 +525,7 @@
         "verdict": "dirty"
       },
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:14efa107ffffc14fea890ecb89bf6565043810e5e8671d13578c1ba850adbb23",
+      "surface_digest": "sha256:1ffd45cd481d33e72d580d00aa41c01e5c097955924c941cd26ea9b22fc7bc79",
       "tools": [
         {
           "annotations": {
@@ -772,16 +829,35 @@
             "type": "object"
           },
           "name": "validate_expense_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     },
     {
       "accounting": {
-        "description_bytes": 1256,
-        "estimated_tokens": 469,
-        "schema_bytes": 507,
-        "tool_count": 6,
-        "total_bytes": 1873
+        "description_bytes": 1590,
+        "estimated_tokens": 594,
+        "schema_bytes": 656,
+        "tool_count": 7,
+        "total_bytes": 2376
       },
       "label": "Employee viewing a report already submitted; the surface has shrunk",
       "preconditions": {
@@ -790,7 +866,7 @@
         "verdict": "n_a"
       },
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:97ded9978bf370f3e1333dee87f28dc3a03d8b65cfa774007d10d1bb032ecfc4",
+      "surface_digest": "sha256:8cc5df1c8f86a1826d907a59c06367f09cea8aacc1039f157340239880242578",
       "tools": [
         {
           "annotations": {
@@ -872,16 +948,35 @@
             "type": "object"
           },
           "name": "get_open_report"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     },
     {
       "accounting": {
-        "description_bytes": 1414,
-        "estimated_tokens": 447,
-        "schema_bytes": 281,
-        "tool_count": 6,
-        "total_bytes": 1787
+        "description_bytes": 1748,
+        "estimated_tokens": 573,
+        "schema_bytes": 430,
+        "tool_count": 7,
+        "total_bytes": 2290
       },
       "label": "Auditor signed in; every tool on this surface is read-only",
       "preconditions": {
@@ -890,7 +985,7 @@
         "verdict": "n_a"
       },
       "state_id": "S5-aud",
-      "surface_digest": "sha256:5e195f1c1f0d482099947c767c55c68b7834add55fba0570756cc88e25424f1f",
+      "surface_digest": "sha256:10950a36c3356afd2c87e57d24834ff055d9a39219647282f3018443ba635520",
       "tools": [
         {
           "annotations": {
@@ -965,13 +1060,32 @@
             "type": "object"
           },
           "name": "get_day_book"
+        },
+        {
+          "annotations": {
+            "readOnlyHint": true
+          },
+          "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
+          "inputSchema": {
+            "properties": {
+              "name": {
+                "description": "The tool to explain, for example submit_expense_report.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "name": "explain_missing_tool"
         }
       ]
     }
   ],
   "totals": {
-    "distinct_tool_count": 16,
-    "max_description_bytes": 309,
+    "distinct_tool_count": 17,
+    "max_description_bytes": 334,
     "state_count": 6
   }
 }

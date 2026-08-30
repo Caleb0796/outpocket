@@ -1,37 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import Ajv2020 from "ajv/dist/2020.js";
 import { makeWorld, names, buildCleanReport } from "./helpers.mjs";
 import { DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
 import { digest } from "../src/canonical.js";
 
-test("signed out: the surface is a single explainer tool", () => {
+test("signed out: the surface is the explainer plus the absence register", () => {
   const w = makeWorld();
-  assert.deepEqual(names(w.toolset), ["get_signin_status"]);
+  assert.deepEqual(names(w.toolset), ["get_signin_status", "explain_missing_tool"]);
 });
 
-test("employee surface grows with state: 5 → 12 → 13 (door) → shrinks when dirty", async () => {
+test("employee surface grows with state: 6 → 14 (door) → shrinks to 13 when dirty", async () => {
   const w = makeWorld();
   w.erp.signIn("chen", "human");
-  assert.equal(names(w.toolset).length, 5);
+  assert.equal(names(w.toolset).length, 6);
   assert.ok(!names(w.toolset).includes("add_expense_line"));
 
   await buildCleanReport(w);
   const n = names(w.toolset);
-  assert.equal(n.length, 13, `expected the clean-draft surface, got: ${n.join(",")}`);
+  assert.equal(n.length, 14, `expected the clean-draft surface, got: ${n.join(",")}`);
   assert.ok(n.includes("submit_expense_report"), "door open when clean");
 
   // dirty it → the door closes
   w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
   assert.ok(!names(w.toolset).includes("submit_expense_report"), "door closes when a blocking violation appears");
-  assert.equal(names(w.toolset).length, 12);
+  assert.equal(names(w.toolset).length, 13);
 });
 
 test("auditor surface: read-only by construction", async () => {
   const w = makeWorld();
   w.erp.signIn("ruiz", "human");
   const n = names(w.toolset);
-  assert.deepEqual(n.sort(), ["get_day_book", "get_expense_policy", "get_open_report", "get_report", "get_session_scope", "list_expense_reports"].sort());
+  assert.deepEqual(n.sort(), ["explain_missing_tool", "get_day_book", "get_expense_policy", "get_open_report", "get_report", "get_session_scope", "list_expense_reports"].sort());
   for (const d of w.toolset.surface()) assert.equal(d.annotations?.readOnlyHint, true, `${d.name} must be readOnly`);
 
   // Constructive, not a hint we ask a model to believe: run every tool the
@@ -153,8 +154,8 @@ test("T5 export: the ids cross over at 2/3 — clean is 13 tools, dirty is 12", 
   // still check out — wrong quietly, which is the whole reason this test exists.
   const clean = namesOf("S2-emp-draft-clean");
   const dirty = namesOf("S3-emp-draft-dirty");
-  assert.equal(clean.length, 13);
-  assert.equal(dirty.length, 12);
+  assert.equal(clean.length, 14);
+  assert.equal(dirty.length, 13);
   assert.ok(clean.includes("submit_expense_report"), "the clean draft is the one that can be submitted");
   assert.ok(!dirty.includes("submit_expense_report"), "a blocking violation takes the door away");
   assert.deepEqual(clean.filter((n) => n !== "submit_expense_report"), dirty, "and they differ by that one name only");
@@ -228,4 +229,152 @@ test("T5 export: blind — only the four fields a client agent's model can see",
   const raw = readFileSync(new URL("../artifacts/tools.export.json", import.meta.url), "utf8");
   for (const leak of ["src/", ".js", "countinghouse", "/Users/"])
     assert.ok(!raw.includes(leak), `the export leaks ${leak}`);
+});
+
+// ── node T3: the absence register ──────────────────────────────────────────────
+// The trap in this node is that PRESENT IS NOT USEFUL. A body carrying code
+// "UNKNOWN", field "", fix "contact your administrator" and no candidates
+// validates against the frozen envelope, names every required key, and tells the
+// caller nothing. So these assert CONTENT and DISCRIMINATION: that the same
+// question asked from two states absent for two different reasons comes back with
+// two different answers, and that the reasons are the real ones.
+
+const violationSchema = JSON.parse(readFileSync(new URL("../erp/contracts/violation.schema.json", import.meta.url), "utf8"));
+const validateViolation = new Ajv2020({ allErrors: true, strict: false }).compile(violationSchema);
+
+function askAbout(w, toolName) {
+  const def = w.toolset.surface().find((d) => d.name === "explain_missing_tool");
+  assert.ok(def, "explain_missing_tool must be on every surface");
+  const text = def.execute({ name: toolName }).content[0].text;
+  assert.ok(text.length <= OUTPUT_BUDGET, `answer is ${text.length} chars, over the ${OUTPUT_BUDGET} budget`);
+  const body = JSON.parse(text);
+  assert.ok(validateViolation(body), `answer does not validate: ${JSON.stringify(validateViolation.errors)}`);
+  return body;
+}
+
+test("T3: the absence register is resident — present in all six states", async () => {
+  const w = makeWorld();
+  const seen = [];
+  const check = () => {
+    const n = names(w.toolset);
+    assert.equal(n.filter((x) => x === "explain_missing_tool").length, 1, `exactly one, in ${w.toolset.state()}`);
+    seen.push(w.toolset.state());
+  };
+  check();                                                   // S0
+  w.erp.signIn("chen", "human"); check();                    // S1
+  await buildCleanReport(w); check();                        // S3 clean
+  w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
+  check();                                                   // S2 dirty
+  w.erp.openReport("RP-1017", "test"); check();               // S4 submitted
+  w.erp.signOut("human"); w.erp.signIn("ruiz", "human"); check(); // S5 auditor
+  assert.deepEqual([...new Set(seen)].sort(), ["S0", "S1", "S2", "S3", "S4", "S5"]);
+});
+
+test("T3: it discriminates — two tools absent for different reasons get different answers", async () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  await buildCleanReport(w);
+  w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
+
+  // Same state, same question shape, two tools absent for genuinely different
+  // reasons: one because the draft is blocked, one because it is auditor-only.
+  const blocked = askAbout(w, "submit_expense_report");
+  const auditorOnly = askAbout(w, "get_day_book");
+
+  assert.notEqual(blocked.code, auditorOnly.code, "a stub with good manners returns one answer twice");
+  assert.notEqual(blocked.rule_id, auditorOnly.rule_id);
+  assert.notEqual(blocked.message, auditorOnly.message);
+  assert.notEqual(blocked.fix, auditorOnly.fix);
+
+  // And the blocked answer names the REAL reason, not a generic one: the report id
+  // it was asked about and the codes the real validator really returned.
+  const open = w.erp.openReportOrNull();
+  const vd = w.erp.verdict(open.id);
+  assert.equal(blocked.code, "REPORT_BLOCKED");
+  // entity_id is the STATE, because the envelope requires a surface finding to
+  // carry a surface id (and an S rule_id with it). The report is named in the
+  // message, where it is context rather than the subject of the finding.
+  assert.equal(blocked.entity, "surface");
+  assert.match(blocked.rule_id, /^S[0-9]{2,3}$/);
+  assert.ok(blocked.message.includes(open.id), "it names the report that is actually blocked");
+  assert.equal(blocked.observed, vd.blocking, "it reports the real blocking count");
+  assert.match(blocked.message, /CAP_MEALS/, "it names a code the validator actually produced");
+  assert.equal(auditorOnly.code, "ROLE_SCOPE");
+});
+
+test("T3: the same tool, absent for four different reasons, gets four different answers", async () => {
+  // The strongest form of the discrimination claim: hold the QUESTION fixed and
+  // move the world. If the reason were cosmetic these would collapse to one.
+  const answers = new Map();
+
+  const anon = makeWorld();
+  answers.set("S0", askAbout(anon, "submit_expense_report"));
+
+  const home = makeWorld(); home.erp.signIn("chen", "human");
+  answers.set("S1", askAbout(home, "submit_expense_report"));
+
+  const submitted = makeWorld(); submitted.erp.signIn("chen", "human"); submitted.erp.openReport("RP-1017", "test");
+  answers.set("S4", askAbout(submitted, "submit_expense_report"));
+
+  const aud = makeWorld(); aud.erp.signIn("ruiz", "human");
+  answers.set("S5", askAbout(aud, "submit_expense_report"));
+
+  const codes = [...answers.values()].map((b) => b.code);
+  assert.equal(new Set(codes).size, codes.length, `four states, four reasons, got: ${codes.join(",")}`);
+  assert.deepEqual(codes, ["SIGNIN_REQUIRED", "NO_OPEN_REPORT", "REPORT_NOT_DRAFT", "ROLE_SCOPE"]);
+  // Candidates are non-empty EXACTLY when the agent can act, and empty exactly
+  // when only a human can. That is not a style choice: the frozen envelope sets
+  // candidates maxItems 0 whenever fix_class is human_exception_required, because
+  // offering tools to a caller who cannot use them is a way forward that does not
+  // exist. S0 (a human must sign in) and S5 (a human must hold the other role) are
+  // the two, and both say so in the fix instead.
+  const live = { S0: names(anon.toolset), S1: names(home.toolset), S4: names(submitted.toolset), S5: names(aud.toolset) };
+  for (const [state, body] of answers) {
+    const humanOnly = body.fix_class === "human_exception_required";
+    assert.equal(body.candidates.length === 0, humanOnly, `${state}: candidates and fix_class disagree`);
+    assert.ok(body.fix.length > 0, `${state}: a human-exception answer still has to say what the human does`);
+    // Every candidate offered is a tool actually registered in that state — drawn
+    // from the live surface, never a typed list.
+    for (const c of body.candidates) assert.ok(live[state].includes(c.value), `${state}: candidate ${c.value} is not on the surface`);
+  }
+  assert.deepEqual(answers.get("S0").candidates, [], "nobody is signed in; there is nothing an agent can call to fix that");
+  assert.ok(answers.get("S1").candidates.length > 0, "opening a report IS something the agent can do");
+});
+
+test("T3: it never reports itself missing, and never invents an absence", async () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  await buildCleanReport(w);
+
+  // Itself. It is resident, so it is never absent, and asking must say so.
+  const self = askAbout(w, "explain_missing_tool");
+  assert.equal(self.code, "TOOL_PRESENT", "a register that reports itself missing is worse than none");
+  assert.equal(self.severity, "warn");
+
+  // A tool that IS present. No fabricated violation.
+  const present = askAbout(w, "submit_expense_report");
+  assert.equal(present.code, "TOOL_PRESENT", "submit is on the clean-draft surface; saying otherwise is a lie");
+  assert.doesNotMatch(present.message, /not (registered|on the)/i);
+
+  // Control, from the same operation: the identical call one blocking violation
+  // later does NOT say present — so TOOL_PRESENT is a fact about the surface and
+  // not what this tool says to everything.
+  w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
+  assert.equal(askAbout(w, "submit_expense_report").code, "REPORT_BLOCKED");
+
+  // A name no definition exists for is not dressed up as a state problem.
+  assert.equal(askAbout(w, "delete_everything").code, "TOOL_UNKNOWN");
+});
+
+test("T3: the register is read-only and moves nothing", async () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  await buildCleanReport(w);
+  const def = w.toolset.surface().find((d) => d.name === "explain_missing_tool");
+  assert.equal(def.annotations?.readOnlyHint, true);
+  const before = { open: w.erp.state.openReportId, book: w.erp.state.dayBook.length, lines: w.erp.openReportOrNull().lines.length };
+  for (const n of [...names(w.toolset), "delete_everything", ""]) await w.dispatch("explain_missing_tool", { name: n });
+  assert.equal(w.erp.state.openReportId, before.open);
+  assert.equal(w.erp.state.dayBook.length, before.book);
+  assert.equal(w.erp.openReportOrNull().lines.length, before.lines);
 });
