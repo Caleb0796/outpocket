@@ -138,6 +138,28 @@ author, at the moment they can least afford it, for something they did not do.
 QA diagnosed this correctly against a clean HEAD and recommended the fix that
 shipped, which is the only reason it cost an hour instead of an evening.
 
+### L2 WAS NEVER SEATED — D-97, and it is a property of this sprint, not a note
+
+**MEASURED 2026-08-29 against the live roster: L1, I1, I2, I3, I4, QA, UX and W
+were all running; THERE WAS NO L2 SESSION AND THERE NEVER HAD BEEN ONE.** The
+Day-1 boot set was five seats plus L1 and L2 was not in it — not deferred, not
+dropped, never listed — while `erp/charters/L2.md` sat on disk being cited by
+both L1's escalation path and PM's tiebreak rule.
+
+**FOR 41 OF 62 NODES, QUALITY WAS GOVERNED BY ACCEPTANCE PREDICATES ALONE.**
+Every merge was gated on the written predicate and nothing else, which is what
+L1's charter instructs — written on the assumption that a second seat covered
+the other half. **L1 had no escalation path for weakness for the whole sprint.**
+**No document may describe this sprint as having had two rulers over its full
+length.** L2 is booted late and narrowly (D-97): `E4`, the storyboard beats
+ruling, and one end-state review before `D6`, scoped to **what a judge actually
+sees** — the video, the Devpost answers, the README, the live site.
+
+**The asymmetry stands and L1 did not absorb the role.** §L1/L2 exists because
+*"two identically-prompted leads share failure modes and degrade into mutual
+confirmation rather than mutual accountability"*, and the party who loses that
+asymmetry is the user.
+
 ### Every seat inherits `FORCE_COLOR=3`, and it breaks grep-a-banner predicates
 
 **MEASURED 2026-08-29, `tools/l0-forcecolor-probe.mjs` — adopted from `DEV-L0-gate4-banner-grep`
