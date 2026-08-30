@@ -31,12 +31,18 @@
     "E1",
     "V3",
     "T4",
-    "S5"
+    "S5",
+    "T2",
+    "F3",
+    "S12"
   ],
   "in_flight": {
-    "T2": "I2 \u2014 the reported fix is NOT in the repository (D-71: the artifact is the commit). No commit touches src/page/register.js since c563cdd. No unmet hard inputs \u2014 DISPATCHED, not blocked.",
-    "F3": "UX \u2014 clause 1 green; clause 2 amended by D-68 and now satisfiable via RECEIPT_NOT_FOUND, which is merged. Re-run pending.",
-    "D1": "I4 \u2014 route handler and runbook landed; its accept curls a DEPLOYED $URL that does not exist yet."
+    "S12": "I3 \u2014 day 3, unblocked by S5.",
+    "V4": "I1 \u2014 day 2, last V-lane measurement.",
+    "F3": "UX \u2014 re-running clause 2, now satisfiable via the merged RECEIPT_NOT_FOUND.",
+    "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide; route handler and runbook landed.",
+    "D6 prep": "QA.",
+    "pit debts": "H5 G2 V3 T4 S5 \u2014 five-field reports owed in-message."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

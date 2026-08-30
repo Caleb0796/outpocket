@@ -715,3 +715,34 @@ MERGED S5  75861f9 pits:PENDING accept:PASS
 #   C4's EARLIER is addressed to MY loop and is now in it: "run --check-modes
 #   immediately when a producer artifact lands." That is exactly when this became
 #   visible.
+
+MERGED T2  0483c20 pits:PENDING accept:PASS
+# T2 — THE CORK IS OUT. 7/7 clauses, 1 -> 5 -> 12 -> 13, submit_expense_report
+#   appearing at S3 and vanishing after a violation raised through the REAL policy
+#   engine. Merged as a TRIO with I3's browser-safe canonicaliser and C4's
+#   byte-identity re-sync; none of the three is valid alone.
+#
+#   ROOT CAUSE, and it is the sharpest instance of today's family: src/canonical.js
+#   imported node:crypto, which a browser cannot resolve, so the page's module
+#   graph FETCHED 200 ON EVERY HOP AND FAILED TO LINK. I probed that graph twice
+#   and reported it healthy both times BECAUSE I WAS MEASURING FETCHES. Fetch
+#   succeeds, linking fails, and no probe I wrote could see the difference.
+#   Found by I2 in a file it does not own, which it did not touch.
+#
+#   C4's byte-identity test caught the knock-on at the earliest deterministic
+#   boundary — the vindication of its choice to satisfy R-11 BY IDENTITY rather
+#   than by agreement, verified here by blob hash: both files are
+#   8fa0bedd4d8aeaad33c10e7140e678b6b72ffdaa.
+#
+#   DEV-006 VINDICATED: W found T1's clause passing on ZERO call sites, PM moved
+#   it to T2 with --selftest mandatory, and it now scans a real call site where
+#   the invariant can fail.
+#
+#   AND IT RETIRES THE DANGLING register.js REFERENCE I PUT ON MAIN when I split
+#   the earlier gate. UX corrected my framing of that and was right: not "a
+#   console error if a judge opens devtools" but a page with NO TOOLS AT ALL that
+#   said nothing about it.
+
+MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
+
+MERGED S12 be34298 pits:PENDING accept:PASS
