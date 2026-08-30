@@ -70,3 +70,29 @@ export function createPolicyHandler(document = POLICY_DOCUMENT, lock = readVersi
 
 // Computed once, at server policy load (module import) — R-33 half two.
 export const policyHandler = createPolicyHandler();
+
+/**
+ * getServedPolicy(document, lock) -> {version, digest} | null
+ *
+ * D-118 (R-33 half one, x-policyBinding.theFix(a)): the identity of the
+ * policy this server is ACTUALLY serving right now, for server/sign.mjs's
+ * commit() to compare against what a sign request's snapshot claims it was
+ * built under. Reuses verifyPolicyDocument rather than re-deriving the
+ * digest a second way — one canonicaliser, one verification, two readers.
+ * null when the load-time lock check itself failed (half (b): the server
+ * is refusing to serve ANY policy), in which case there is nothing to
+ * compare against and commit() must not fail closed on a null it cannot
+ * interpret — see its own SKIP behaviour, same discipline as S6's
+ * getLiveReport.
+ */
+export function getServedPolicy(document = POLICY_DOCUMENT, lock = readVersionLock()) {
+  const verified = verifyPolicyDocument(document, lock);
+  return verified.ok ? { version: document.version, digest: verified.digest } : null;
+}
+
+// Computed once, at server policy load — the SAME moment policyHandler is,
+// so both reflect the identical verification pass. A single process never
+// changes its served policy at runtime (S1: one instance), so recomputing
+// this per commit would cost real work for a value that cannot change
+// within the process's lifetime.
+export const SERVED_POLICY = getServedPolicy();
