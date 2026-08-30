@@ -168,6 +168,24 @@ function countProvenance(snapshot) {
  *   stand-in this module used to build itself; that stand-in is gone, not
  *   duplicated. Exposed on the returned gate as `chain` so a caller (the
  *   real server's GET /api/daybook) can list() it.
+ * opts.getServedPolicy: () -> {version, digest} | null. D-118
+ *   (x-policyBinding.theFix(a)): the policy this server is ACTUALLY
+ *   serving right now. Defaults to `() => null` — SKIPPED, same discipline
+ *   as getLiveReport, so every existing test that signs with an arbitrary
+ *   policy_version/policy_digest unrelated to any real served document
+ *   keeps passing. The real server wires this to routes/policy.mjs's
+ *   SERVED_POLICY.
+ *
+ * ORDERING INSIDE commit(), decided at the merge of these two nodes
+ * (S7 and D-118, independently branched off the same baseline, both
+ * touching commit()): policy identity is checked FIRST (a moved policy is
+ * the more fundamental fact — the rules themselves changed, not merely
+ * the report), THEN S6's report re-canonicalisation, and ONLY IF BOTH PASS
+ * does chain.append() run. A refused commit — whichever check refused it —
+ * MUST NOT append a chain entry: the day book would otherwise record a
+ * commit that did not happen. tests/acceptance/chain.test.mjs and
+ * sign-state.test.mjs both assert this explicitly post-merge, not merely
+ * as an accident of source order.
  */
 export function createSignGate({
   now = () => new Date(),
@@ -176,6 +194,7 @@ export function createSignGate({
   locks = createReportLocks({ now }),
   getLiveReport = () => null,
   chain = createChain({ now }),
+  getServedPolicy = () => null,
 } = {}) {
   const records = new Map(); // request_id -> record
   const byTicket = new Map(); // ticket -> request_id
@@ -488,6 +507,47 @@ export function createSignGate({
 
     if (!(rec.state === "answered" && rec.decision === "signed")) {
       throw new SignError("E_NOT_SIGNED", 409, `sign request is ${rec.state}${rec.decision ? `/${rec.decision}` : ""}, not answered+signed`);
+    }
+
+    // D-118 (x-policyBinding.theFix(a)): the rules the human was shown must
+    // still be the rules in force, checked BEFORE the report-content
+    // re-canonicalisation below — if what moved is the policy itself, that
+    // is the more fundamental fact and gets its own, more specific code
+    // rather than surfacing as an undifferentiated snapshot mismatch.
+    // servedPolicy is null when getServedPolicy is unset (default,
+    // preserving every existing test's arbitrary policy_version/
+    // policy_digest) or when the server's own load-time lock check failed
+    // (routes/policy.mjs's SERVED_POLICY) — either way there is nothing to
+    // compare against, so this SKIPS rather than refuses: null must never
+    // read as "moved", or a server refusing to serve any policy would also
+    // refuse every commit for an unrelated reason.
+    // null is a valid, legitimate claim here too (src/page/sign-install.js's
+    // buildOpenBody sends policy_version/policy_digest as null when no live
+    // policy object was available at sign time — same fact S1's own crash
+    // fix already had to respect for these exact two fields at open()).
+    // null means "no claim was made", not "the policy moved" — comparing it
+    // against a real served value and refusing on the mismatch would be
+    // exactly the false-positive direction D-108 is pointing at: a
+    // legitimate commit from a caller that never claimed a policy identity
+    // would be refused for a policy identity it never asserted.
+    const servedPolicy = getServedPolicy();
+    if (servedPolicy) {
+      if (rec.snapshot.policy_version !== null && servedPolicy.version !== rec.snapshot.policy_version) {
+        throw new SignError(
+          "E_POLICY_VERSION_MOVED",
+          409,
+          `policy version moved between sign and commit: signed under '${rec.snapshot.policy_version}', server now serves '${servedPolicy.version}'`,
+          { signed_policy_version: rec.snapshot.policy_version, served_policy_version: servedPolicy.version },
+        );
+      }
+      if (rec.snapshot.policy_digest !== null && servedPolicy.digest !== rec.snapshot.policy_digest) {
+        throw new SignError(
+          "E_POLICY_DIGEST_MOVED",
+          409,
+          `policy content moved under the same version between sign and commit: signed digest ${rec.snapshot.policy_digest}, server now serves ${servedPolicy.digest}`,
+          { signed_policy_digest: rec.snapshot.policy_digest, served_policy_digest: servedPolicy.digest },
+        );
+      }
     }
 
     // S6: re-canonicalise against LIVE state before treating anything as

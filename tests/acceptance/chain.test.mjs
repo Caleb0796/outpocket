@@ -208,3 +208,96 @@ test("D-100 / the S6 discipline applied one artifact over: an honestly re-serial
     assert.equal(changedResult.brokenAtIndex, 0);
   });
 });
+
+// ── S7 x D-118: a REFUSED commit must not append a chain entry ──────────
+// These two nodes were built independently against the same commit()
+// baseline (S7 replaced the in-memory chain stand-in with real
+// chain.append(); D-118 inserted the policy-identity check before S6's
+// recon check) and this exact property — does the day book record a
+// commit that did not happen — is the one no single-node suite could see,
+// because neither existed against a commit() containing the other. Proven
+// explicitly here, post-merge, rather than left as an accident of merge
+// order: chain.append() must run strictly AFTER both refusal checks, so a
+// 409 from EITHER one leaves the day book exactly as it was.
+import { POLICY_DOCUMENT } from "../../src/policy.js";
+
+test("S7 x D-118: a commit refused by E_POLICY_DIGEST_MOVED appends NOTHING to the day book", async () => {
+  const realPolicy = { version: POLICY_DOCUMENT.version, digest: digest("outpocket/policy/1", POLICY_DOCUMENT) };
+  let served = realPolicy;
+  const gate = createSignGate({ getServedPolicy: () => served });
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const sid = cookie.split("=")[1];
+
+    // One legitimate commit first, so there IS a day book to protect.
+    await signAndCommitOnce(base, gate, cookie, sid);
+    const before = (await getJson(base, "/api/daybook", cookie)).body.entries;
+    assert.equal(before.length, 1);
+
+    // Open a SECOND sign request signed under the real policy, then swap
+    // the served policy out from under it before committing.
+    const reportId = freshReportId();
+    const opened = await postJson(base, "/api/sign", cookie, {
+      ...openBody(reportId),
+      policy_version: realPolicy.version,
+      policy_digest: realPolicy.digest,
+    });
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    const sr = opened.body.sign_request;
+    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
+    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, {
+      schema: "outpocket.sign_respond_request/1", request_id: sr.request_id, decision: "signed", reason: null,
+      method: "click", acknowledged_digest: sr.snapshot_digest, acknowledged_revision: sr.revision, confirm_token: confirmToken,
+    });
+    assert.equal(responded.status, 200);
+
+    served = { version: realPolicy.version, digest: `sha256:${"2".repeat(64)}` }; // the swap
+
+    const refused = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
+    });
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.error.code, "E_POLICY_DIGEST_MOVED");
+
+    const after = (await getJson(base, "/api/daybook", cookie)).body.entries;
+    assert.equal(after.length, before.length, "a REFUSED commit must not append a chain entry — the day book must not record a commit that did not happen");
+    assert.deepEqual(after, before, "not just the same length — byte-identical, nothing was touched");
+  });
+});
+
+test("S7 x D-118: a commit refused by E_SNAPSHOT_MISMATCH also appends NOTHING to the day book", async () => {
+  let liveReport = null; // null -> S6's recon SKIPS; set it to force a mismatch
+  const gate = createSignGate({ getLiveReport: () => liveReport });
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const sid = cookie.split("=")[1];
+
+    await signAndCommitOnce(base, gate, cookie, sid);
+    const before = (await getJson(base, "/api/daybook", cookie)).body.entries;
+    assert.equal(before.length, 1);
+
+    const reportId = freshReportId();
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
+    assert.equal(opened.status, 200);
+    const sr = opened.body.sign_request;
+    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
+    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, {
+      schema: "outpocket.sign_respond_request/1", request_id: sr.request_id, decision: "signed", reason: null,
+      method: "click", acknowledged_digest: sr.snapshot_digest, acknowledged_revision: sr.revision, confirm_token: confirmToken,
+    });
+    assert.equal(responded.status, 200);
+
+    // A live report that disagrees with what was signed.
+    liveReport = { ...sr.snapshot.report, title: "TAMPERED" };
+
+    const refused = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
+    });
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.error.code, "E_SNAPSHOT_MISMATCH");
+
+    const after = (await getJson(base, "/api/daybook", cookie)).body.entries;
+    assert.equal(after.length, before.length, "E_SNAPSHOT_MISMATCH must not append a chain entry either");
+    assert.deepEqual(after, before);
+  });
+});
