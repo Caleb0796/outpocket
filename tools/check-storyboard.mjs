@@ -75,25 +75,77 @@ const warn = (s) => process.stderr.write(s + "\n");
 
 // ── parse ───────────────────────────────────────────────────────────────────
 
-/** Rows look like: | `SB-01` | 1 | 10s | on screen | `selector` | yes | */
+/**
+ * THE PARSER IS HEADER-DRIVEN, AND THAT IS THE FIX FOR A DEFECT L2 FOUND IN IT.
+ *
+ * The first version matched columns POSITIONALLY with an unanchored six-group
+ * regex. Measured, both placements: a SURFACE column APPENDED as a 7th is
+ * matched by none of the groups and SILENTLY IGNORED — so D-94 would have
+ * landed as decoration, off-page shots would have gone on being resolved as
+ * page selectors, and if those selectors happened to resolve, F6 would have
+ * gone GREEN ON SHOTS THAT WERE STILL MISCATEGORISED. Exit 0 discovering
+ * nothing, on the instrument built to prevent exactly that. Inserted as a 3rd
+ * column it broke loudly instead ("no duration parsed"), which is luck, not
+ * design: the same parser gave opposite behaviour for the same edit depending
+ * on where it was made.
+ *
+ * So columns are now resolved BY NAME from the table's own header row. Adding a
+ * column anywhere is safe, a REQUIRED column going missing is loud, and an
+ * unrecognised column is reported rather than ignored. A parser that tolerates
+ * schema drift will tolerate every future schema change too, including the one
+ * that matters.
+ */
+export const REQUIRED_COLUMNS = Object.freeze(["SHOT", "DUR", "SELECTOR", "SURFACE"]);
+
+/** Surfaces a shot may be filmed on. `page` is the only one this tool resolves. */
+export const PAGE_SURFACE = "page";
+export const OFF_PAGE_SURFACES = Object.freeze(["agent-client", "terminal"]);
+
+const cells = (line) => line.split("|").slice(1, -1).map((c) => c.trim());
+
+/** Find the shot table's header row and map COLUMN NAME -> index. */
+export function parseHeader(markdown) {
+  for (const line of markdown.split("\n")) {
+    if (!/^\|/.test(line)) continue;
+    const names = cells(line).map((c) => c.replace(/\*|`/g, "").trim().toUpperCase());
+    if (names[0] === "SHOT") {
+      const index = {};
+      names.forEach((n, i) => { if (n) index[n] = i; });
+      return { index, names };
+    }
+  }
+  return null;
+}
+
 export function parseStoryboard(markdown) {
+  const header = parseHeader(markdown);
+  if (!header) return { shots: [], header: null };
+
+  const at = (row, name) => {
+    const i = header.index[name];
+    return i === undefined ? null : (row[i] ?? null);
+  };
+
   const shots = [];
   for (const line of markdown.split("\n")) {
-    const m = /^\|\s*`(SB-\d+)`\s*\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|/.exec(line);
-    if (!m) continue;
-    const [, id, beat, dur, onScreen, selectorCell, still] = m;
-    const sel = selectorCell.trim().replace(/^`|`$/g, "").trim();
+    if (!/^\|\s*`SB-\d+`/.test(line)) continue;
+    const row = cells(line);
+    const id = (at(row, "SHOT") ?? "").replace(/`/g, "").trim();
+    if (!/^SB-\d+$/.test(id)) continue;
+    const onScreen = at(row, "ON SCREEN") ?? "";
+    const surfaceCell = at(row, "SURFACE");
     shots.push({
       id,
-      beat: beat.trim(),
-      seconds: Number((/(\d+)\s*s/.exec(dur) ?? [])[1] ?? NaN),
+      beat: (at(row, "BEAT") ?? "").trim(),
+      seconds: Number((/(\d+)\s*s/.exec(at(row, "DUR") ?? "") ?? [])[1] ?? NaN),
       onScreen: onScreen.trim(),
-      selector: sel,
-      still: /yes/i.test(still),
-      cut: /\bCUT\b/.test(onScreen) || /\bCUT\b/.test(selectorCell),
+      selector: (at(row, "SELECTOR") ?? "").replace(/^`|`$/g, "").trim(),
+      still: /yes/i.test(at(row, "STILL") ?? ""),
+      surface: surfaceCell === null ? null : surfaceCell.replace(/`/g, "").trim(),
+      cut: /\bCUT\b/.test(onScreen),
     });
   }
-  return shots;
+  return { shots, header };
 }
 
 /** The total the document declares in its own prose, e.g. "**Total: 162s**". */
@@ -103,8 +155,27 @@ export function declaredTotal(markdown) {
 }
 
 /** Structural checks on the PARSE, before anything is resolved. */
-export function checkParse(shots, total) {
+export function checkParse(shots, total, header = null) {
   const problems = [];
+
+  // The header is checked BEFORE the rows, because a missing column is why the
+  // rows would look fine while meaning something else.
+  if (!header) {
+    problems.push("no shot-table header row found (expected a row starting `| SHOT |`) — " +
+      "without it columns cannot be resolved by name and would have to be guessed by position, " +
+      "which is the defect this parser replaced");
+  } else {
+    for (const col of REQUIRED_COLUMNS) {
+      if (header.index[col] === undefined) {
+        problems.push(`the shot table has no ${col} column (D-94). Columns found: ${header.names.filter(Boolean).join(", ")}. ` +
+          (col === "SURFACE"
+            ? `Every shot must declare where it is FILMED: \`${PAGE_SURFACE}\` for a shot on our own page, ` +
+              `or one of ${OFF_PAGE_SURFACES.join(", ")} for a shot that is not. Without the column this tool ` +
+              "resolves every shot as a page selector, which is how three off-page shots came to carry page selectors."
+            : ""));
+      }
+    }
+  }
   if (shots.length === 0) {
     problems.push("parsed ZERO shots out of docs/STORYBOARD.md — the table did not match, " +
       "and a check over zero shots passes vacuously. This is the failure this assertion exists for.");
@@ -120,9 +191,15 @@ export function checkParse(shots, total) {
     const want = `SB-${String(i + 1).padStart(2, "0")}`;
     if (id !== want) problems.push(`shot ids are not contiguous: expected ${want} at position ${i + 1}, got ${id}`);
   });
+  const KNOWN = new Set([PAGE_SURFACE, ...OFF_PAGE_SURFACES]);
   for (const s of shots) {
     if (!Number.isFinite(s.seconds)) problems.push(`${s.id}: no duration parsed`);
     if (!s.selector) problems.push(`${s.id}: no selector parsed`);
+    if (s.surface !== null && !KNOWN.has(s.surface)) {
+      problems.push(`${s.id}: surface "${s.surface}" is not one of ${[...KNOWN].join(", ")} — ` +
+        "a surface this tool does not recognise is a surface it cannot reason about, " +
+        "and defaulting it to `page` is how a miscategorised shot passes");
+    }
   }
   const sum = shots.reduce((n, s) => n + (Number.isFinite(s.seconds) ? s.seconds : 0), 0);
   if (total !== null && sum !== total) {
@@ -295,15 +372,98 @@ async function resolveInState(page, origin, state, shots) {
 
 // ── run ─────────────────────────────────────────────────────────────────────
 
+
+/**
+ * The self-tests that need no browser, RUN BEFORE THE DOCUMENT IS CHECKED.
+ *
+ * They used to sit after the parse gate, which meant that the moment the
+ * storyboard failed to parse the tool's own proof of correctness became
+ * unreachable — the instrument could only demonstrate it worked while its
+ * subject was already valid, which is precisely backwards. An instrument's
+ * self-test is about the INSTRUMENT and must not be gated on the subject.
+ */
+function pureSelfTests(markdown, header) {
+  log("");
+  log("SELF-TEST (the parse guard: a storyboard with no shots must be LOUD)");
+  const emptyParsed = parseStoryboard("# not a storyboard\n\nno table here.\n");
+  const empty = checkParse(emptyParsed.shots, null, emptyParsed.header);
+  log(`  zero-shot parse produced ${empty.length} problem(s)`);
+  if (!empty.length) { warn("  SELF-TEST FAILED: a zero-shot storyboard passed the parse guard."); return 1; }
+  const short = checkParse(parseStoryboard(markdown).shots.slice(0, 2), 162, header);
+  if (!short.length) { warn("  SELF-TEST FAILED: a truncated shot list passed the parse guard."); return 1; }
+  log(`  truncated (2-shot) parse produced ${short.length} problem(s)`);
+  log("  ok — a parse that finds nothing, or too little, fails loudly.");
+
+  log("");
+  log("SELF-TEST (R1/R3: a selector that matches everything must be REJECTED)");
+  const rows = [["body", true], ["div", true], ["main", true],
+            ["#env-banner", false], ['[data-persona="chen"]', false]];
+  for (const [sel, mustReject] of rows) {
+    const verdict = checkSelectorShape(sel);
+    const rejected = verdict !== null;
+    log(`  ${String(sel).padEnd(24)} ${rejected ? "rejected" : "accepted"}`);
+    if (rejected !== mustReject) {
+      warn(`  SELF-TEST FAILED: "${sel}" should have been ${mustReject ? "rejected" : "accepted"}.`);
+      return 1;
+    }
+  }
+  log("  ok — a bare type selector cannot satisfy a shot, and a real one still can.");
+
+  // THE DEFECT L2 FOUND, SELF-TESTED IN BOTH PLACEMENTS. The old positional
+  // regex saw an APPENDED column as nothing at all and an INSERTED one as a
+  // broken duration — opposite behaviour for the same edit depending only on
+  // where it was made. A header-driven parser must see it either way, and this
+  // is the assertion that proves it does.
+  log("");
+  log("SELF-TEST (D-94: a SURFACE column must be seen wherever it is placed)");
+  const HEAD_APPENDED = "| SHOT | BEAT | DUR | ON SCREEN | SELECTOR | STILL | SURFACE |";
+  const ROW_APPENDED  = "| `SB-01` | 1 | 10s | the agent is refused | `[data-x]` | yes | agent-client |";
+  const HEAD_INSERTED = "| SHOT | BEAT | SURFACE | DUR | ON SCREEN | SELECTOR | STILL |";
+  const ROW_INSERTED  = "| `SB-01` | 1 | agent-client | 10s | the agent is refused | `[data-x]` | yes |";
+  for (const [where, md] of [["appended (7th)", `${HEAD_APPENDED}\n|---|\n${ROW_APPENDED}`],
+                 ["inserted (3rd)", `${HEAD_INSERTED}\n|---|\n${ROW_INSERTED}`]]) {
+    const got = parseStoryboard(md).shots[0];
+    log(`  ${where.padEnd(15)} surface=${JSON.stringify(got?.surface)} dur=${got?.seconds}s selector=${JSON.stringify(got?.selector)}`);
+    if (got?.surface !== "agent-client") {
+      warn(`  SELF-TEST FAILED: a SURFACE column ${where} was not seen — this is the defect D-94 would have landed as decoration through.`);
+      return 1;
+    }
+    if (got.seconds !== 10 || got.selector !== "[data-x]") {
+      warn(`  SELF-TEST FAILED: adding a column ${where} corrupted another field.`);
+      return 1;
+    }
+  }
+  log("  ok — column position no longer changes what the tool reads.");
+
+  log("");
+  log("SELF-TEST (an unrecognised surface is refused, not defaulted to `page`)");
+  const bogus = parseStoryboard(`${HEAD_APPENDED}\n|---|\n` +
+    "| `SB-01` | 1 | 10s | something happens | `[data-x]` | yes | whiteboard |");
+  const bogusProblems = checkParse(bogus.shots, null, bogus.header);
+  if (!bogusProblems.some((p) => /whiteboard/.test(p))) {
+    warn("  SELF-TEST FAILED: an unknown surface was accepted, and an unrecognised surface defaulted to `page` is how a miscategorised shot passes.");
+    return 1;
+  }
+  log("  ok — an unknown surface is named and refused.");
+
+  return 0;
+}
+
 async function run({ selfTest = false } = {}) {
   const markdown = readFileSync(STORYBOARD, "utf8");
-  const shots = parseStoryboard(markdown);
+  const { shots, header } = parseStoryboard(markdown);
   const total = declaredTotal(markdown);
 
   log(`check-storyboard: ${shots.length} shot(s) parsed from docs/STORYBOARD.md, ` +
-    `durations ${shots.reduce((n, s) => n + (s.seconds || 0), 0)}s, declared ${total ?? "(none)"}s`);
+    `durations ${shots.reduce((n, s) => n + (s.seconds || 0), 0)}s, declared ${total ?? "(none)"}s, ` +
+    `columns [${header ? header.names.filter(Boolean).join(", ") : "(no header)"}]`);
 
-  const parseProblems = checkParse(shots, total);
+  if (selfTest) {
+    const rc = pureSelfTests(markdown, header);
+    if (rc !== 0) return rc;
+  }
+
+  const parseProblems = checkParse(shots, total, header);
   if (parseProblems.length) {
     for (const p of parseProblems) warn(`  PARSE  ${p}`);
     warn("\nFAIL: the storyboard did not parse into a checkable shot list.");
@@ -311,8 +471,15 @@ async function run({ selfTest = false } = {}) {
   }
 
   const live = shots.filter((s) => !s.cut);
+
+  // THE BRANCH. A shot filmed on the agent's client window or in a terminal is
+  // not resolvable as a CSS selector against our page, and pretending otherwise
+  // is what put page selectors on three off-page shots in the first place.
+  const pageShots = live.filter((s) => s.surface === PAGE_SURFACE);
+  const offPageShots = live.filter((s) => s.surface !== PAGE_SURFACE);
+
   const shapeProblems = [];
-  for (const s of live) {
+  for (const s of pageShots) {
     const bad = checkSelectorShape(s.selector);
     if (bad) shapeProblems.push(`${s.id}  ${bad}`);
   }
@@ -348,35 +515,11 @@ async function run({ selfTest = false } = {}) {
       if (real[0].n < 1) { warn("  SELF-TEST FAILED: the tool cannot see an element that is there."); return 1; }
       if (counts[0].n !== 0) { warn("  SELF-TEST FAILED: the tool matched a selector that should match nothing."); return 1; }
       log("  ok — the tool distinguishes a right selector from a wrong one against the same DOM.");
-
-      // THE OTHER TWO DEFENCES ARE ALSO INSTRUMENTS AND ALSO NEED PROVING.
-      // The resolution check above is one of three; a self-test that covers
-      // only the defence I happened to think of first is the same failing-open
-      // shape it exists to prevent.
-      log("");
-      log("SELF-TEST (the parse guard: a storyboard with no shots must be LOUD)");
-      const empty = checkParse(parseStoryboard("# not a storyboard\n\nno table here.\n"), null);
-      log(`  zero-shot parse produced ${empty.length} problem(s)`);
-      if (!empty.length) { warn("  SELF-TEST FAILED: a zero-shot storyboard passed the parse guard."); return 1; }
-      const short = checkParse(parseStoryboard(markdown).slice(0, 2), 162);
-      if (!short.length) { warn("  SELF-TEST FAILED: a truncated shot list passed the parse guard."); return 1; }
-      log(`  truncated (2-shot) parse produced ${short.length} problem(s)`);
-      log("  ok — a parse that finds nothing, or too little, fails loudly.");
-
-      log("");
-      log("SELF-TEST (R1/R3: a selector that matches everything must be REJECTED)");
-      const rows = [["body", true], ["div", true], ["main", true],
-                    ["#env-banner", false], ['[data-persona="chen"]', false]];
-      for (const [sel, mustReject] of rows) {
-        const verdict = checkSelectorShape(sel);
-        const rejected = verdict !== null;
-        log(`  ${String(sel).padEnd(24)} ${rejected ? "rejected" : "accepted"}`);
-        if (rejected !== mustReject) {
-          warn(`  SELF-TEST FAILED: "${sel}" should have been ${mustReject ? "rejected" : "accepted"}.`);
-          return 1;
-        }
-      }
-      log("  ok — a bare type selector cannot satisfy a shot, and a real one still can.");
+      // The parser, R1/R3 and D-94 self-tests are NOT here: they need no
+      // browser, so they run in pureSelfTests() before the parse gate. Keeping
+      // them here would have made them unreachable the moment the storyboard
+      // failed to parse — an instrument that can only prove itself while its
+      // subject is already valid.
     }
   } finally {
     await page.close();
@@ -384,15 +527,35 @@ async function run({ selfTest = false } = {}) {
   }
 
   log("");
-  log("SHOT   SELECTOR                              HITS  STATE");
+  log("SHOT   SURFACE        SELECTOR                            HITS  STATE");
   const failures = [];
   for (const s of live) {
     const r = results.get(s.id);
-    const status = r.hits > 0 && !r.structural && !r.error;
-    log(`${s.id}  ${s.selector.padEnd(36).slice(0, 36)}  ${String(r.hits).padStart(4)}  ${r.state ?? "-"}`);
-    if (r.error) failures.push(`${s.id}: "${s.selector}" is not a valid CSS selector`);
-    else if (r.structural) failures.push(`${s.id}: R3 — matches <html> or <body>; anchored to the document is anchored to nothing`);
-    else if (!status) failures.push(`${s.id}: "${s.selector}" matched no element in any of ${STATES.map((x) => x.id).join(", ")}`);
+    const onPage = s.surface === PAGE_SURFACE;
+    log(`${s.id}  ${String(s.surface ?? "(none)").padEnd(13)}  ${s.selector.padEnd(34).slice(0, 34)}  ${String(r.hits).padStart(4)}  ${r.state ?? "-"}`);
+
+    if (onPage) {
+      const status = r.hits > 0 && !r.structural && !r.error;
+      if (r.error) failures.push(`${s.id}: "${s.selector}" is not a valid CSS selector`);
+      else if (r.structural) failures.push(`${s.id}: R3 — matches <html> or <body>; anchored to the document is anchored to nothing`);
+      else if (!status) failures.push(`${s.id}: "${s.selector}" matched no element in any of ${STATES.map((x) => x.id).join(", ")}`);
+    } else {
+      // OFF-PAGE SHOTS ARE NOT SKIPPED, THEY ARE ASSERTED IN THE OPPOSITE
+      // DIRECTION. A silently skipped shot is the exemption that hides the bug.
+      // The trap this catches is real and was found in SB-07: a shot declared
+      // agent-client while carrying `#agent-banner`, which IS our page and DOES
+      // resolve — so it passed as a page shot and would have passed again with
+      // the wrong surface recorded beside it.
+      if (r.hits > 0) {
+        failures.push(`${s.id}: declared surface "${s.surface}" but its selector "${s.selector}" ` +
+          `resolves on OUR page (${r.hits} element(s) in ${r.state}). A shot filmed on ${s.surface} ` +
+          "cannot be anchored to an element of the page it is not filmed on — that contradiction is " +
+          "how a miscategorised shot reads as green.");
+      }
+      if (!s.onScreen || s.onScreen.length < 10) {
+        failures.push(`${s.id}: an off-page shot must describe what is on screen, since no selector can be checked for it`);
+      }
+    }
   }
 
   for (const p of shapeProblems) failures.push(p);
