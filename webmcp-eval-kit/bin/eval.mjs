@@ -213,6 +213,16 @@ async function selftest() {
         url: "https://example.test",
       },
     );
+    assert.deepEqual(
+      parseArgs(["run", "--suite", "negative", "--verify-controls"], {
+        URL: "https://example.test",
+      }),
+      {
+        suites: ["negative"],
+        url: "https://example.test",
+        verifyControls: true,
+      },
+    );
     assert.throws(() => parseArgs(["--suite"]), /--suite requires a name/);
     const accounting = accountStates({
       states: [
@@ -257,10 +267,13 @@ async function selftest() {
   }
 }
 
-function parseArgs(argv) {
+function parseArgs(argv, environment = process.env) {
   const options = { suites: [] };
+  let index = 0;
 
-  for (let index = 0; index < argv.length; index += 1) {
+  if (argv[0] === "run") index += 1;
+
+  for (; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--suite") {
       const suite = argv[index + 1];
@@ -286,6 +299,13 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (argument === "--verify-controls") {
+      if (options.verifyControls) {
+        throw new TypeError("duplicate --verify-controls");
+      }
+      options.verifyControls = true;
+      continue;
+    }
     throw new TypeError(`unknown argument: ${argument}`);
   }
 
@@ -295,9 +315,15 @@ function parseArgs(argv) {
   if (options.suites.includes("accounting") && options.suites.length !== 1) {
     throw new TypeError("accounting must run alone under the network-denial preload");
   }
+  if (options.verifyControls) {
+    if (options.suites.length !== 1 || options.suites[0] !== "negative") {
+      throw new TypeError("--verify-controls requires --suite negative alone");
+    }
+    options.url ??= environment.URL;
+  }
   if (options.suites.some((suite) => suite !== "accounting")) {
     if (!options.url) {
-      throw new TypeError("capability and negative suites require --url");
+      throw new TypeError("capability and negative suites require --url (or URL with --verify-controls)");
     }
     const url = new URL(options.url);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -1628,6 +1654,201 @@ function gradeNegativeCase(testCase, observed) {
   }
 }
 
+async function loadNegativeMutants(suite) {
+  const targetCases = suite.cases.filter((testCase) =>
+    testCase.expect.outcome === "required_failure" && testCase.controlStatus === "enforced"
+  );
+  const directoryUrl = new URL("evals/mutants/", repositoryUrl);
+  const filenames = (await readdir(directoryUrl))
+    .filter((filename) => filename.endsWith(".json"))
+    .sort();
+  const expectedFilenames = targetCases.map((testCase) => `${testCase.id}.json`).sort();
+  assert.deepEqual(
+    filenames,
+    expectedFilenames,
+    "evals/mutants must contain exactly one JSON mutant for every enforced must-fail case",
+  );
+
+  const mutants = new Map();
+  for (const testCase of targetCases) {
+    const filename = `${testCase.id}.json`;
+    const mutant = JSON.parse(await readFile(new URL(filename, directoryUrl), "utf8"));
+    assert.equal(mutant.schema, "outpocket.negative_mutant/1", `${testCase.id}: mutant schema mismatch`);
+    assert.equal(mutant.case_id, testCase.id, `${testCase.id}: mutant names the wrong case`);
+    assert.equal(
+      mutant.brokenBy,
+      testCase.brokenBy,
+      `${testCase.id}: mutant does not apply the case's declared brokenBy`,
+    );
+    assert.ok(mutant.operation && typeof mutant.operation === "object", `${testCase.id}: mutant has no operation`);
+    const kind = mutant.operation.kind;
+    assert.ok(
+      ["add_binary_input", "expose_tools", "permit_response"].includes(kind),
+      `${testCase.id}: unknown mutant operation ${kind}`,
+    );
+    if (kind === "permit_response") {
+      assert.equal(testCase.expect.failure.mode, "server_rejects", `${testCase.id}: response mutant targets a non-server case`);
+      assert.ok(
+        Number.isInteger(mutant.operation.status)
+          && mutant.operation.status >= 200
+          && mutant.operation.status < 300,
+        `${testCase.id}: response mutant must declare a permitted HTTP status`,
+      );
+    } else {
+      assert.equal(testCase.expect.failure.mode, "tool_absent", `${testCase.id}: corpus mutant targets a server case`);
+    }
+    mutants.set(testCase.id, { ...mutant, filename: `evals/mutants/${filename}` });
+  }
+  return mutants;
+}
+
+function applyNegativeMutant(context, testCase, mutant) {
+  const mutatedContext = {
+    ...context,
+    expectedStates: structuredClone(context.expectedStates),
+    exported: structuredClone(context.exported),
+  };
+  const operation = mutant.operation;
+
+  if (operation.kind === "expose_tools") {
+    assert.ok(Array.isArray(operation.tools) && operation.tools.length > 0, `${testCase.id}: expose_tools is empty`);
+    for (const addition of operation.tools) {
+      const state = mutatedContext.expectedStates.find((candidate) => candidate.state_id === addition.state_id);
+      assert.ok(state, `${testCase.id}: mutant names unknown state ${addition.state_id}`);
+      assert.equal(typeof addition.tool, "string", `${testCase.id}: mutant tool must be a string`);
+      assert.ok(!state.tool_names.includes(addition.tool), `${testCase.id}: mutant tool ${addition.tool} is already exposed`);
+      state.tool_names.push(addition.tool);
+    }
+  } else if (operation.kind === "add_binary_input") {
+    const state = mutatedContext.exported.states.find((candidate) => candidate.state_id === operation.state_id);
+    assert.ok(state, `${testCase.id}: mutant names unknown state ${operation.state_id}`);
+    const tool = state.tools.find((candidate) => candidate.name === operation.tool);
+    assert.ok(tool, `${testCase.id}: mutant names unknown tool ${operation.tool}`);
+    assert.equal(typeof operation.property, "string", `${testCase.id}: mutant property must be a string`);
+    tool.inputSchema.properties ??= {};
+    assert.ok(
+      !Object.hasOwn(tool.inputSchema.properties, operation.property),
+      `${testCase.id}: mutant property ${operation.property} already exists`,
+    );
+    tool.inputSchema.properties[operation.property] = { contentEncoding: "base64", type: "string" };
+  }
+
+  return mutatedContext;
+}
+
+function applyNegativeResponseMutant(testCase, mutant, observed) {
+  const operation = mutant.operation;
+  if (operation.kind !== "permit_response") return observed;
+  assertHttp(
+    observed.failure,
+    testCase.expect.failure.http_status,
+    testCase.expect.failure.error_code,
+    `${testCase.id} pre-mutation refusal`,
+  );
+  const mutated = {
+    ...observed,
+    failure: { body: { mutation: mutant.brokenBy }, status: operation.status },
+  };
+  if (operation.secondary_status !== undefined) {
+    assert.ok(
+      Number.isInteger(operation.secondary_status)
+        && operation.secondary_status >= 200
+        && operation.secondary_status < 300,
+      `${testCase.id}: response mutant secondary status must be permitted`,
+    );
+    mutated.secondary = { body: { mutation: mutant.brokenBy }, status: operation.secondary_status };
+  }
+  return mutated;
+}
+
+function assertNegativeMutationPermitted(testCase, mutant, observed) {
+  assert.throws(
+    () => gradeNegativeCase(testCase, observed),
+    undefined,
+    `${testCase.id}: the original refusal detector survived its declared mutation`,
+  );
+  if (mutant.operation.kind === "permit_response") {
+    assert.ok(
+      observed.failure.status >= 200 && observed.failure.status < 300,
+      `${testCase.id}: mutation did not permit the refused request`,
+    );
+    if (mutant.operation.secondary_status !== undefined) {
+      assert.equal(
+        observed.secondary.status,
+        mutant.operation.secondary_status,
+        `${testCase.id}: mutation did not apply its secondary outcome`,
+      );
+    }
+  } else {
+    assert.equal(observed.failure.mode, "tool_present", `${testCase.id}: mutation did not expose the forbidden tool`);
+  }
+}
+
+async function executeNegativeCase(context, testCase, mutant) {
+  const execute = NEGATIVE_SCENARIOS.get(testCase.scenario);
+  assert.ok(execute, `${testCase.id}: unknown negative scenario ${testCase.scenario}`);
+  const executionContext = mutant ? applyNegativeMutant(context, testCase, mutant) : context;
+  const observed = await execute(executionContext, testCase);
+  return mutant ? applyNegativeResponseMutant(testCase, mutant, observed) : observed;
+}
+
+async function verifyNegativeControls(suite, context) {
+  const mutants = await loadNegativeMutants(suite);
+  const rows = [];
+
+  for (const testCase of suite.cases) {
+    const row = {
+      baseline: testCase.expect.outcome === "required_failure" ? "refused" : "passed",
+      brokenBy: testCase.brokenBy,
+      id: testCase.id,
+      provingNode: testCase.provingNode,
+    };
+    const mutant = mutants.get(testCase.id);
+    if (!mutant) {
+      rows.push({ ...row, flipped: null, mutant: "not-applicable", mutant_file: null });
+      continue;
+    }
+
+    try {
+      const observed = await executeNegativeCase(context, testCase, mutant);
+      assertNegativeMutationPermitted(testCase, mutant, observed);
+      rows.push({ ...row, flipped: true, mutant: "permitted", mutant_file: mutant.filename });
+      process.stdout.write(`${testCase.id}: refused -> permitted under ${testCase.brokenBy}\n`);
+    } catch (error) {
+      rows.push({
+        ...row,
+        error: error.message,
+        flipped: false,
+        mutant: "did-not-permit",
+        mutant_file: mutant.filename,
+      });
+      process.stderr.write(`${testCase.id}: MUTATION FAIL: ${error.message}\n`);
+    }
+  }
+
+  const targetRows = rows.filter((row) => row.flipped !== null);
+  const report = {
+    cases: rows,
+    declared_case_count: suite.declared_case_count,
+    flipped_count: targetRows.filter((row) => row.flipped).length,
+    must_fail_count: targetRows.length,
+    row_count: rows.length,
+    schema: "outpocket.mutation_report/1",
+    suite: "negative",
+  };
+  await writeFile(
+    new URL("evals/mutation-report.json", repositoryUrl),
+    `${JSON.stringify(report, null, 2)}\n`,
+  );
+  assert.equal(rows.length, suite.declared_case_count, "mutation report must contain one row per case");
+  const failures = targetRows.filter((row) => !row.flipped);
+  assert.deepEqual(failures, [], `${failures.length} negative control mutation(s) did not flip`);
+  process.stdout.write(
+    `mutation: ${targetRows.length} of ${targetRows.length} must-fail controls flipped; `
+    + `${rows.length} report rows written to evals/mutation-report.json\n`,
+  );
+}
+
 function proveNegativeDetector(suite, expectedStates, requiredCaseIds, exported) {
   const pairings = validateNegativeSuite(suite, expectedStates, requiredCaseIds);
 
@@ -1668,7 +1889,7 @@ function proveNegativeDetector(suite, expectedStates, requiredCaseIds, exported)
   return pairings;
 }
 
-async function runNegativeSuite(url) {
+async function runNegativeSuite(url, verifyControls = false) {
   const locations = [
     new URL("evals/suites/negative.suite.json", repositoryUrl),
     new URL("evals/surfaces.expected.json", repositoryUrl),
@@ -1708,9 +1929,7 @@ async function runNegativeSuite(url) {
 
   for (const testCase of suite.cases) {
     try {
-      const execute = NEGATIVE_SCENARIOS.get(testCase.scenario);
-      assert.ok(execute, `${testCase.id}: unknown negative scenario ${testCase.scenario}`);
-      const observed = await execute(context, testCase);
+      const observed = await executeNegativeCase(context, testCase);
       gradeNegativeCase(testCase, observed);
       results.push({ id: testCase.id, verdict: "pass" });
       const label = testCase.controlId ? `${testCase.controlId} ${testCase.id}` : testCase.id;
@@ -1734,6 +1953,7 @@ async function runNegativeSuite(url) {
     `negative: ${results.length} of ${suite.declared_case_count} declared cases graded; `
     + `${results.length} passed; zero cases skipped; detector controls accepted real corpus and rejected broken fixtures\n`,
   );
+  if (verifyControls) await verifyNegativeControls(suite, context);
 }
 
 async function runDeferredSuite(name) {
@@ -1752,7 +1972,7 @@ async function runSuites(options) {
     } else if (suite === "capability") {
       await runCapabilitySuite(options.url);
     } else if (suite === "negative") {
-      await runNegativeSuite(options.url);
+      await runNegativeSuite(options.url, options.verifyControls);
     } else {
       await runDeferredSuite(suite);
     }
@@ -1761,7 +1981,7 @@ async function runSuites(options) {
 
 function usage() {
   process.stderr.write(
-    "usage: webmcp-eval (--version | --selftest | --suite <capability|negative> [--suite <capability|negative>] --url <origin> | --suite accounting)\n",
+    "usage: webmcp-eval (--version | --selftest | run --suite negative --verify-controls [--url <origin>] | --suite <capability|negative> [--suite <capability|negative>] --url <origin> | --suite accounting)\n",
   );
 }
 

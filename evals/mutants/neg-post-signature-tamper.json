@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-post-signature-tamper",
+  "brokenBy": "skip server-side re-canonicalisation and compare the stored digest to itself",
+  "operation": {
+    "kind": "permit_response",
+    "status": 200
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-policy-content-swap",
+  "brokenBy": "drop policy_digest from the signed snapshot projection or stop comparing it with the current served policy digest",
+  "operation": {
+    "kind": "permit_response",
+    "status": 200
+  }
+}

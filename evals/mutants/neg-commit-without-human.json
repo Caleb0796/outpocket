@@ -1,0 +1,9 @@
+{
+  "schema": "outpocket.negative_mutant/1",
+  "case_id": "neg-commit-without-human",
+  "brokenBy": "let commit accept a sign request still in state open",
+  "operation": {
+    "kind": "permit_response",
+    "status": 200
+  }
+}
