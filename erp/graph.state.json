@@ -44,14 +44,15 @@
     "S6",
     "H6",
     "F7",
-    "T3"
+    "T3",
+    "E5"
   ],
   "in_flight": {
     "D1": "MERGED but NOT DONE: 3 of 4 accept clauses pass on the live host; the /version==HEAD clause is deferred to the FINAL PASS with D6 per D-92(b), because Render auto-deploys on push and every merge invalidates it. Route + mount are in.",
     "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
-    "E5/E2/E3": "C4 \u2014 HOLD DISCHARGED, both deliberate reds cleared by T3. Ready to fire.",
     "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
-    "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM."
+    "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM.",
+    "E2/E3": "C4 \u2014 E5 done; both ready to fire."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

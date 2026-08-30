@@ -946,3 +946,15 @@ PARTIAL D1  7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b)
 #   TIME while claiming ephemeral ports. Both passed throughout. A TEST THAT PASSES ON
 #   THE WRONG PORT PASSES.
 #   FIRST PIT DELIVERED UNDER CLAUSE 6e -- arrived inside the commit, no chasing.
+
+MERGED E5  c522af8 pits:kb/pits/E5.md accept:PASS
+#   The accounting eval under a network denial PROVEN TO HAVE FIRED. Three of four
+#   accept clauses can pass while proving nothing and I verified each myself:
+#   running the eval WITHOUT the preload exits 1 with E_NETWORK_DISABLED, so the
+#   denial arms; byte-identity holds over 2 declared/2 emitted cases with verdicts
+#   rather than over an empty file; and webmcp-eval-kit/src/ is non-empty so the
+#   negative grep is a search that actually ran.
+#   C4 added an arm I had not asked for: hooks REPLACED AFTER preload are rejected,
+#   because a marker identifying a hook by its function NAME is satisfied by anything
+#   wearing that name.
+#   Header names the MECHANISM, not a boolean -- an opinion vs a measurement.
