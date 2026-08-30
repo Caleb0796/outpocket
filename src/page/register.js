@@ -6,14 +6,18 @@
 // answer — by registering what the compiler says exists and revoking what it
 // says no longer does.
 //
-//   S0  signed out                     ->  1 tool
-//   S1  employee, no report open       ->  5 tools
-//   S2  employee, draft open and DIRTY -> 12 tools
-//   S3  employee, draft open and CLEAN -> 13 tools   submit_expense_report exists
-//   S4  employee, report submitted     ->  6 tools   every editing tool is gone
-//   S5  auditor                        ->  6 tools   read-only by construction
+//   S0  signed out                     ->  2 tools
+//   S1  employee, no report open       ->  6 tools
+//   S2  employee, draft open and DIRTY -> 13 tools
+//   S3  employee, draft open and CLEAN -> 14 tools   submit_expense_report exists
+//   S4  employee, report submitted     ->  7 tools   every editing tool is gone
+//   S5  auditor                        ->  7 tools   read-only by construction
 //
-// 13 is the CLEAN draft, 12 is the dirty one, and once a report leaves draft the
+// Every row includes explain_missing_tool, the absence register (node T3). It is
+// resident — the one tool that never flips — so it adds one to every count above
+// and changes no difference between them. The flips are what they always were.
+//
+// 14 is the CLEAN draft, 13 is the dirty one, and once a report leaves draft the
 // surface SHRINKS to 6 — it does not grow after signing. S4 and S5 both hold six
 // names and are not the same six, which is why everything downstream of here
 // compares sets of names and never counts.
