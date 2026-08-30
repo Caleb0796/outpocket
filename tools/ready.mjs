@@ -675,7 +675,16 @@ function selftestOrphans() {
 function checkRecord() {
   const LOG = '.team/log/merges.txt';
   if (!fs.existsSync(LOG)) { bad(`${LOG} does not exist`); return false; }
-  const rows = fs.readFileSync(LOG, 'utf8').split('\n').filter((l) => l.startsWith('MERGED'));
+  const all = fs.readFileSync(LOG, 'utf8').split('\n');
+  const rows = all.filter((l) => l.startsWith('MERGED'));
+  // A PARTIAL row records work MERGED for a node that is NOT yet done -- D1's route and
+  // mount landed while its /version clause is deferred to the final pass (D-92(b)). I first
+  // wrote it as `MERGED D1-partial`, which broke this very mode two ways at once: the id is
+  // in no node's `done`, and the pit basename no longer matched the invented id. A RECORD
+  // FORMAT THAT DEFEATS ITS OWN CHECKER IS WORSE THAN NO RECORD. Partial rows are validated
+  // for sha and pit like any other, and are required NOT to be in done -- the moment the node
+  // finishes it becomes a MERGED row and the PARTIAL line stays as history.
+  const partials = all.filter((l) => l.startsWith('PARTIAL'));
   const st = fs.existsSync(STATE_PATH) ? JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) : { done: [] };
   let violations = 0;
   const seen = [];
@@ -705,6 +714,22 @@ function checkRecord() {
     }
   }
   const done = new Set(st.done || []);
+  for (const line of partials) {
+    const m = line.match(/^PARTIAL\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
+    if (!m) { bad(`malformed PARTIAL row: ${line}`); violations++; continue; }
+    const [, node, sha, pit] = m;
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) { bad(`${node} (partial): "${sha}" is not a sha`); violations++; }
+    else if (spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]).status !== 0) {
+      bad(`${node} (partial): sha ${sha} is not a commit in this repository`); violations++;
+    }
+    if (pit !== 'PENDING') {
+      if (!fs.existsSync(pit)) { bad(`${node} (partial): names ${pit}, which DOES NOT EXIST`); violations++; }
+      else if (path.basename(pit, '.md') !== node) {
+        bad(`${node} (partial): names ${pit}, ANOTHER NODE'S PIT`); violations++;
+      }
+    }
+    if (done.has(node)) { bad(`${node} has a PARTIAL row but IS in done -- promote it to MERGED`); violations++; }
+  }
   const rowsNotDone = seen.filter((n) => !done.has(n));
   const doneNotRows = [...done].filter((n) => !seen.includes(n));
   if (rowsNotDone.length) { bad(`rows for nodes not in graph.state.json.done: ${rowsNotDone.join(' ')}`); violations++; }

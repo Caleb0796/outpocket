@@ -934,7 +934,7 @@ MERGED T3  4b10265 pits:kb/pits/T3.md accept:PASS
 #   FOUR REVISIONS of this predicate, each checked by READING and none by RUNNING,
 #   until PM ran `sh -n` and caught a fifth defect its own fix had introduced.
 
-MERGED D1-partial 7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b))
+PARTIAL D1  7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b))
 #   NOT counted as done. Header dump, Origin-Agent-Cluster ABSENT and 200 all pass on
 #   the live host; /version==HEAD is verified in the FINAL PASS with D6, because Render
 #   auto-deploys on push and a mid-sprint mismatch is expected.
