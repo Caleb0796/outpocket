@@ -355,7 +355,7 @@ windows open. **And you do not boot sixteen of them on day one.** From
 | **0** | **L1, I1** | L1: `L0` · I1: `V5` |
 | 1 | + I2, I3, I4, QA, UX | 15 nodes |
 | 2 | + PM (`V6`), C4 | 13 nodes |
-| 3 | + L2 (`E4`), C1 (`E8`) | 16 nodes |
+| 3 | + L2 (`E4`), C1 (`E8`) | 17 nodes |
 | 4 | + C3 (`E9`) | 9 nodes |
 | 5 | C4, I3, UX | 4 nodes |
 | 6 | I4, QA | 3 nodes |
