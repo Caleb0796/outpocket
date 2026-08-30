@@ -974,3 +974,18 @@ MERGED D1  c923725 pits:kb/pits/D1.md accept:PASS
 #   OBSERVATION AT A MOMENT, not a permanent property. DONE MEANS OBSERVED.
 #   The PARTIAL D1 row above stays as history: the route and mount landed hours before
 #   the clause could be graded.
+
+MERGED V4  48fa7b8 pits:kb/pits/V4.md accept:PASS
+#   The comparator, rebuilt because the STANDARD MOVED after it was written. I1 re-read
+#   its own selftest against UX's fail-open rule and D-90 and failed it: 11 cases, every
+#   one asking "does this refusal FIRE", not one asking "does it HOLD ITS FIRE when it
+#   should". Rebuilt as fires/declines PAIRS, 11 -> 20.
+#   Broken twice on purpose: fail-OPEN turns 1 red, fail-CLOSED turns 13 red. The suite
+#   now catches an instrument that cannot say NO **and** one that cannot say YES.
+#   D-90 case changed SHAPE, not assertions: it asserts the COUNTERFACTUAL -- the two
+#   malformed docs ARE naively equal -- so the trap is proven reachable rather than
+#   assumed. Without it the case is satisfied by absence.
+#   FILED A DEFECT AGAINST ITS OWN MERGED H6 unprompted: that selftest is one-directional
+#   too. A SUITE THAT ONLY TESTS ONE DIRECTION OF A DECISION CANNOT TELL A WORKING GUARD
+#   FROM A STUCK ONE, AND WHICH DIRECTION IT TESTS IS DECIDED BY WHICH FAILURE YOU WERE
+#   AFRAID OF THAT DAY.

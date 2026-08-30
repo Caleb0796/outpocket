@@ -46,7 +46,8 @@
     "F7",
     "T3",
     "E5",
-    "D1"
+    "D1",
+    "V4"
   ],
   "in_flight": {
     "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
