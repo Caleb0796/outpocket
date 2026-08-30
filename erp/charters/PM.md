@@ -52,6 +52,24 @@ never `T0`–`T4`, which collide with live tool-surface node ids. Every
 `UNVERIFIED` row must name an existing node id from `erp/graph.json` as its
 fallback; a row with no named fallback is malformed and the node does not pass.
 
+## READY does not mean DISPATCHABLE — D-139
+
+**`ready.mjs` reports that ALL A NODE'S INPUTS ARE DONE. It does not report
+that the node's ACCEPT CAN PASS, and the board shows the two identically.**
+`D2` sat READY all night with a predicate that **cannot pass on the
+infrastructure we are deployed to** — `onrender.com` is on the public suffix
+list, so no origin-trial token can be issued, MEASURED and written down two
+days earlier in `FACTS.md` IR-9. **A seat handed it would have burned two
+hours rediscovering a fact we already had.**
+
+**This is not mechanizable in general** — "is this predicate physically
+satisfiable" is not a question a checker can answer — **but it is recordable at
+the node, and that is the whole remedy.** D-122's park-with-a-condition
+practice extends from RULINGS to NODES: **when a node cannot pass until some
+condition holds, write the condition in its notes, where it travels with the
+node instead of living in prose in another file that the dispatcher has no
+reason to open.**
+
 ## When you park something — D-122
 
 **NAME THE CONDITION THAT UNPARKS IT, NEVER A TIME.** I parked D-118 *"after
