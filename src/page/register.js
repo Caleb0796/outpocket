@@ -188,6 +188,44 @@ function toRegistration(def) {
   return reg;
 }
 
+// Registration errors the browser reported that were NOT our own revocation.
+// Kept rather than only logged so a test can assert the difference, and so the
+// inspector can show it: a handler that silently ate a real failure would be
+// worse than the unhandled rejection it replaced.
+const registrationErrors = [];
+
+/**
+ * Take ownership of the promise `registerTool` hands back.
+ *
+ * MEASURED, Chrome 152: `document.modelContext.registerTool(def, {signal})`
+ * RETURNS A PROMISE, and that promise REJECTS with AbortError when its signal is
+ * aborted. We abort the previous generation on every flip, deliberately — that is
+ * how revocation works — so every registration in that generation rejects, one per
+ * tool. Discarding the return value therefore produced one unhandled rejection per
+ * registered tool per flip: 13 in a single seeded demo run here, 12 on the deployed
+ * site, where the surface was one tool smaller. The count tracked the surface size,
+ * which is what identified the mechanism.
+ *
+ * Nothing was broken by it — the surface was correct throughout and every tool
+ * count was right — which is exactly why it survived. A fetch-based probe sees 200s
+ * and a correct tool list and cannot see an unhandled rejection at all; it took a
+ * CDP observer watching Runtime.exceptionThrown to see it. Same blindness as the
+ * node:crypto cork: the page was throwing on every cycle while every check was green.
+ *
+ * AN ABORT WE CAUSED IS NOT AN ERROR. Anything else is. The test is not "is this an
+ * AbortError" alone — a real AbortError could arrive from elsewhere — but "is this an
+ * AbortError AND is this our own controller the one that fired". Everything that
+ * fails that test is recorded and logged, never swallowed.
+ */
+function adopt(result, name, controller) {
+  if (!result || typeof result.then !== "function") return result; // older shape, nothing to own
+  return result.then(undefined, (err) => {
+    if (err?.name === "AbortError" && controller.signal.aborted) return; // ours, on purpose
+    registrationErrors.push({ name, error: err });
+    console.error(`register: registerTool(${name}) rejected`, err);
+  });
+}
+
 /**
  * Recompile the surface and make the browser agree with it.
  *
@@ -221,7 +259,7 @@ function sync(reason = "change") {
     const registered = [];
     if (api) {
       for (const def of defs) {
-        api.registerTool(toRegistration(def), { signal: controller.signal });
+        adopt(api.registerTool(toRegistration(def), { signal: controller.signal }), def.name, controller);
         registered.push(def.name);
       }
     }
@@ -313,6 +351,10 @@ export const registry = {
   /** Generation number, and how many flips have happened. */
   generation: () => generation?.n ?? null,
   flips: () => flips,
+
+  /** Registration rejections that were NOT our own revocation. Empty is the
+   *  healthy state; anything here is a real failure the browser reported. */
+  registrationErrors: () => registrationErrors.slice(),
 
   /** True once the browser has actually been handed a registration. */
   live: () => Boolean(modelContext()) && Boolean(generation?.registeredWithBrowser),
