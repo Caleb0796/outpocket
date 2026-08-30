@@ -1067,3 +1067,15 @@ FOLLOWUP DEV-sign-crash 38d6afb pits:kb/pits/DEV-sign-crash.md accept:N/A (not a
 #   MEANS NOTHING.
 #   The narrowing is undefined-ONLY because NULL IS A VALID OCF-1 VALUE; a stricter first
 #   draft broke three passing tests and was caught before it shipped.
+
+MERGED E4  50b8cd4 pits:kb/pits/E4.md accept:PASS (clause 1 verified BY HAND — see below)
+#   C1's blind packet. Clause [1] is DECORATION: its prose says "`ls -1` IN IT prints 2",
+#   "in it" binds to nothing in a shell, the extracted span is a bare `ls -1`, and it
+#   EXITS 0 FROM THE REPO ROOT ON ANY PACKET OR NONE. Demonstrated. I verified the real
+#   property instead: 2 entries, both byte-identical to source, and rev-parse inside the
+#   packet exits 128 (outside any repo). With PM.
+#   THE FINDING IS THE MIRROR OF D-90: prove the detector still returns the POSITIVE on
+#   the real corpus, not only the negative on injected cases. L2's own workflow-order
+#   pattern fired on its OWN schema ("in task order" != tool call order). A DETECTOR THAT
+#   FIRES ON EVERYTHING IS EXACTLY AS SATISFIABLE AS ONE THAT FIRES ON NOTHING, and the
+#   false-positive direction is the one that gets an instrument DISABLED.
