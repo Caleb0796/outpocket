@@ -52,6 +52,31 @@ never `T0`–`T4`, which collide with live tool-surface node ids. Every
 `UNVERIFIED` row must name an existing node id from `erp/graph.json` as its
 fallback; a row with no named fallback is malformed and the node does not pass.
 
+## Before you commit a predicate — the checklist, D-93
+
+**Three revisions of one T3 clause each corrected the previous and each
+introduced the next: `--args` did not exist, then no origin at all, then
+`<port>` — which a human reads as "fill this in" and `sh` reads as an input
+redirection, so the line died at PARSE TIME before node was reached. Every
+revision was checked by READING it and none by RUNNING it. THE ACCEPT
+PREDICATE IS THE ONE ARTIFACT IN THIS PROJECT NOBODY EXECUTES BEFORE
+COMMITTING, which is a strange gap given that its entire purpose is to be
+executed.** L1's observation, and it costs two seconds to close:
+
+1. **`node tools/accept-gate.mjs <node> --list` before committing any new or
+   amended predicate.** It prints the spans **as the shell will see them**, and
+   it would have caught all three failures.
+2. **Only real commands get backticks.** The runner defines a span as
+   backtick-delimited text, so a flag named in explanatory prose becomes an
+   executable fragment AND renumbers every span after it. I added five junk
+   spans to T3 this way while explaining the previous three defects.
+3. **Does the node list its test file in `outputs`?** F7 did not, and the
+   accept mandated a file the ownership rule forbade its owner to write —
+   D-31's collision, re-created by me in the node written to fix a collision.
+4. **Use the house pattern for an origin: `"$URL"`, bound by the gate runner**,
+   exactly as `S9` does. S9 has been green all sprint, so the convention is
+   proven; a literal placeholder is not a placeholder to a shell.
+
 ## Your acceptance bar
 
 - The **ready set is recomputed by `node tools/ready.mjs`** (node G0, owner L1)
