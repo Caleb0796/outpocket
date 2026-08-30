@@ -1763,6 +1763,19 @@ async function modeDumpState(url, { headless }) {
     process.stderr.write('drive: --dump-state seed ' + read.value.seed +
       ', reference ' + read.value.referenceDate +
       ', reached ' + (read.value.demo && read.value.demo.reachedState) + '\n');
+
+    // PER-STEP TIMINGS TRAVEL ON THEIR OWN CHANNEL — stderr, as one labelled
+    // JSON line — and deliberately NEVER enter the dump. H4's accept is a
+    // byte-for-byte diff of two runs at the same seed; a duration in the dump
+    // varies run to run and would break it. harness/rehearse.mjs (H6) parses
+    // this line, which is why it is a single machine-readable line and not
+    // prose: it is an interface, so it is written as one.
+    const timings = await evalInPage(b.cdp, sessionId,
+      'JSON.stringify((globalThis.outpocketDemo.result?.steps ?? []).map((s) => ({ tool: s.tool, ok: s.ok, ms: s.ms ?? null })))',
+      false);
+    if (timings.ok && timings.value) {
+      process.stderr.write('drive: timings ' + timings.value + '\n');
+    }
     return 0;
   } finally {
     await b.close();
