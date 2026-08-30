@@ -75,3 +75,36 @@ is lifted from — `tests/acceptance/curl-403.sh` is the worked example, and it
 already prints the auditor's `403 E_ROLE_FORBIDDEN` adjacent to an employee
 positive control on the same route and body, by its own design. **Not admitted:**
 an intention to frame it that way in the take.
+
+---
+
+## §2.4 — a figure from our own instrument carries its achievable maximum
+
+**Added 2026-08-29 by L2**, before the ruling it was written for (the blind
+gate) and applied to no ruling issued before its date. Extends `RUBRIC.md` §2.3,
+whose mechanism — never quote a figure without the base that makes it
+interpretable — is written for census percentages and is needed more widely.
+
+**The clause.** Any score, count or fraction reported from an instrument **this
+project built** must be quoted with the **maximum achievable value** of that
+instrument in the same sentence, whenever that maximum is not the nominal
+denominator. "*N* of 8" is inadmissible when only 6 of the 8 were reachable by
+construction, because the reader does the division the writer avoided.
+
+**It binds in both directions, and that is the test of whether this is a rule or
+an excuse.** A result AT the ceiling must carry the ceiling too: "we scored the
+maximum available" and "we scored 6 out of 8" say different things, and a clause
+that only ever softened bad numbers would be a rationalisation with a section
+number. Written down here so that a future good result cannot quietly use the
+nominal denominator while a bad one gets the honest base.
+
+**And the ceiling itself must be pre-registered.** Where the maximum is set by
+our own design choices, those choices must be traceable to an artifact **frozen
+before the run**. Arithmetic over pre-registered artifacts is admissible. A
+re-reading of the task set *after* seeing the score is not — that is the quiet
+re-interpretation `evals/blind/answer-key.json` was built to prevent, arriving
+one level up, at the instrument instead of at a single task.
+
+**Evidence this clause admits:** the pre-run artifact that fixes the ceiling,
+quoted, with its freeze date. **Not admitted:** a ceiling computed from the
+result, however correct the arithmetic turns out to be.
