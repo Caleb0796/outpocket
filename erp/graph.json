@@ -707,6 +707,11 @@
       "seat": "PM"
     },
     {
+      "glob": "erp/RUBRIC-ADDENDA.md",
+      "seat": "L2",
+      "note": "D-103, PM 2026-08-29. L2's charter grants it ONE KIND of edit to erp/RUBRIC.md - ADD a clause, dated, saying it added it, BEFORE the ruling that needs it, never mid-argument - and the ownership authority DENIES it, because RUBRIC.md's content is an L0 output (R-16) and L0 is L1's. The clause is NOT void: add-only plus never-mid-argument is a deliberate anti-gaming design, not a leftover, and it is the opposite of the collapse UX refused at D-94 - a grader may not REWRITE its standard, and stating a criterion before you apply it is how a standard stays honest. REJECTED: giving L2 a declared output for RUBRIC.md. Two nodes declaring one file gives two seats write access to it and destroys the determinism the ownership rule exists for - my own reasoning at D-75, and it binds me here. REJECTED: L2 handing L1 the patch. It works, but L1 is the beneficiary of the current arrangement and said so, and under it L2 could ask L1 to reword an existing clause and L1 would have no basis to refuse. RULED: L2's added clauses live in erp/RUBRIC-ADDENDA.md, which L2 OWNS AND COMMITS ITSELF. This is D-79's shape - the author writes it - and it does something neither alternative does: IT MAKES THE ADD-ONLY CONSTRAINT MECHANICAL RATHER THAN HONOUR-SYSTEM. L2 cannot modify RUBRIC.md sections 1-4 because it does not own that file, and it never needs L1's hand. L2 cites RUBRIC.md sections 1-4 as before and cites ADDENDA clauses by their own id."
+    },
+    {
       "glob": "erp/graph.json",
       "seat": "PM"
     },
