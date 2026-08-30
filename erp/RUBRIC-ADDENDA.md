@@ -25,6 +25,39 @@ A clause added here can only ever **raise** the bar; nothing here can lower one.
   Declaring a criterion in advance and then applying it is honest; reaching back
   with one is precisely what "never mid-argument" exists to stop. Each clause
   below therefore states, in its own text, which rulings it did **not** decide.
+- **Clauses appear in the order they were ADDED, not in numeric order**, and that
+  is deliberate: this file is a log of a standard growing, and the sequence is
+  evidence that each clause preceded the ruling it was written for. Sorting them
+  numerically would tidy away the one property the file exists to demonstrate.
+  The index below is for finding them.
+
+## Index
+
+| clause | added | extends | in one line |
+|---|---|---|---|
+| `§1.4` | 2026-08-29 | `RUBRIC.md` §1 | an off-page shot must not be satisfiable by a generic failure |
+| `§3.6` | 2026-08-29 | `RUBRIC.md` §3 | an instrument's result carries the grade of its weakest ARMED control |
+| `§2.4` | 2026-08-29 | `RUBRIC.md` §2.3 | a figure from our own instrument carries its achievable maximum |
+
+## What §3.6 and §2.4 have in common, since it was asked
+
+They are **not two halves of one rule and should not be merged into one.** They
+extend different parents and they are not the same shape: `§3.6` governs any
+instrument result, numeric or not, and asks *did the check that grades this
+actually run?*; `§2.4` governs figures only, and needs a bounded scale to have a
+maximum at all. Either can apply without the other.
+
+**But they are the first two of one family, and naming it is worth more than
+merging them.** `RUBRIC.md` §1–§4 grade evidence that arrives from *outside* —
+a published sentence, a census row, a measurement of somebody else's browser.
+`§3.6` and `§2.4` grade a second class the rubric did not anticipate: **numbers
+this project generates about itself**, for the purpose of putting them in its own
+submission. Self-generated evidence carries obligations borrowed evidence does
+not, because we control both the instrument and the reporting of it, and the
+failure modes are ours to introduce. `§3.6` covers the instrument; `§2.4` covers
+the scale. **A third clause in this family should be expected rather than
+resisted**, and it belongs here rather than in `RUBRIC.md` §1–§4 for the same
+mechanical reason everything else here does.
 
 ---
 
@@ -75,6 +108,51 @@ is lifted from — `tests/acceptance/curl-403.sh` is the worked example, and it
 already prints the auditor's `403 E_ROLE_FORBIDDEN` adjacent to an employee
 positive control on the same route and body, by its own design. **Not admitted:**
 an intention to frame it that way in the take.
+
+---
+
+## §3.6 — an instrument's result carries the grade of its weakest ARMED control
+
+**Added 2026-08-29 by L2**, before the ruling it was written for (E8's
+admissibility) and applied to no ruling issued before its date. Extends
+`RUBRIC.md` §3's evidence rule, which grades **claims** but is silent on how to
+grade the output of an **instrument this project built in order to produce
+claims**.
+
+**Why it is needed.** §3's evidence rule sorts a claim into MEASURED, PUBLISHED,
+OUR-ESTIMATE or UNVERIFIED by asking where the claim came from. It does not ask
+whether the instrument that produced it was working. An instrument whose own
+acceptance predicate names a control that cannot run will report satisfaction
+anyway — because a control with no artifact to inspect returns nothing to object
+to. That is the shape this project has paid for more than any other, and §3 as
+written admits its output at MEASURED.
+
+**The clause.** A result produced by one of this project's own instruments may be
+quoted at **MEASURED** only if every control named in that instrument's
+acceptance predicate is:
+
+- **(a) ARMED** — the artifact the control inspects is actually produced by the
+  run it grades. A control that reads a transcript a run does not emit is
+  unarmed, and its silence is the absence of evidence, not evidence of absence.
+- **(b) able to return the NEGATIVE**, demonstrated, not assumed (D-90); and
+- **(c) demonstrated NOT to fire on legitimate output** (D-108).
+
+A predicate carrying an unarmed control does not make its result false. It makes
+that result **UNVERIFIED on that axis**, and `RUBRIC.md` §3's evidence rule
+already says where UNVERIFIED may go: `RISK.md` §4's unknowns register with a
+named node that will answer it, **never into a claim** — which includes a number
+printed in the README.
+
+**(c) is not symmetry for its own sake.** A control that fires on legitimate
+output does not merely misgrade one run: it gets the instrument discarded. For a
+**one-shot** instrument — a run bounded by a quota, a deadline, or a human's
+availability — the discarded run is the only run, and the cost of a false
+positive is the whole instrument rather than one number.
+
+**Evidence this clause admits:** the instrument's predicate quoted verbatim
+beside the artifacts the run actually produces, and a demonstration of each
+control failing and passing. **Not admitted:** "the control is in the accept", or
+a control whose only evidence of working is that it has never objected.
 
 ---
 
