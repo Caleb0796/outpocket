@@ -78,3 +78,35 @@ proved nothing, and my next attempt at the page's own ERP threw.
 subject.** I stopped rather than keep grinding, because a fourth attempt risks producing a
 green I would want to believe. **The click-completes step remains OPEN and belongs to QA's
 browser run**, which is blocked on QA's own user and correctly so.
+
+---
+
+# Addendum 2 — the sign record is session-scoped by OWNERSHIP, measured on production
+
+Found while preparing to observe a human signature, and worth recording as a POSITIVE
+result rather than only as an obstacle to my observation.
+
+`GET /api/sign/{request_id}` is scoped by session **ownership**, not merely by the caller
+having *a* session: `server/index.mjs:305` passes `{ sessionId: session.sid }` into
+`signGate.get()`. Measured against `https://outpocket.onrender.com`:
+
+| request | result |
+|---|---|
+| `GET /api/sign/sg_e3dd…` with **no cookie** | **401** |
+| the same, with **a different valid session's cookie** | **401** |
+
+**A signed-in user cannot read another user's sign request.** That is a real access-control
+property of the shipped product, and it holds on the live host rather than only in a test.
+No route in the table exposes sign state without the owner's cookie — checked against the
+full route list, not inferred.
+
+**And it is why my own observation protocol was wrong.** I told the relay I would read the
+server before and after a human's click. **I could not have** — the record lives under their
+cookie and my session is refused, correctly. I had described that step as ready before
+testing it, and found it only because the relay said the user might begin at any moment.
+The corrected protocol asks the human for one devtools glance at their own `POST
+/respond`, because **their session is the only one entitled to see it.**
+
+The thing I would keep: **I asserted a capability of my own instrument without exercising
+it, one message before it was to be leaned on.** That is the same defect this sprint has
+found in five other instruments, arriving in the observation plan rather than in a tool.
