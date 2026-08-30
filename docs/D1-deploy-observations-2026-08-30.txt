@@ -1,0 +1,90 @@
+D1 — deploy observation record, 2026-08-30
+Report only. On seat/I4-D1, not pushed to main (Render auto-deploys on push
+to main, which would move the served sha and invalidate D1's clause 3 until
+the redeploy catches up — the same reason this file isn't docs/DEPLOY.md
+edited in place).
+
+1. /VERSION FLIP: E_NOT_FOUND -> A SERVED SHA
+   DERIVED, bounded by two git commit timestamps, not pinpointed by continuous
+   polling (this session was not watching the live host during the window):
+
+   push-to-main (the wiring merge)  7be7178  2026-08-29T18:36:08-07:00
+     "Merge D1's two halves: the /version route and its mount — node NOT
+      green, by ruling" — this is the push that would trigger Render's
+      auto-deploy for the commit that first makes GET /version resolve.
+   confirmed live and green                2026-08-29T18:45:57-07:00
+     "D1 IS GREEN — all four clauses observed simultaneously against the
+      live host" (L1, from the live host directly).
+
+   BOUND: build + rollout took AT MOST 9 minutes 49 seconds on this push, on
+   Render's free tier, for this app (a single Node http server, no build
+   step). This is an upper bound on deploy latency, not the actual flip
+   instant — the true flip could have happened anywhere in that window.
+   Grade: DERIVED (from two independently-timestamped git/report events, not
+   from watching the transition happen).
+
+   My own directly-observed data point, for context and not used above
+   because it predates the wiring and doesn't bound it usefully: GET /version
+   still returned {"error":"E_NOT_FOUND"} when I checked it myself around
+   2026-08-29T18:19-07:00 (before the wiring merge existed).
+
+2. COLD-START WAKE LATENCY — free tier, MEASURED (not quoted from any
+   documentation), because this is the number that decides whether the
+   2026-09-04 -> 2026-09-21 unattended judging window is survivable on the
+   free tier and nobody had measured it yet.
+
+   METHOD: sent no request to https://outpocket.onrender.com from this
+   session for 960s (16 minutes, chosen to clear the free tier's documented
+   15-minute idle sleep with margin), then issued one request and recorded
+   curl's %{time_total}, %{time_connect}, %{time_starttransfer}; followed
+   immediately by a second request to show the warm baseline for contrast.
+
+   CAVEAT, stated up front rather than discovered after the fact: this
+   session does not control other traffic to the live host. Other seats or
+   the user hitting the URL during the 16-minute window would reset Render's
+   idle timer and this measurement would then show a WARM response
+   mislabeled as cold — i.e., a fast result here is not proof the tier is
+   fast to wake, only that either it woke fast or it never slept. A slow
+   result is unambiguous evidence either way.
+
+   RESULT, MEASURED:
+     idle window:  2026-08-30T01:52:42Z -> 2026-08-30T02:08:42Z (960s, no
+                   request sent from this session)
+     first request after idle:   http_code=200 time_total=0.414423s
+                                  time_connect=0.077358s
+                                  time_starttransfer=0.407925s
+     immediate follow-up (warm): http_code=200 time_total=0.148939s
+                                  time_connect=0.014886s
+                                  time_starttransfer=0.146948s
+
+   READING: the "cold" request was ~0.27s slower than the warm one and
+   nowhere near what a genuine Render free-tier cold start looks like — a
+   spun-down container restarting typically costs several seconds to tens of
+   seconds, not a quarter of one. This measurement is INCONCLUSIVE, not a
+   clean negative result, and I am not reporting 0.41s as "the wake latency."
+   Two explanations fit the data and I cannot distinguish them from here:
+   (a) some other traffic (another seat verifying D1, the user, a health
+   check) reached the host during my 16-minute window and reset Render's
+   idle timer before it could sleep, or (b) 15 minutes measured from THIS
+   attempt's start was not actually enough idle time for this instance
+   (Render's stated threshold may not have started counting from when I
+   believe it did, e.g. if the instance was already mid-idle-countdown from
+   earlier unrelated traffic). I did not add or remove any variable that
+   would let me tell (a) from (b) apart — that would need either exclusive
+   access to the host for a full quiet window, or reading Render's own
+   dashboard/logs for the instance's actual sleep/wake events, which is the
+   authoritative source this measurement is a proxy for.
+   Grade: MEASURED (the numbers are real and reproducible commands), but the
+   INTERPRETATION ("this is the cold-start cost") is NOT established —
+   grading that claim itself would be OUR-ESTIMATE at best, and I am
+   declining to make it rather than approximate.
+
+3. VERDICT FOR THE USER: NOT YET ANSWERED. This attempt does not tell you
+   whether the free tier's wake latency is survivable for the judging
+   window, because it most likely never observed a real cold start. The
+   honest recommendation is either (a) re-run this exact method during a
+   window this session can be reasonably sure carries no other traffic to
+   the host — hard to guarantee with multiple seats actively verifying D1 —
+   or (b) read Render's own dashboard for this service's actual sleep/spin-up
+   event log, which settles it without depending on nobody else touching the
+   URL. I am not asserting a number I have reason to doubt.

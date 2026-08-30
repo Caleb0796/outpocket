@@ -122,8 +122,19 @@ The mechanism is `tools/blind-home.sh` (an output of **E4**). E4's `accept`, cop
 
 > `node evals/blind/make-blind-packet.mjs` produces a directory containing EXACTLY TWO files,
 > artifacts/tools.export.json copied in and evals/blind/tasks.md copied in, not inside any git repo, and
-> `ls -1` in it prints 2. AND `! grep -qi 'outpocket\|countinghouse\|/Users/' evals/blind/prompts/c1.txt` —
-> no repo identifier reaches C1. AND an admissibility check: the packet builder EXITS 1 if
+> `test "$(ls -1 "$(node evals/blind/make-blind-packet.mjs)" | wc -l | tr -d " ")" = 2` exits 0
+> (D-107 — the previous wording extracted as a bare directory listing that exits 0 from the repo root
+> on any packet or none). AND `! grep -qi 'outpocket\|countinghouse\|/Users/' evals/blind/prompts/c1.txt`
+> — **no repo identifier reaches C1 IN THE BRIEF. D-107: THE PACKET IS NOT AND CANNOT BE
+> IDENTIFIER-FREE, and any claim that the builder greps the EXPORT describes a check that can never
+> pass.** `artifacts/tools.export.json` carries `outpocket` inside its own **frozen** envelope id and
+> `Countinghouse` in a tool description. **Neither is removable and neither is a mistake** — the first
+> is fixed by `erp/contracts/tool-export.schema.json`, the second is the product name a real agent
+> reads, and stripping it would make C1 grade a surface we do not ship. The builder **reports** both
+> every run rather than blocking. **CONSEQUENCE, STATED RATHER THAN PATCHED: blindness now rests on
+> `E8`'s transcript check — zero tool calls outside the packet — which DETECTS a breach rather than
+> PREVENTING one. That is a real reduction in what may be claimed about C1 and no write-up may say
+> the packet is identifier-free.** AND an admissibility check: the packet builder EXITS 1 if
 > evals/blind/prompts/c1.txt contains any criterion the rubric grades (the
 > descriptions-must-not-encode-workflow-order rule, the 500/1500-char budgets, the iframe rule, the
 > Origin-Agent-Cluster rule). AND `bash tools/blind-home.sh --verify` exits 0, asserting the constructed
@@ -984,6 +995,12 @@ compared to a pre-registered answer key:
 ```
 
 - `firstTool` is compared to a pre-registered answer key held by L2 and **never shown to C1**.
+  **D-107: THAT KEY NOW HAS A DECLARED PATH — `evals/blind/answer-key.json`, an `E4` output, so
+  ownership clause (a) resolves it to L2.** It previously had none and no node produced it, so the
+  operational half — the half this document itself calls the one that carries weight — had nothing
+  to compare against. **L2 declined to create a path the authority had not named, which was right:
+  that is the discipline keeping `erp/VERDICTS.md` dead.** The key is never copied into the packet,
+  because `make-blind-packet.mjs` copies exactly two named files — by construction, not by care.
   **Mismatch is a finding about our descriptions, not about C1.**
 - `canConstructArgs: false` plus a populated `missingInfo` is the single most actionable output of the whole
   eval: it names a required field the surface never explains how to obtain.

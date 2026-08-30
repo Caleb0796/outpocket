@@ -41,6 +41,9 @@ const has = (f) => argv.includes(f);
 
 const node = val('--node'), seat = val('--seat'), branch = val('--branch');
 const base = val('--base') || 'main';
+// --mainline exists so this check can be TESTED. A guard I cannot point at a known-bad
+// pair is a guard I have not seen fire, which is the thing this file exists to prevent.
+const mainline = val('--mainline') || 'origin/main';
 if (!node || !seat || !branch) {
   console.error('usage: merge-gate.mjs --node <ID> --seat <SEAT> --branch <REF> [--base main] [--pit-pending] [--skip-accept]');
   process.exit(2);
@@ -66,6 +69,25 @@ const run = (cmd, args, opts = {}) =>
 // whose reference is derived from the thing it is checking is not a check. origin/main
 // works because this gate runs BEFORE the push, so the remote still sits at the branch
 // point.
+// MULTIPLE MERGE BASES MAKE THE THREE-DOT DIFF UNRELIABLE, and I hit this after
+// building the base check that was supposed to stop exactly this family. A branch that
+// has merged main back into itself can share more than one merge base with main; `git
+// merge-base` then picks ONE ARBITRARILY and `A...B` diffs against that pick. On
+// 2026-08-29 that reported SIX ownership violations against PM for files PM never
+// touched -- E2's outputs, my own merge log -- and I MERGED ANYWAY after reading them,
+// which is DEV-014's shape a second time. git itself warns ("multiple merge bases,
+// using ...") and the warning goes to stderr where a piped check swallows it.
+{
+  const all = run('git', ['merge-base', '--all', mainline, branch]);
+  const n = (all.stdout || '').trim().split('\n').filter(Boolean).length;
+  if (n > 1) {
+    console.log(`\n!!! ${branch} has ${n} MERGE BASES with ${mainline}.`);
+    console.log(`    A three-dot diff picks one arbitrarily, so the file list -- and every`);
+    console.log(`    ownership verdict drawn from it -- is unreliable. Compare against the`);
+    console.log(`    branch's own commits instead: git log origin/main..${branch} --name-only`);
+    process.exit(2);
+  }
+}
 if (val('--base')) {
   const mb = run('git', ['merge-base', 'origin/main', branch]);
   const bs = run('git', ['rev-parse', base]);
