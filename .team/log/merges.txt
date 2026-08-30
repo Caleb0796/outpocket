@@ -1183,3 +1183,18 @@ FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep
 #   lock race S6 closes.
 #   Routed: I4 owns the file; the dashboard needs the relay and the user. D1 stays done on
 #   its other three clauses and clause 4 is carried HONESTLY UNSUPPORTED until re-verified.
+
+# D-92(a) RESOLVED, and the replacement reason is STRONGER than the one that expired.
+#   Dashboard read post-upgrade, transcribed under the D-48 precedent:
+#     AUTOSCALING OFF -- greyed, non-interactive, gated "requires a Pro plan or higher",
+#       and the workspace is on Hobby. DOUBLY LOCKED: switched off AND structurally
+#       unavailable without a deliberate plan purchase. IT CANNOT DRIFT ON SILENTLY.
+#     MANUAL SCALING 1 -- slider and numeric input both 1, Save greyed, no pending change.
+#   So "one instance" moved from an INCIDENTAL PROPERTY OF A TIER to an EXPLICIT
+#   CONFIGURATION plus a STRUCTURAL GATE. The clause is supported again, by a better
+#   reason than the one that expired.
+#   S12's sign lock and S6's TOCTOU closure remain true by construction of a single
+#   process under both facts.
+#   THE WHOLE EPISODE IS THE ARGUMENT FOR RECORDING REASONS RATHER THAN FACTS: the tier
+#   changed, the fact silently stopped holding, and the RECORDED REASON is what announced
+#   its own expiry loudly enough for anyone to act on.
