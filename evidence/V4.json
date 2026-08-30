@@ -1,15 +1,61 @@
 {
-  "question": "Does a suspended execute time out in the ChatGPT built-in browser, and after how long?",
+  "node": "V4",
+  "question": "Does a suspended execute time out in the client, and after how long?",
   "verdict": "times-out",
-  "timeoutMs": 22267,
-  "timeoutSecondsApprox": 22.3,
-  "clientError": "Error: Timed out running CDP command \"Runtime.evaluate\" for tab 1",
-  "origin": "http://localhost:8795",
-  "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
-  "chromiumMajor": 151,
-  "method": "probe_hang returns a Promise that never settles. The agent was told not to give up on its own initiative and to report what the client did.",
-  "consequence": "SELECTS THE HANDSHAKE AS THE CONSERVATIVE DEFAULT — and that is the strongest thing this file supports (R-44). A human cannot review a report and sign it in 22 seconds, so S5 builds toward the two-call handshake: execute returns {status:'awaiting_signature', ticket} immediately and the signature arrives on a separate call. RISK.md already required both modes behind one switch, so this is a switch position, not a rewrite. WHAT THIS FILE DOES NOT SUPPORT: 'decisive', 'it times out every time', or any remote-origin claim. ONE run, ON LOCALHOST. It does not separate a WebMCP client timeout from a CDP evaluation-wrapper timeout, does not show the underlying execute() was cancelled, and does not carry to a remote origin — V6-consent-gate is the standing proof that this client behaves differently there. V4's node wants two runs compared at 20 percent by harness/compare-runs.mjs; neither run file nor the comparator exists, so THE NODE HAS NOT PASSED and contingencies[4] is PROVISIONALLY SELECTED, not fired.",
-  "incidental": "The error names Runtime.evaluate, so this client drives tool execution over CDP via Runtime.evaluate rather than the CDP WebMCP domain's invokeTool. Recorded as an observation, not a conclusion about other clients.",
-  "caveat": "Measured once, on localhost. The plan requires two independent runs with a disagreement threshold; this is run 1 of 2.",
-  "observedAt": "2026-08-29T07:58:00Z"
+  "seconds": 22.267,
+  "client": "ChatGPT desktop built-in browser, model 5.6 Sol, Chromium 151",
+  "grade": "MEASURED, ONE CLIENT, ONE RUN",
+  "runsTaken": 1,
+  "runsPlanned": 2,
+  "secondRun": {
+    "status": "NOT TAKEN",
+    "why": "There is no honest way to take it with the instruments this node has. Run 1's 22.267 s is the ChatGPT built-in browser's OWN CDP-wrapper timeout — its raw error is `Timed out running CDP command \"Runtime.evaluate\" for tab 1`, which names the client's own evaluation wrapper, not a WebMCP timeout and not a browser-engine one. That makes the number a property of THAT CLIENT. On plain Chrome over CDP the harness IS the client, so its timeout is a parameter WE CHOOSE: measuring it would be circular, would discover nothing, and would then agree with itself — a two-run agreement manufactured out of a constant we typed. And a run 2 taken on any other client cannot be compared to run 1 at 20 percent anyway: harness/compare-runs.mjs REFUSES two runs naming different clients, by this seat's own design, because that is a client mismatch and not a measurement dispute.",
+    "whatWouldTakeIt": "A second run in the ChatGPT BUILT-IN BROWSER, against a suspended execute, read by a human. V4 is not in graph.json.human_gated, so that run has no seat scheduled to perform it.",
+    "whatItWouldChange": "Nothing in the code. It would upgrade contingencies[4] from PROVISIONALLY SELECTED to FIRED. S5 has already SHIPPED the two-call handshake, so the design consequence is taken and is not at risk.",
+    "doNotCloseEarly": true
+  },
+  "standingConservativeSelection": {
+    "selection": "The two-call handshake, contingencies[4], PROVISIONALLY SELECTED.",
+    "why": "A human cannot read a report and sign it in 22 seconds. So `execute` returns {status:'awaiting_signature', ticket} immediately and the signature arrives on a separate call, rather than holding a call open across a human decision. RISK.md already required both modes behind one switch, so this is a switch position and not a rewrite.",
+    "status": "SHIPPED by S5 — the selection is taken, and this node's second run would only change the label on the contingency, not the code."
+  },
+  "whatThisNodeEstablishes": [
+    "ONE named-client observation: 22.267 s, the ChatGPT built-in browser (Chromium 151), on localhost — transcribed in evidence/V4-run1.json, not re-measured.",
+    "A comparator proven able to REJECT every way the comparison could have passed while discovering nothing: `node harness/compare-runs.mjs --selftest`, 20 assertions."
+  ],
+  "whatThisNodeDoesNotClaim": [
+    "A TWO-RUN AGREEMENT. There is one run. Nothing here has been reproduced.",
+    "That the timeout is 22.267 s in any other client, or in the same client on a REMOTE origin — evidence/V6-consent-gate.json is the standing proof that this client behaves differently there.",
+    "That the suspended execute was CANCELLED. Measured separately on Chrome 152: a suspended execute runs to completion, `opts` carries no AbortSignal, and the page never learns.",
+    "That the number separates a WebMCP client timeout from a CDP evaluation-wrapper timeout. The raw error names Runtime.evaluate, so it may be entirely the latter."
+  ],
+  "comparator": {
+    "file": "harness/compare-runs.mjs",
+    "selftest": "node harness/compare-runs.mjs --selftest -> exit 0, 20 assertions",
+    "design": "Every refusal is exercised as a PAIR — FIRES on the input it exists to catch, DECLINES on a minimally different valid input. A gate that cannot say no is decoration; a gate that can only say no is equally broken and looks identical in a selftest that tests refusals alone. UX's rule, adopted 2026-08-29: arm nothing that has not demonstrated it can still return the negative.",
+    "refusalsProven": [
+      "two runs naming DIFFERENT CLIENTS are refused with their own distinct message, never folded into 'they disagreed by more than 20 percent' — that would report a measurement dispute where there is none",
+      "missing observations do not compare equal (D-90: the counterfactual is asserted first, so the case cannot be satisfied by there being nothing to compare)",
+      "a no-timeout run does not average with a numeric one — that is a disagreement about whether a timeout exists at all, not a near miss",
+      "malformed run files are rejected: not JSON, missing client, bad literal, non-positive seconds, non-boolean timedOut"
+    ],
+    "falsified": "The selftest was itself checked in both directions rather than trusted. Removing the client-mismatch guard (fail-open) turns the FIRES half red — 1 failure. Making readRun refuse unconditionally (fail-closed) turns every DECLINES half red — 13 failures. So the suite catches an instrument that cannot say no AND one that cannot say yes."
+  },
+  "observedAt": "2026-08-29T07:58:00Z",
+  "recordedAt": "2026-08-30T01:43:41Z",
+  "priorReading": {
+    "question": "Does a suspended execute time out in the ChatGPT built-in browser, and after how long?",
+    "verdict": "times-out",
+    "timeoutMs": 22267,
+    "timeoutSecondsApprox": 22.3,
+    "clientError": "Error: Timed out running CDP command \"Runtime.evaluate\" for tab 1",
+    "origin": "http://localhost:8795",
+    "client": "ChatGPT desktop built-in browser, model 5.6 Sol",
+    "chromiumMajor": 151,
+    "method": "probe_hang returns a Promise that never settles. The agent was told not to give up on its own initiative and to report what the client did.",
+    "consequence": "SELECTS THE HANDSHAKE AS THE CONSERVATIVE DEFAULT — and that is the strongest thing this file supports (R-44). A human cannot review a report and sign it in 22 seconds, so S5 builds toward the two-call handshake: execute returns {status:'awaiting_signature', ticket} immediately and the signature arrives on a separate call. RISK.md already required both modes behind one switch, so this is a switch position, not a rewrite. WHAT THIS FILE DOES NOT SUPPORT: 'decisive', 'it times out every time', or any remote-origin claim. ONE run, ON LOCALHOST. It does not separate a WebMCP client timeout from a CDP evaluation-wrapper timeout, does not show the underlying execute() was cancelled, and does not carry to a remote origin — V6-consent-gate is the standing proof that this client behaves differently there. V4's node wants two runs compared at 20 percent by harness/compare-runs.mjs; neither run file nor the comparator exists, so THE NODE HAS NOT PASSED and contingencies[4] is PROVISIONALLY SELECTED, not fired.",
+    "incidental": "The error names Runtime.evaluate, so this client drives tool execution over CDP via Runtime.evaluate rather than the CDP WebMCP domain's invokeTool. Recorded as an observation, not a conclusion about other clients.",
+    "caveat": "Measured once, on localhost. The plan requires two independent runs with a disagreement threshold; this is run 1 of 2.",
+    "observedAt": "2026-08-29T07:58:00Z"
+  }
 }
