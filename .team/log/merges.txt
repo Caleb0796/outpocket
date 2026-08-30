@@ -1215,7 +1215,13 @@ FOLLOWUP readme-and-D1-evidence d44313c pits:PENDING accept:N/A (not a node)
 #   free-tier property the 21:32 upgrade retired. I4's recorded REASON announced its own
 #   expiry -- a recorded FACT would have gone stale in silence.
 
-FOLLOWUP DEV-017 b95f511 pits:PENDING accept:N/A (a deviation ticket)
+FOLLOWUP DEV-017 57ec039 pits:PENDING accept:N/A (a deviation ticket)
+#   SHA CORRECTED: the row first published b95f511, which is the README commit and NOT a
+#   DEV-017 merge. `git merge -F -` failed (git cannot read a message from stdin), I echoed
+#   MERGED unconditionally, and I pushed a record for a merge that had not happened. SECOND
+#   TIME WITH `-F -` -- I documented the identical hazard in the H4 merge commit and then
+#   repeated it. WORSE THAN H4: there the tree was wrong for one push; here THE RECORD WAS
+#   FALSE ON MAIN, which is the artifact everything else is checked against.
 #   W's README time-capsule finding, renumbered after an ID COLLISION THAT IS NOT ITS
 #   ERROR: nothing allocates deviation ids, D-101 lets nodes declare their own tickets,
 #   and W cannot see what another seat committed on a branch. Raised as its own item.
