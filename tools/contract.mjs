@@ -30,7 +30,21 @@ process.stdout.write(
   `INPUTS:    ${inputs}\n` +
   `DO:        ${val('--do')}\n` +
   `ACCEPT:    ${node.accept}\n` +
-  `PIT:       D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and\n` +
+  `PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMIT, NOT A\n` +
+  `           MESSAGE. Put the five fields in a \`PIT:\` BLOCK IN YOUR FINAL COMMIT MESSAGE on\n` +
+  `           your own branch. L1 reads them with \`git log\` at the gate and writes\n` +
+  `           kb/pits/${node.id}.md from them (D-31 still stands: you do NOT commit a pit FILE).\n` +
+  `           COMPOSING IS COMMITTING. There is no send step to forget.\n` +
+  `           WHY THIS CHANGED: four reports have been lost, in FOUR DIFFERENT WAYS — a seat\n` +
+  `           that finished and went idle, a seat still running whose message never arrived, a\n` +
+  `           restarted session whose transcript was gone, and two composed as ordinary\n` +
+  `           conversation text and never sent. Every arrangement so far depended on a channel\n` +
+  `           between you and the gate, and THE CHANNEL HAS FAILED IN FOUR WAYS OUT OF FOUR.\n` +
+  `           A REPORT COMPOSED BUT NOT TRANSMITTED IS INDISTINGUISHABLE, FROM THE RECEIVING\n` +
+  `           END, FROM A REPORT NEVER WRITTEN. So the mechanism removes the channel: the\n` +
+  `           report rides inside the artifact being gated.\n` +
+  `           Send it in your green message TOO if you like, but the commit is what counts.\n` +
+  `           D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and\n` +
   `           L1 writes kb/pits/${node.id}.md from them. In order: TRIED, HAPPENED, CHANGED,\n` +
   `           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1\n` +
   `           cannot merge you without one.\n` +
