@@ -819,7 +819,7 @@ MERGED H3  8123246 pits:kb/pits/H3.md accept:PASS
 #   TO THE CONCERNS ITS AUTHOR HAD IN MIND, AND A MOUNT IS WHERE A SECOND CONCERN
 #   CAN APPEAR THAT THE AUTHOR NEVER HAD TO CONSIDER.
 
-MERGED T5  c747c38 pits:PENDING accept:PASS
+MERGED T5  c747c38 pits:kb/pits/T5.md accept:PASS
 #   The blind surface export. All four accept clauses green bare, suite 161/161.
 #   THE TRAP, AND WHY THE PREDICATE COULD NOT HAVE CAUGHT IT: the state ids cross
 #   over at 2/3 — the export's S2-emp-draft-clean is compile.js's internal S3 and
