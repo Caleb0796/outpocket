@@ -3,8 +3,11 @@
 // PORTED, not rewritten, from src/tools.js. This half answers "what IS a tool":
 // name, description, inputSchema, annotations, execute. Which of them exist right
 // now is the other half, and it lives in ./compile.js. That split is the same one
-// erp/contracts/tool-surface.contract.md draws between its §2 (the sixteen tools)
-// and its §1 (the six states), and the contract is FROZEN, so the seam is too.
+// erp/contracts/tool-surface.contract.md draws between its §2 (the catalogue) and
+// its §1 (the six states), and the contract is FROZEN, so the seam is too. §2 lists
+// SEVENTEEN since the D-77 bump; the sixteen below are the expense-desk tools, and
+// the seventeenth is the absence register, which ./compile.js assembles because it
+// needs the membership table and ./absence.js must not import it.
 //
 // Names, per-state membership and the read-only column are frozen. Descriptions are
 // not: they may be re-worded inside the 500-char budget without a ticket. Every

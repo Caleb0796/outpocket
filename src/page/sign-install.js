@@ -28,10 +28,15 @@
 //
 //   submit_expense_report            (agent calls it)
 //     -> hooks.requestSignature(summary, signal)      register.js
-//        -> bridge.beginSign(openBody)                S5: opens the record
+//        -> bridge.openForDialog(openBody)            S5: opens the record AND
+//                                                     fetches the confirm_token
 //        -> dialogPort.present(context)               F4: the human decides
 //        -> bridge.continueSign(ticket, reportId)     S5: reads the answer
 //     <- {signed, reason}                             register.js resumes
+//
+// openForDialog rather than beginSign, and the difference is not cosmetic: see
+// step 1 below. beginSign is what a TOOL's execute() calls and is deliberately
+// too narrow to build a dialog from.
 //
 // The decision is the human's and the ANSWER is the server's: continueSign
 // reports what the server recorded, not what the dialog told us. Returning the
@@ -89,15 +94,46 @@ export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}
   if (!bridge) throw new TypeError("createSignatureProvider needs a sign bridge");
   if (!dialogPort?.present) throw new TypeError("createSignatureProvider needs a dialogPort with present()");
 
+  // openForDialog() IS REQUIRED, AND THE ABSENCE IS LOUD ON PURPOSE.
+  // The obvious kindness here is to fall back to beginSign() when the bridge is
+  // an older one. That fallback is exactly the defect this change repairs: it
+  // would silently restore a path that posts to /api/sign/null/respond, and a
+  // silent revert to a broken path is worse than a startup error naming the
+  // reason.
+  if (typeof bridge.openForDialog !== "function") {
+    throw new TypeError(
+      "createSignatureProvider needs a sign bridge with openForDialog() (D-89). " +
+      "beginSign() deliberately carries only {status, ticket} — no request_id, no " +
+      "snapshot_digest, no confirm_token — so a dialog built from its result cannot " +
+      "address the record it is signing.");
+  }
+
   return async function requestSignature(summary, signal) {
     const openBody = buildOpenBody(summary, { erp, policy });
 
-    // 1. open the record server-side. This is what makes a digest exist.
-    const awaiting = await bridge.beginSign(openBody, signal);
-    const ticket = awaiting?.ticket ?? null;
+    // 1. OPEN THE RECORD THROUGH THE DIALOG CHANNEL, NOT THE TOOL CHANNEL.
+    //
+    // This used to call beginSign(), and that was a real defect in merged work.
+    // beginSign() is the TOOL-facing call and it is deliberately narrow —
+    // Object.freeze({status, ticket}), nothing echoed from the sign_request —
+    // because handing a tool result the digest and the revision would give
+    // x-signRequestState.survivingVector its two echoed values for free
+    // (R-13/R-44). So request_id, snapshot_digest and confirm_token were all
+    // undefined here, `?? null` and `?? ""` turned that into a dialog with no
+    // identity, and a real click POSTed to /api/sign/null/respond.
+    //
+    // openForDialog() (S5, D-89) is the same open plus a session-scoped
+    // GET /api/sign/{id}/confirm-token that is NOT a registered tool. The
+    // tool-facing calls are byte-for-byte unchanged, so the narrow contract
+    // still holds for every caller that is an agent; this is a different
+    // caller. NOTHING BELOW ECHOES requestId, signRequest OR confirmToken BACK
+    // OUT — the return value is {signed, reason, ticket}, and that is what
+    // keeps D-89's invariant true at this end of the channel.
+    const opened = await bridge.openForDialog(openBody, signal);
+    const ticket = opened?.ticket ?? null;
 
     // 2. the human decides, in the page.
-    const decision = await dialogPort.present({ summary, openBody, awaiting, signal });
+    const decision = await dialogPort.present({ summary, openBody, opened, signal });
 
     if (!decision?.approved) {
       return { signed: false, reason: decision?.reason || REASONS.DECLINED, ticket };
@@ -156,21 +192,24 @@ export function resetInstallForTests() { installed = null; }
  */
 export function browserDialogPort({ doc = globalThis.document, signDialog = null } = {}) {
   return {
-    async present({ openBody, awaiting }) {
+    async present({ opened }) {
       const dialog = signDialog ?? globalThis.outpocketSignDialog;
       if (!dialog?.mountSignDialog) return { approved: false, reason: REASONS.NO_DIALOG };
 
-      const signRequest = {
-        request_id: awaiting?.request_id ?? null,
-        report_id: openBody.report_id,
-        revision: openBody.revision,
-        policy_version: openBody.policy_version,
-        snapshot_digest: awaiting?.snapshot_digest ?? null,
-        worst_case: openBody.worst_case,
-        snapshot: { report: openBody.report },
-      };
+      // THE SERVER'S OWN sign_request, NOT ONE ASSEMBLED HERE. The previous
+      // version rebuilt this object out of openBody and read request_id /
+      // snapshot_digest off beginSign()'s result, which never carried them —
+      // so the dialog acknowledged a digest of null and posted to
+      // /api/sign/null/respond. The digest the human is shown and the digest
+      // the POST acknowledges have to be the SAME value the server issued, or
+      // the acknowledgement means nothing; taking the record whole is the only
+      // way to guarantee that.
+      const signRequest = opened?.signRequest ?? null;
+      if (!signRequest?.request_id) {
+        return { approved: false, reason: "the sign request could not be opened, so there is nothing to sign" };
+      }
 
-      const root = dialog.mountSignDialog({ doc, signRequest, confirmToken: awaiting?.confirm_token ?? "" });
+      const root = dialog.mountSignDialog({ doc, signRequest, confirmToken: opened.confirmToken ?? "" });
       if (!root) return { approved: false, reason: REASONS.NO_DIALOG };
 
       return new Promise((resolve) => {

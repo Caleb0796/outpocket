@@ -44,14 +44,18 @@
     "S6",
     "H6",
     "F7",
-    "T3"
+    "T3",
+    "E5",
+    "D1",
+    "V4",
+    "F5",
+    "E4"
   ],
   "in_flight": {
-    "D1": "I4 (route) + I3 (wiring) \u2014 UNBLOCKED, the user deployed https://outpocket.onrender.com. /version is the only failing clause; server/routes/version.mjs is not on main. GATE THIS LAST: Render auto-deploys on push, so /version==HEAD is only true between a deploy and my next push.",
-    "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
-    "E5/E2/E3": "C4 \u2014 HOLD DISCHARGED, both deliberate reds cleared by T3. Ready to fire.",
+    "D4": "ALL THREE TRIGGER CONDITIONS NOW HOLD: F7 merged, D1 green, D-89 merged. Ready for the user's 1-day window notice.",
     "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
-    "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM."
+    "E2/E3": "C4 \u2014 E5 done; both ready to fire.",
+    "D1 re-verify": "D-98 corrected D1's predicate to one that CAN fail (test \"$(...)\" = 200, and a real comparison against git rev-parse HEAD). Re-run under it: spans 0-2 green, SPAN 3 RED because main moved to 35a77d0 while the deploy serves 8173b46 \u2014 exactly D-92(b)'s expected mid-sprint state. D1 stays done: the green was recorded from an EXPLICIT manual check of the real conditions (200 asserted, sha equality asserted), not from the four exit-0s the old predicate produced. RE-VERIFIED IN THE FINAL PASS WITH D6."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

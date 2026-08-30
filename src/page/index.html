@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>outpocket — expense desk</title>
 
+<!-- An inline favicon, for the same reason the skin.css <link> came out: every
+     browser requests /favicon.ico unprompted, and without this the production
+     page logs a 404 for it on every single load. Found by the same measurement
+     that confirmed the skin.css one — a resource-timing sweep for status >= 400,
+     which is worth re-running before the shoot rather than trusting this list.
+     A data: URI so it costs no request of its own. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Cpath d='M9 21V11h4.6a3.2 3.2 0 010 6.4H12V21z' fill='%23fff'/%3E%3Ccircle cx='22' cy='19.5' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+
 <!--
   src/page/index.html — node F1 (lane F, owner UX): the application shell,
   the login, and the two personas.
@@ -37,21 +45,23 @@
   Tools are registered by src/page/register.js (node I2) at the top level of
   this document, never from inside a region and never from an iframe.
 
-  ./skin.css is node F6's demo skin, and its <link> is BELOW the <style> block
-  on purpose — see the note above that block.
+  ./skin.css IS BACK, AND IT IS BACK IN THE COMMIT THAT ADDS THE FILE.
+  F1 shipped this <link> pointing at a file that did not exist, so every
+  production load logged a 404 for it — found independently by QA, I2 and L1 —
+  and it was pulled with the rule written in its place: A REFERENCE AND ITS
+  REFERENT LAND IN THE SAME COMMIT. This is that commit, so the tag returns.
+
+  IT SITS BELOW THE <style> BLOCK AND THAT IS A FIX, NOT A PREFERENCE. F1's
+  comment claimed "skin.css loads after this block and wins" while the link sat
+  ABOVE it — so on equal specificity the inline block won and the skin would
+  have been inert. Later stylesheet wins; the order below is what makes the
+  claim true, and it was MEASURED rather than assumed.
 -->
 
 <style>
-  /* Shell-only styling: the shell's own baseline, so the page stays legible and
-     screenshot-safe even if the skin fails to load.
-
-     THE <link> FOR ./skin.css IS AFTER THIS BLOCK, AND THAT IS A FIX, NOT A
-     PREFERENCE. This comment used to read "F6's skin.css loads after this block
-     and wins" while the <link> sat ABOVE the <style> — so on equal specificity
-     the INLINE block won and the skin would have been inert. I wrote that line
-     during F1 and it was untrue when I wrote it; nothing failed, because the
-     file it described did not exist yet. Later stylesheet wins on equal
-     specificity, so the order below is what makes the claim true. */
+  /* Shell-only styling: the shell's own baseline, so every panel is legible and
+     screenshot-safe on its own even if the skin fails to load. F6's skin.css
+     refines this; it does not replace it. */
   :root { color-scheme: light; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
          background: #f4f4f2; color: #16181d; }
@@ -137,6 +147,29 @@
   [data-sign-status] { font-size: 13px; margin: 0; }
   [data-sign-status]:empty { display: none; }
   [data-sign-already-answered] { color: #8a1c1c; font-weight: 600; }
+  /* Surface inspector (node F5). Baseline only — F6's skin.css refines it, but
+     this panel is SB-01/SB-02/SB-03 and has to read in a still frame on its
+     own, because F6 is a separate node and may not land first. Unstyled, the
+     row text ran together ("get_session_scoperead-only"), which is legible to a
+     DOM query and not to a judge. */
+  #surface-inspector .inspector-head { display: flex; flex-wrap: wrap; gap: 8px;
+         align-items: baseline; margin-bottom: 10px; }
+  #surface-inspector .inspector-title { font-weight: 600; font-size: 14px; }
+  [data-policy-version], [data-surface-state] { display: inline-block; padding: 2px 9px;
+         border-radius: 999px; border: 1px solid #d9dae0; background: #fff;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  [data-policy-version] { font-weight: 600; }
+  [data-policy-version-missing] { color: #8a1c1c; font-size: 12px; }
+  #surface-inspector .inspector-rows { list-style: none; padding: 0; margin: 0; }
+  #surface-inspector [data-tool-row] { display: flex; justify-content: space-between;
+         align-items: baseline; gap: 12px; padding: 5px 0; font-size: 13px;
+         border-top: 1px solid #eceef3; }
+  #surface-inspector [data-tool-row]:first-child { border-top: 0; }
+  #surface-inspector .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #surface-inspector .tool-kind { font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.06em; color: #8b8fa0; }
+  #surface-inspector .inspector-source { margin: 10px 0 0; font-size: 12px; color: #55596a;
+         border-top: 1px solid #eceef3; padding-top: 8px; }
   [data-login-error]:empty { display: none; }
   [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
 </style>
@@ -291,6 +324,15 @@
   }
 "></script>
 <script type="module" src="./ui/receipts.js"></script>
+
+<!--
+  F5's surface inspector and policy-version chip. AFTER ./register.js, and that
+  is a dependency: it reads document.modelContext, which H3's shim backs with
+  T2's registry, and it subscribes to registry.onFlip so the rows and the chip
+  move together when a policy edit changes the surface. Mounted late enough that
+  both exist, and it repaints on every flip rather than only at load.
+-->
+<script type="module" src="./ui/inspector.js"></script>
 
 <!--
   F4's signature dialog. Loaded here so the module is reachable FROM THE PAGE

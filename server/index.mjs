@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { policyHandler } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
+import { createVersionHandler } from "./routes/version.mjs";
 import { createSignGate, SignError } from "./sign.mjs";
 import { authorizeWrite, AuthzError } from "./authz.mjs";
 import { LockError } from "./locks.mjs";
@@ -158,6 +159,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
   const sessions = new Map(); // sid -> persona id
   const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
   const stateDigestHandler = createStateDigestHandler(() => state);
+  const versionHandler = createVersionHandler(); // D1 (I4): GET /version
   const serveStatic = makeStaticHandler(pageRoot);
 
   function findReport(reportId) {
@@ -216,7 +218,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     return report?.lines.find((l) => l.id === lineId) ?? null;
   }
 
-  return async function handle(req, res) {
+  async function routeRequest(req, res) {
     let url;
     try {
       url = new URL(req.url, "http://localhost");
@@ -301,6 +303,22 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
         try {
           return sendJson(res, 200, signGate.get(signMatch[1], { sessionId: session.sid }));
+        } catch (err) {
+          return sendSignError(res, err);
+        }
+      }
+
+      // D-89: the confirm_token channel. Session-scoped, NOT a registered
+      // WebMCP tool — nothing in src/page/tools/defs.js may ever wrap this
+      // route. That is the entire property PM's ruling requires: the agent
+      // cannot read this through the tool surface, because it is not on it.
+      const confirmTokenMatch = url.pathname.match(/^\/api\/sign\/([^/]+)\/confirm-token$/);
+      if (confirmTokenMatch && req.method === "GET") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          const confirm_token = signGate.peekConfirmTokenForDialog(confirmTokenMatch[1], { sessionId: session.sid });
+          return sendJson(res, 200, { confirm_token });
         } catch (err) {
           return sendSignError(res, err);
         }
@@ -486,9 +504,37 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
 
     if (stateDigestHandler(req, res, url)) return;
 
+    // D1 (I4): mounted BEFORE the static fallback on purpose — the fallback
+    // would otherwise answer /version with its own JSON 404 first, and a
+    // route shadowed that way is indistinguishable from one never wired.
+    if (versionHandler(req, res, url)) return;
+
     if (await serveStatic(req, res, url)) return;
 
     sendJson(res, 404, { error: "E_NOT_FOUND" });
+  }
+
+  // Top-level guard. routeRequest() is an async function handed straight to
+  // node:http as the request listener; if IT throws (or its returned
+  // promise rejects) with nothing awaiting it, that is an unhandled
+  // rejection, and Node 15+ terminates the WHOLE PROCESS by default — not a
+  // 500 to one client, an outage for every client, every in-memory session
+  // (S1: sessions live in a plain Map) and every open sign request. That is
+  // exactly what one malformed POST /api/sign did before this existed (see
+  // server/sign.mjs's own input validation in open() for the specific
+  // fix). This is the general one: whatever the NEXT unvalidated route
+  // turns out to be, it gets a 500 here instead of killing the server.
+  return async function handle(req, res) {
+    try {
+      await routeRequest(req, res);
+    } catch (err) {
+      console.error("outpocket: unhandled error in request handler", err);
+      if (res.headersSent) {
+        res.end();
+      } else {
+        sendJson(res, 500, { error: "E_INTERNAL", message: "unexpected server error" });
+      }
+    }
   };
 }
 
@@ -497,8 +543,18 @@ export function createHttpServer(opts) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.PORT) || 3000;
-  createHttpServer().listen(port, () => {
-    console.log(`outpocket server listening on :${port}`);
+  // PORT=0 must mean "OS-assigned ephemeral port" (node:http honors this),
+  // not "unset" — `Number(process.env.PORT) || 3000` treated 0 as falsy and
+  // silently fell back to 3000, which is the opposite of what
+  // tests/acceptance/curl-403.sh and toctou.sh assumed when they set PORT=0
+  // for parallel-safety on a machine running many seats' worktrees at once.
+  const port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
+  const server = createHttpServer();
+  server.listen(port, () => {
+    // Report the ACTUAL bound port, not the requested one — with PORT=0
+    // (OS-assigned ephemeral, now that it is honored instead of silently
+    // becoming 3000) those differ, and tests/acceptance/curl-403.sh and
+    // toctou.sh both parse this exact line to learn where to curl.
+    console.log(`outpocket server listening on :${server.address().port}`);
   });
 }

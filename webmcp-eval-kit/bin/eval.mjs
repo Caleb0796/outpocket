@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import dns from "node:dns";
 import { realpathSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +16,9 @@ const packageJson = JSON.parse(
 
 const repositoryUrl = new URL("../../", import.meta.url);
 const SUITES = new Set(["accounting", "capability", "negative"]);
+const NETWORK_DENIAL_ERROR = "E_NETWORK_DISABLED";
+const NETWORK_DENIAL_MECHANISM =
+  "prototype patch on net.Socket.prototype.connect and dns.lookup, in-process, via --import ./webmcp-eval-kit/test/no-net.mjs";
 
 const SELFTEST_TOOLS = [
   {
@@ -80,6 +83,7 @@ async function selftest() {
     const accounting = accountStates({
       states: [
         {
+          accounting: accountingForTools(SELFTEST_TOOLS),
           state_id: "selftest",
           surface_digest: digest("outpocket/surface/1", SELFTEST_TOOLS),
           tools: SELFTEST_TOOLS,
@@ -157,18 +161,91 @@ function median(values) {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function denialMechanisms() {
-  const mechanisms = [];
-  if (dns.lookup.name === "denyNetwork") mechanisms.push("dns.lookup");
-  if (net.Socket.prototype.connect.name === "denyNetwork") {
-    mechanisms.push("net.Socket.prototype.connect");
+function networkDenialControl(operation, attempt) {
+  let observedError;
+  let failure;
+
+  try {
+    assert.throws(
+      attempt,
+      (error) => {
+        observedError = error;
+        return error?.code === NETWORK_DENIAL_ERROR
+          && /eval kit network access is forbidden/.test(error.message);
+      },
+      `${operation} positive control must throw ${NETWORK_DENIAL_ERROR}`,
+    );
+  } catch (error) {
+    failure = error;
   }
-  assert.deepEqual(
-    mechanisms,
-    ["dns.lookup", "net.Socket.prototype.connect"],
-    "accounting requires node --import ./webmcp-eval-kit/test/no-net.mjs",
+
+  return {
+    failure,
+    result: observedError
+      ? { errorCode: observedError.code, operation, verdict: "denied" }
+      : undefined,
+  };
+}
+
+function proveNetworkDenial() {
+  const dnsControl = networkDenialControl(
+    "dns.lookup",
+    () => dns.lookup("localhost", () => {}),
   );
-  return mechanisms;
+  const socket = new net.Socket();
+  socket.on("error", () => {});
+  const socketControl = networkDenialControl(
+    "net.Socket.prototype.connect",
+    () => socket.connect(9, "127.0.0.1"),
+  );
+  socket.destroy();
+
+  const failures = [dnsControl, socketControl]
+    .filter((control) => control.failure)
+    .map((control) => control.failure.message);
+  assert.deepEqual(
+    failures,
+    [],
+    `network denial did not arm; positive controls failed: ${failures.join("; ")}`,
+  );
+  assert.equal(
+    dns.lookup,
+    net.Socket.prototype.connect,
+    "network denial hooks were not installed from the same --import preload",
+  );
+  assert.equal(
+    dns.lookup.denialMechanism,
+    NETWORK_DENIAL_MECHANISM,
+    "network denial hook does not identify the required in-process --import mechanism",
+  );
+
+  return [socketControl.result, dnsControl.result];
+}
+
+function accountingForTools(tools) {
+  const descriptionBytes = tools.reduce((total, tool) => {
+    assert.equal(typeof tool.description, "string", `${tool.name}: description must be a string`);
+    return total + Buffer.byteLength(tool.description, "utf8");
+  }, 0);
+  const schemaBytes = tools.reduce((total, tool) => {
+    assert.ok(tool.inputSchema, `${tool.name}: inputSchema is required`);
+    const wrapped = canon({ inputSchema: tool.inputSchema });
+    const inputSchema = wrapped.slice('{"inputSchema":'.length, -1);
+    return total + Buffer.byteLength(inputSchema, "utf8");
+  }, 0);
+  const nameBytes = tools.reduce((total, tool) => {
+    assert.equal(typeof tool.name, "string", "tool name must be a string");
+    return total + Buffer.byteLength(tool.name, "utf8");
+  }, 0);
+  const totalBytes = descriptionBytes + schemaBytes + nameBytes;
+
+  return {
+    description_bytes: descriptionBytes,
+    estimated_tokens: Math.ceil(totalBytes / 4),
+    schema_bytes: schemaBytes,
+    tool_count: tools.length,
+    total_bytes: totalBytes,
+  };
 }
 
 function accountStates(exported) {
@@ -179,6 +256,12 @@ function accountStates(exported) {
     assert.ok(Array.isArray(state.tools), `${state.state_id}: tools must be an array`);
     assert.ok(state.tools.length > 0, `${state.state_id}: accounting refuses an empty tool surface`);
 
+    const exportAccounting = accountingForTools(state.tools);
+    assert.deepEqual(
+      state.accounting,
+      exportAccounting,
+      `${state.state_id}: exported accounting drifted from its tool surface`,
+    );
     const descriptionLengths = state.tools.map((tool) =>
       Buffer.byteLength(tool.description, "utf8")
     );
@@ -200,22 +283,175 @@ function accountStates(exported) {
   });
 }
 
+function assertNoForbiddenKeys(value, forbiddenKeys, path = "$") {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoForbiddenKeys(item, forbiddenKeys, `${path}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+
+  for (const [key, child] of Object.entries(value)) {
+    assert.ok(!forbiddenKeys.has(key), `tools export contains forbidden key ${path}.${key}`);
+    assertNoForbiddenKeys(child, forbiddenKeys, `${path}.${key}`);
+  }
+}
+
+function validateExportContract(exported, contract) {
+  const requiredStates = Object.entries(contract["x-requiredStates"] ?? {})
+    .filter(([, toolCount]) => Number.isInteger(toolCount));
+  assert.ok(requiredStates.length > 0, "tool export contract must declare at least one state");
+  assert.equal(
+    new Set(exported.states.map((state) => state.state_id)).size,
+    exported.states.length,
+    "tools export state ids must be unique",
+  );
+  assert.deepEqual(
+    exported.states.map((state) => state.state_id).sort(),
+    requiredStates.map(([stateId]) => stateId).sort(),
+    "tools export states must equal the contract's declared states",
+  );
+
+  const stateById = new Map(exported.states.map((state) => [state.state_id, state]));
+  for (const [stateId, toolCount] of requiredStates) {
+    assert.equal(stateById.get(stateId).tools.length, toolCount, `${stateId}: declared tool count drift`);
+  }
+
+  const forbiddenKeys = new Set(contract["x-forbiddenKeys"]?.keys);
+  assert.ok(forbiddenKeys.size > 0, "tool export contract must declare forbidden keys");
+  assertNoForbiddenKeys(exported, forbiddenKeys);
+}
+
+function validateExportTotals(exported, states) {
+  const tools = exported.states.flatMap((state) => state.tools);
+  const expected = {
+    distinct_tool_count: new Set(tools.map((tool) => tool.name)).size,
+    max_description_bytes: Math.max(
+      ...tools.map((tool) => Buffer.byteLength(tool.description, "utf8")),
+    ),
+    state_count: states.length,
+  };
+  assert.deepEqual(exported.totals, expected, "tools export totals drifted from its states");
+}
+
+function declaredAccountingCases(contract) {
+  const cases = contract["x-requiredCases"]?.surface_accounting;
+  assert.ok(Array.isArray(cases), "eval case contract must declare surface_accounting cases");
+  assert.ok(cases.length > 0, "accounting refuses a declared suite with zero cases");
+  assert.equal(new Set(cases).size, cases.length, "declared accounting case ids must be unique");
+  return cases;
+}
+
+function runAccountingCases(declaredCases, exported, states) {
+  const implementations = new Map([
+    ["acct-bytes-per-state", () => {
+      const byteBudget = 8000;
+      const maximumBytes = Math.max(...states.map((state) => state.bytes));
+      assert.ok(maximumBytes <= byteBudget, `canonical state surface exceeds ${byteBudget} bytes`);
+      return { byteBudget, maximumBytes, stateCount: states.length };
+    }],
+    ["acct-description-budget", () => {
+      const descriptions = exported.states.flatMap((state) =>
+        state.tools.map((tool) => tool.description)
+      );
+      assert.ok(descriptions.length > 0, "description accounting refuses zero descriptions");
+      const lengths = descriptions.map((description) => description.length);
+      const guidanceChars = 500;
+      const maximumChars = Math.max(...lengths);
+      return {
+        descriptionCount: descriptions.length,
+        guidanceChars,
+        maximumChars,
+        medianChars: median(lengths),
+        withinPublishedGuidance: maximumChars <= guidanceChars,
+      };
+    }],
+  ]);
+  assert.deepEqual(
+    [...implementations.keys()],
+    declaredCases,
+    "accounting implementations must equal the suite's declared cases",
+  );
+
+  return declaredCases.map((id) => {
+    try {
+      return { id, measurements: implementations.get(id)(), verdict: "pass" };
+    } catch (error) {
+      return { error: error.message, id, verdict: "fail" };
+    }
+  });
+}
+
+async function listSourceFiles(directory) {
+  const entries = (await readdir(directory, { withFileTypes: true }))
+    .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0);
+  const files = [];
+
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await listSourceFiles(path));
+    else if (entry.isFile()) files.push(path);
+  }
+  return files;
+}
+
+async function scanSourceForModelHosts() {
+  const directory = fileURLToPath(new URL("webmcp-eval-kit/src/", repositoryUrl));
+  const directoryStat = await stat(directory);
+  assert.ok(directoryStat.isDirectory(), "webmcp-eval-kit/src must be a directory");
+  const files = await listSourceFiles(directory);
+  assert.ok(files.length > 0, "webmcp-eval-kit/src must contain files before its negative scan counts");
+
+  for (const file of files) {
+    assert.doesNotMatch(
+      await readFile(file, "utf8"),
+      /api\.openai|api\.anthropic/,
+      `${file}: forbidden model API host`,
+    );
+  }
+  return { directory: "webmcp-eval-kit/src/", filesScanned: files.length, verdict: "absent" };
+}
+
 async function runAccountingSuite() {
   const sourceUrl = new URL("artifacts/tools.export.json", repositoryUrl);
   const outputUrl = new URL("evals/accounting.json", repositoryUrl);
-  const netDenial = denialMechanisms();
-  const exported = JSON.parse(await readFile(sourceUrl, "utf8"));
+  const evalContractUrl = new URL("erp/contracts/eval-case.schema.json", repositoryUrl);
+  const exportContractUrl = new URL("erp/contracts/tool-export.schema.json", repositoryUrl);
+  const networkDenialControls = proveNetworkDenial();
+  const sourceScan = await scanSourceForModelHosts();
+  const [exported, evalContract, exportContract] = await Promise.all(
+    [sourceUrl, evalContractUrl, exportContractUrl].map(async (url) =>
+      JSON.parse(await readFile(url, "utf8"))
+    ),
+  );
+  validateExportContract(exported, exportContract);
   const states = accountStates(exported);
+  validateExportTotals(exported, states);
+  const declaredCases = declaredAccountingCases(evalContract);
+  const cases = runAccountingCases(declaredCases, exported, states);
+  assert.equal(cases.length, declaredCases.length, "result count must equal declared case count");
+  assert.ok(cases.every((testCase) => testCase.verdict), "every case must carry a verdict");
 
   const result = {
     header: {
-      netDenial: `node --import ./webmcp-eval-kit/test/no-net.mjs (${netDenial.join(", ")})`,
+      caseCount: cases.length,
+      declaredCaseCount: declaredCases.length,
+      networkDenial: {
+        mechanism: NETWORK_DENIAL_MECHANISM,
+        positiveControls: networkDenialControls,
+      },
+      sourceScan,
     },
+    cases,
     schema: "outpocket.surface_accounting/1",
     states,
   };
+  await mkdir(new URL("evals/", repositoryUrl), { recursive: true });
   await writeFile(outputUrl, `${JSON.stringify(result, null, 2)}\n`);
-  process.stdout.write(`accounting: ${states.length} state(s) written to evals/accounting.json\n`);
+  const failedCases = cases.filter((testCase) => testCase.verdict === "fail");
+  assert.deepEqual(failedCases, [], "accounting case verdicts must all pass");
+  process.stdout.write(
+    `accounting: ${cases.length} case(s), ${states.length} state(s), ${sourceScan.filesScanned} source file(s) scanned; written to evals/accounting.json\n`,
+  );
 }
 
 async function runDeferredSuite(name) {

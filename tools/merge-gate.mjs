@@ -127,7 +127,20 @@ const pitPath = `kb/pits/${node}.md`;
 if (has('--pit-pending')) {
   record('pit', true, `PENDING accepted by --pit-pending. The merge row MUST read pits:PENDING, and "no pit" is a legal ENTRY but no report at all is a DEBT, not a pass.`);
 } else if (!fs.existsSync(pitPath)) {
-  record('pit', false, `${pitPath} does not exist. Collect the seat's five fields, or pass --pit-pending to record the debt honestly.`);
+  // CLAUSE 6e (D-83): the report now rides in the seat's COMMIT, not a message. This gate
+  // still requires the FILE, because the merge record points at it and L1 writes it -- but
+  // it must say WHERE the report is, or a foreman reads "does not exist" as "the seat owed
+  // me a report and did not send one" when in fact the report is sitting in the branch it
+  // is being asked to merge. V4 hit exactly that: I1 delivered under 6e, correctly, and the
+  // gate reported a debt.
+  const log = run('git', ['log', `${base}..${branch}`, '--format=%B']);
+  const hasBlock = /^PIT:/m.test(log.stdout || '');
+  record('pit', false, hasBlock
+    ? `${pitPath} does not exist YET -- but the branch CARRIES a clause-6e PIT: block.\n`
+      + `Transcribe it:  git log ${base}..${branch} --format=%B | sed -n '/^PIT:/,$p'\n`
+      + `then write ${pitPath} in the seat's own words and re-run this gate.`
+    : `${pitPath} does not exist, and the branch carries NO PIT: block either.\n`
+      + `Ask once in the merge exchange, then --pit-pending to record the debt honestly.`);
 } else {
   const body = fs.readFileSync(pitPath, 'utf8');
   const missing = PIT_KEYS.filter((k) => !new RegExp(`\\*\\*${k}\\b`).test(body));

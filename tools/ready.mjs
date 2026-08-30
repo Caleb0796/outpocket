@@ -675,7 +675,25 @@ function selftestOrphans() {
 function checkRecord() {
   const LOG = '.team/log/merges.txt';
   if (!fs.existsSync(LOG)) { bad(`${LOG} does not exist`); return false; }
-  const rows = fs.readFileSync(LOG, 'utf8').split('\n').filter((l) => l.startsWith('MERGED'));
+  const all = fs.readFileSync(LOG, 'utf8').split('\n');
+  const rows = all.filter((l) => l.startsWith('MERGED'));
+  // A PARTIAL row records work MERGED for a node that is NOT yet done -- D1's route and
+  // mount landed while its /version clause is deferred to the final pass (D-92(b)). I first
+  // wrote it as `MERGED D1-partial`, which broke this very mode two ways at once: the id is
+  // in no node's `done`, and the pit basename no longer matched the invented id. A RECORD
+  // FORMAT THAT DEFEATS ITS OWN CHECKER IS WORSE THAN NO RECORD. Partial rows are validated
+  // for sha and pit like any other, and are required NOT to be in done -- the moment the node
+  // finishes it becomes a MERGED row and the PARTIAL line stays as history.
+  // TWO KINDS OF NON-MERGED ROW, ONE RULE. PARTIAL: a node whose work landed but which is
+  // not yet done (D1's route and mount, with its /version clause deferred). FOLLOWUP: work
+  // that landed for a RULING rather than a node -- D-89 is an S5 follow-up and has no id in
+  // `nodes`, so a MERGED row for it can never validate.
+  // I have now broken this mode three times by inventing a token its parser reads: an id
+  // (`D1-partial`), a status (`PENDING-UNRECOVERABLE`), and a row kind. A RECORD FORMAT IS
+  // AN INTERFACE, and I kept treating the log as prose. So this is generalised ONCE rather
+  // than extended a fourth time: both kinds are validated for sha and pit exactly as MERGED
+  // rows are, and neither is required to name a node in `done`.
+  const partials = all.filter((l) => /^(PARTIAL|FOLLOWUP)\s/.test(l));
   const st = fs.existsSync(STATE_PATH) ? JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) : { done: [] };
   let violations = 0;
   const seen = [];
@@ -705,6 +723,31 @@ function checkRecord() {
     }
   }
   const done = new Set(st.done || []);
+  for (const line of partials) {
+    const m = line.match(/^(?:PARTIAL|FOLLOWUP)\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
+    if (!m) { bad(`malformed PARTIAL/FOLLOWUP row: ${line}`); violations++; continue; }
+    const [, node, sha, pit] = m;
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) { bad(`${node} (partial): "${sha}" is not a sha`); violations++; }
+    else if (spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]).status !== 0) {
+      bad(`${node} (partial): sha ${sha} is not a commit in this repository`); violations++;
+    }
+    if (pit !== 'PENDING') {
+      if (!fs.existsSync(pit)) { bad(`${node} (partial): names ${pit}, which DOES NOT EXIST`); violations++; }
+      else if (path.basename(pit, '.md') !== node) {
+        bad(`${node} (partial): names ${pit}, ANOTHER NODE'S PIT`); violations++;
+      }
+    }
+    // A PARTIAL row is legal once the node is done IF a MERGED row promoted it -- that is
+    // the documented lifecycle ("when it finishes it becomes a MERGED row and the PARTIAL
+    // line stays as history"), and D1 hit it within the hour. What is NOT legal is a node
+    // sitting in `done` on the strength of a PARTIAL row alone, which would let half-landed
+    // work be counted as finished. I wrote the assertion without the exception my own
+    // comment had already promised, and it went red on the first node to complete the cycle.
+    if (line.startsWith('PARTIAL') && done.has(node) && !seen.includes(node)) {
+      bad(`${node} is in done but its only row is PARTIAL -- half-landed work counted as finished`);
+      violations++;
+    }
+  }
   const rowsNotDone = seen.filter((n) => !done.has(n));
   const doneNotRows = [...done].filter((n) => !seen.includes(n));
   if (rowsNotDone.length) { bad(`rows for nodes not in graph.state.json.done: ${rowsNotDone.join(' ')}`); violations++; }

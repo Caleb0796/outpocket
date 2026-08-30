@@ -1,0 +1,35 @@
+NODE:      F5
+OWNER:     UX
+INPUTS:    T2, S3
+DO:        Build src/page/ui/inspector.js and tests/acceptance/inspector.test.mjs. THIS OUTRANKS ITS CUT NUMBER NOW, AND THE REASON CHANGED AN HOUR AGO: D-95 RELABELLED F5 -> F6 FROM SOFT TO HARD, because F6's accept REQUIRES SB-01's `#surface-inspector [data-tool-row]` and SB-02's `[data-policy-version]` to resolve, and those are yours. The invariant exempts soft edges "because the consumer degrades gracefully" — F6 DOES NOT DEGRADE, IT FAILS. So your just-committed F6 reports RED on those two shots and stays red until this lands. You are unblocking your own node. YOUR PREDICATE IS THE BEST-SHAPED ONE ANYONE HAS BEEN GIVEN THIS SPRINT AND I WANT YOU TO SEE WHY BEFORE YOU BUILD, because it means the usual advice does not apply: it asserts an EQUALITY between two independently-computed things — the inspector's rendered row count and `document.modelContext.getTools().length` — in FOUR different states. That is not "at least one" and it is not "exists"; it cannot be satisfied by rendering nothing, because zero rows against a five-tool surface fails, and it cannot be satisfied by rendering everything, because a fixed list fails in three of the four states. THE FOUR STATES ARE THE CONTROL, built into the predicate. The one way it still goes hollow is if BOTH sides come from the same place: if the inspector renders from a list it derives the same way the test computes the expectation, the equality is a tautology and will hold no matter how wrong either is. SO READ THE ROW COUNT OFF THE RENDERED DOM AND THE TOOL COUNT OFF `document.modelContext.getTools()`, and make sure neither is computed from the other. That is your own "read the page's own state rather than inferring it from a passing assertion", applied to an equality. SECOND CLAUSE, AND IT IS THE ONE WITH THE TRAP: the version chip text must equal the value from GET /api/policy. Equality with a LIVE FETCH, so a hardcoded chip fails — good. But assert the fetched value is NON-EMPTY before comparing, or empty-equals-empty passes and you have proved the endpoint and the chip are both silent. That is D-90 in its cheapest form: A CONTROL SATISFIABLE BY THE SUBJECT BEING ABSENT IS NOT A CONTROL, which is your own rule and it now applies to you twice in one node. AND YOU KNOW ABOUT SB-01 AND SB-02 FROM THE OTHER SIDE, WHICH IS AN ADVANTAGE NOBODY ELSE HAS HAD: your own check-storyboard.mjs will grade this. `#surface-inspector [data-tool-row]` and `[data-policy-version]` must resolve, and R1 requires an #id or an [attribute] and R3 forbids matching html or body — rules you wrote. Do not build to the checker; build the inspector, then let your own instrument tell you whether the anchors are right. If your own rules turn out to be wrong when you are on the receiving end of them, THAT IS A FINDING and I want it, not a quiet amendment. MOUNT IT — index.html is yours as an F1 output, --check-orphans classifies referrers now and a test import will not satisfy it. And the skin: F6's skin.css dresses the anchors the storyboard names and adds none; if this node needs an anchor the skin does not dress, say so rather than adding an element to make a shot resolve. STANDING: FORCE_COLOR=3 in every seat — `node tools/accept-gate.mjs F5 --run-clean`. And backgrounded servers started with a bare `&` die with their Bash call in this environment, as you found; `nohup ... & disown` survives.
+ACCEPT:    `node --test tests/acceptance/inspector.test.mjs` asserts the inspector's rendered row count equals `document.modelContext.getTools().length` in each of the four employee states (S1-emp-home, S2-emp-draft-clean, S3-emp-draft-dirty, S4-emp-submitted), and that the version chip text equals the value from GET /api/policy.
+PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMIT, NOT A
+           MESSAGE. Put the five fields in a `PIT:` BLOCK IN YOUR FINAL COMMIT MESSAGE on
+           your own branch. L1 reads them with `git log` at the gate and writes
+           kb/pits/F5.md from them (D-31 still stands: you do NOT commit a pit FILE).
+           COMPOSING IS COMMITTING. There is no send step to forget.
+           WHY THIS CHANGED: four reports have been lost, in FOUR DIFFERENT WAYS — a seat
+           that finished and went idle, a seat still running whose message never arrived, a
+           restarted session whose transcript was gone, and two composed as ordinary
+           conversation text and never sent. Every arrangement so far depended on a channel
+           between you and the gate, and THE CHANNEL HAS FAILED IN FOUR WAYS OUT OF FOUR.
+           A REPORT COMPOSED BUT NOT TRANSMITTED IS INDISTINGUISHABLE, FROM THE RECEIVING
+           END, FROM A REPORT NEVER WRITTEN. So the mechanism removes the channel: the
+           report rides inside the artifact being gated.
+           Send it in your green message TOO if you like, but the commit is what counts.
+           D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and
+           L1 writes kb/pits/F5.md from them. In order: TRIED, HAPPENED, CHANGED,
+           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1
+           cannot merge you without one.
+           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.
+           Reports have been made and lost three times in this sprint, and a seat stopped
+           before it reports takes its pit with it — one node's pit had to be written
+           marked "NOT the seat's own report", which is worse than the node deserved.
+           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is
+           worse than no pit. EARLIER is the field that pays: what you would tell
+           yourself an hour before you learned it.
+           (This block previously said "write it on your branch" — a contradiction with
+           D-31 that survived a reset of mine and misled three seats, all of which
+           correctly followed the ruling over the template and told me.)
+BRANCH:    seat/UX-F5
+DEADLINE:  2026-08-31T10:00-07:00

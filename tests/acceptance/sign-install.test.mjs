@@ -165,7 +165,7 @@ test("APPROVE: an agent's submit_expense_report completes, and the result carrie
 
       // the ticket from S5's continueSign reached the provider's result
       const ctx = dialog.seen[0];
-      assert.match(ctx.awaiting.ticket, /^tk_[0-9a-f]{32}$/, "S5's ticket did not reach the dialog");
+      assert.match(ctx.opened.ticket, /^tk_[0-9a-f]{32}$/, "S5's ticket did not reach the dialog");
 
       // and the server recorded the human step
       // the report actually left draft — the submit was performed, not merely
@@ -281,4 +281,95 @@ test("buildOpenBody carries the worst case the dialog prints above the signature
   assert.ok(body.worst_case.includes("Dana Whitfield"),
     "the consequence must name who approves it — a generic consequence is a ritual");
   assert.equal(body.policy_version, "2026.08.1");
+});
+
+// ── browserDialogPort ───────────────────────────────────────────────────────
+//
+// THE ROOT CAUSE OF D-89's DEFECT WAS THAT THIS FUNCTION HAD NO TEST.
+// Every test above stubs the dialog port, which is what made the node testable
+// — and is exactly why the DEFAULT port, the one the live page actually uses,
+// went unexercised. It read request_id, snapshot_digest and confirm_token off
+// beginSign()'s frozen {status, ticket}, got undefined for all three, and `??
+// null` / `?? ""` turned that into a dialog with no identity whose click POSTed
+// to /api/sign/null/respond. The injectable seam bought testability for the
+// wiring and hid the wiring that shipped.
+//
+// So the real port is driven here against a fake document and a fake dialog:
+// not evidence about a browser, but evidence that the port passes the SERVER'S
+// values through instead of inventing them.
+
+import { browserDialogPort } from "../../src/page/sign-install.js";
+
+function fakeEl() {
+  const listeners = new Map();
+  return {
+    querySelector: () => null,
+    addEventListener: (t, fn) => { if (!listeners.has(t)) listeners.set(t, []); listeners.get(t).push(fn); },
+    fire: (t) => (listeners.get(t) ?? []).forEach((fn) => fn()),
+    listeners,
+  };
+}
+
+test("browserDialogPort passes the SERVER's sign_request and confirm_token to the dialog", async () => {
+  const seen = [];
+  const root = { querySelector: () => null };
+  const signDialog = { mountSignDialog: (args) => { seen.push(args); return root; } };
+
+  const port = browserDialogPort({ doc: {}, signDialog });
+  const opened = {
+    requestId: "sg_" + "a".repeat(16),
+    ticket: "tk_" + "b".repeat(32),
+    confirmToken: "ct_" + "c".repeat(32),
+    signRequest: {
+      request_id: "sg_" + "a".repeat(16), report_id: "RP-1018", revision: 4,
+      snapshot_digest: "sha256:" + "d".repeat(64), worst_case: "a stated consequence.",
+      snapshot: { report: { id: "RP-1018", lines: [] } },
+    },
+  };
+
+  // present() never resolves until the human acts, so do not await it here.
+  port.present({ opened });
+  await new Promise((r) => setTimeout(r, 0));
+
+  assert.equal(seen.length, 1, "the dialog was not mounted");
+  const args = seen[0];
+
+  // THE THREE FIELDS THAT WERE null/"" BEFORE, each asserted to be the
+  // server's value rather than merely present.
+  assert.equal(args.signRequest.request_id, opened.signRequest.request_id,
+    "the dialog was given no request_id — a click would POST to /api/sign/null/respond");
+  assert.equal(args.signRequest.snapshot_digest, opened.signRequest.snapshot_digest,
+    "the dialog would acknowledge a digest the server never issued");
+  assert.equal(args.confirmToken, opened.confirmToken,
+    "the dialog was given no confirm_token, so /respond would answer 403");
+
+  // and it is the server's record WHOLE, not one reassembled here
+  assert.equal(args.signRequest, opened.signRequest,
+    "the port rebuilt the sign_request instead of passing the server's own");
+});
+
+test("browserDialogPort refuses rather than mounting a dialog with no identity", async () => {
+  // The failure mode this replaces was SILENT: an unidentified dialog rendered
+  // happily and only failed at POST time, on a real click, in front of a judge.
+  const signDialog = { mountSignDialog: () => { throw new Error("must not be mounted"); } };
+  const port = browserDialogPort({ doc: {}, signDialog });
+
+  for (const opened of [undefined, {}, { signRequest: {} }, { signRequest: { request_id: "" } }]) {
+    const r = await port.present({ opened });
+    assert.equal(r.approved, false);
+    assert.match(r.reason, /could not be opened|nobody to sign/,
+      `an unopened sign request must be refused with a reason, got ${JSON.stringify(r)}`);
+  }
+});
+
+test("createSignatureProvider REFUSES a bridge without openForDialog, rather than falling back", () => {
+  // The kind fallback would silently restore the broken path. A startup error
+  // naming the reason is the honest failure.
+  assert.throws(
+    () => createSignatureProvider({
+      bridge: { beginSign: async () => ({}), continueSign: async () => ({}) },
+      dialogPort: { present: async () => ({ approved: false }) },
+    }),
+    /openForDialog/,
+    "a bridge with only the tool-facing calls must be refused");
 });

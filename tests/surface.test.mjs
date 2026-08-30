@@ -378,3 +378,98 @@ test("T3: the register is read-only and moves nothing", async () => {
   assert.equal(w.erp.state.dayBook.length, before.book);
   assert.equal(w.erp.openReportOrNull().lines.length, before.lines);
 });
+
+// ── node T2 regression: the registration promise is OWNED ──────────────────────
+// Found by QA on the deployed site with a CDP observer: 12 uncaught AbortErrors,
+// one per tool-call cycle. Reproduced here on real Chrome 152 at 13 — one per
+// REGISTERED TOOL of the generation being revoked, which is why the count tracked
+// the surface size and why the deployed number was one lower than ours.
+//
+// MEASURED: document.modelContext.registerTool(def, {signal}) RETURNS A PROMISE
+// that rejects with AbortError when its signal aborts. register.js aborts the
+// previous generation on every flip, on purpose, and discarded that promise.
+// The fake below reproduces exactly that contract and nothing else.
+//
+// Nothing was broken by it: the surface was right, the counts were right, the walk
+// was green. A fetch probe cannot see an unhandled rejection, which is why it lived.
+
+async function withFakeBrowser(run) {
+  const had = { window: "window" in globalThis, document: "document" in globalThis, top: "top" in globalThis };
+  const seen = { registered: [], aborts: 0 };
+
+  const abortingContext = {
+    registerTool(def, opts) {
+      seen.registered.push(def.name);
+      return new Promise((_resolve, reject) => {
+        opts.signal.addEventListener("abort", () => {
+          seen.aborts++;
+          const err = new Error("signal is aborted without reason");
+          err.name = "AbortError";
+          reject(err);
+        });
+      });
+    },
+  };
+
+  globalThis.window = globalThis;
+  globalThis.top = globalThis;
+  globalThis.document = { modelContext: abortingContext };
+
+  const unhandled = [];
+  const onRej = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", onRej);
+  const realError = console.error;
+  const logged = [];
+  console.error = (...a) => logged.push(a.map(String).join(" "));
+  try {
+    const { registry } = await import("../src/page/register.js");
+    await run({ registry, seen, unhandled, logged, settle: () => new Promise((r) => setTimeout(r, 25)) });
+  } finally {
+    console.error = realError;
+    process.off("unhandledRejection", onRej);
+    if (!had.window) delete globalThis.window;
+    if (!had.document) delete globalThis.document;
+    if (!had.top) delete globalThis.top;
+  }
+}
+
+test("register: revoking a generation leaks no unhandled rejection — and the abort really fired", async () => {
+  await withFakeBrowser(async ({ registry, seen, unhandled, settle }) => {
+    // Back-to-back state changes, which is what an agent filing several lines does
+    // and what the seeded demo does twelve times.
+    registry.erp.signIn("chen", "human");
+    registry.erp.createReport({ title: "Rejection probe", project: "FALCON" }, "test");
+    registry.erp.addLine({ date: "2026-08-24", merchant: "Cafe", category: "meals", amount: 9, attendees: 1, description: "lunch" }, "test");
+    await settle();
+
+    // THE CONTROL, and it is the whole point (D-90): this test is not satisfiable
+    // by nothing having happened. Tools were really registered, and the revocation
+    // really fired — so a rejection COULD have surfaced from this same operation.
+    assert.ok(seen.registered.length > 0, "no tool was ever registered; the assertion below would be vacuous");
+    assert.ok(seen.aborts > 0, "no generation was ever revoked; the assertion below would be vacuous");
+    assert.ok(registry.flips() >= 2, `expected several flips, saw ${registry.flips()}`);
+
+    // The assertion itself. Remove the handler in register.js and this fails.
+    assert.deepEqual(unhandled, [], `deliberate revocation leaked ${unhandled.length} unhandled rejection(s)`);
+    assert.deepEqual(registry.registrationErrors(), [], "an abort we caused is not an error and must not be recorded as one");
+  });
+});
+
+test("register: a registration failure that is NOT our abort is surfaced, never swallowed", async () => {
+  await withFakeBrowser(async ({ registry, unhandled, logged, settle }) => {
+    // A catch-all that eats genuine failures is worse than the rejection it
+    // replaced (D-100). Swap in a browser that rejects for a real reason and
+    // prove the handler tells the two apart — same handler, same code path.
+    const boom = new TypeError("registerTool: a tool definition is required");
+    globalThis.document.modelContext = { registerTool: () => Promise.reject(boom) };
+
+    registry.erp.signIn("ruiz", "human"); // a real flip, so registration is attempted
+    await settle();
+
+    const errors = registry.registrationErrors();
+    assert.ok(errors.length > 0, "a real registration failure must be recorded");
+    assert.equal(errors[0].error, boom, "and it must be the actual error, not a substitute");
+    assert.ok(logged.some((l) => l.includes("rejected")), "and it must be logged where a human will see it");
+    assert.deepEqual(unhandled, [], "surfacing it must not itself leak an unhandled rejection");
+  });
+});

@@ -717,6 +717,13 @@ MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 #   visible.
 
 MERGED T2  0483c20 pits:PENDING accept:PASS
+#   T2's PIT IS UNRECOVERABLE FROM I2's CURRENT SEAT, on the same footing as H5, and
+#   I2 said so rather than writing one. T2 was already merged and green when that
+#   session opened; everything it knows about the node -- 7/7 clauses, the walk,
+#   submit appearing and vanishing -- it knows FROM MY SUMMARY, not from having done
+#   it. Five fields written from that would be a seat TRANSCRIBING THE FOREMAN AND
+#   SIGNING ITS OWN NAME TO IT, which is the exact failure D-31 exists to prevent
+#   and worse than the PENDING row. Carried as unrecoverable; not waiting on I2.
 # T2 — THE CORK IS OUT. 7/7 clauses, 1 -> 5 -> 12 -> 13, submit_expense_report
 #   appearing at S3 and vanishing after a violation raised through the REAL policy
 #   engine. Merged as a TRIO with I3's browser-safe canonicaliser and C4's
@@ -933,3 +940,142 @@ MERGED T3  4b10265 pits:kb/pits/T3.md accept:PASS
 #   IN the predicate, so the honesty survives the seat that insisted on it.
 #   FOUR REVISIONS of this predicate, each checked by READING and none by RUNNING,
 #   until PM ran `sh -n` and caught a fifth defect its own fix had introduced.
+
+PARTIAL D1  7be7178 pits:kb/pits/D1.md accept:3-OF-4 (clause 4 deferred, D-92(b))
+#   NOT counted as done. Header dump, Origin-Agent-Cluster ABSENT and 200 all pass on
+#   the live host; /version==HEAD is verified in the FINAL PASS with D6, because Render
+#   auto-deploys on push and a mid-sprint mismatch is expected.
+#   Ownership checked PER SEAT: four apparent violations against I3 all trace to
+#   commits authored by I4 on seat/I4-D1, and --seat I4 returns 0 on them. Ownership
+#   binds branches, not keystrokes.
+#   THE FIND: `Number(process.env.PORT) || 3000` treats 0 AS FALSY, so PORT=0 fell
+#   through to 3000 and curl-403.sh + toctou.sh were ACCIDENTALLY BINDING 3000 EVERY
+#   TIME while claiming ephemeral ports. Both passed throughout. A TEST THAT PASSES ON
+#   THE WRONG PORT PASSES.
+#   FIRST PIT DELIVERED UNDER CLAUSE 6e -- arrived inside the commit, no chasing.
+
+MERGED E5  c522af8 pits:kb/pits/E5.md accept:PASS
+#   The accounting eval under a network denial PROVEN TO HAVE FIRED. Three of four
+#   accept clauses can pass while proving nothing and I verified each myself:
+#   running the eval WITHOUT the preload exits 1 with E_NETWORK_DISABLED, so the
+#   denial arms; byte-identity holds over 2 declared/2 emitted cases with verdicts
+#   rather than over an empty file; and webmcp-eval-kit/src/ is non-empty so the
+#   negative grep is a search that actually ran.
+#   C4 added an arm I had not asked for: hooks REPLACED AFTER preload are rejected,
+#   because a marker identifying a hook by its function NAME is satisfied by anything
+#   wearing that name.
+#   Header names the MECHANISM, not a boolean -- an opinion vs a measurement.
+
+MERGED D1  c923725 pits:kb/pits/D1.md accept:PASS
+#   GRADED IN THE WINDOW. All four clauses observed to hold SIMULTANEOUSLY against the
+#   live host at c92372587a728300dd5bbd0686d2e31bcb01f7f0:
+#     (1) Origin-Agent-Cluster ABSENT from evidence/headers.txt
+#     (2) GET / returns 200            (checked EXPLICITLY -- the accept's own span
+#         prints the code with -o /dev/null and exits 0 whatever it is, so exit 0 on
+#         that span proves nothing on its own)
+#     (3) live /version == git rev-parse HEAD, both c923725...
+#     (4) evidence/D1-url.txt records ONE INSTANCE **with the reason** -- free tier,
+#         single-instance BY NATURE, not a configured replica count
+#   D-92(b) STILL BINDS: the version clause is RE-VERIFIED IN THE FINAL PASS WITH D6.
+#   The next push to main moves the sha and Render redeploys, so this row records an
+#   OBSERVATION AT A MOMENT, not a permanent property. DONE MEANS OBSERVED.
+#   The PARTIAL D1 row above stays as history: the route and mount landed hours before
+#   the clause could be graded.
+
+MERGED V4  48fa7b8 pits:kb/pits/V4.md accept:PASS
+#   The comparator, rebuilt because the STANDARD MOVED after it was written. I1 re-read
+#   its own selftest against UX's fail-open rule and D-90 and failed it: 11 cases, every
+#   one asking "does this refusal FIRE", not one asking "does it HOLD ITS FIRE when it
+#   should". Rebuilt as fires/declines PAIRS, 11 -> 20.
+#   Broken twice on purpose: fail-OPEN turns 1 red, fail-CLOSED turns 13 red. The suite
+#   now catches an instrument that cannot say NO **and** one that cannot say YES.
+#   D-90 case changed SHAPE, not assertions: it asserts the COUNTERFACTUAL -- the two
+#   malformed docs ARE naively equal -- so the trap is proven reachable rather than
+#   assumed. Without it the case is satisfied by absence.
+#   FILED A DEFECT AGAINST ITS OWN MERGED H6 unprompted: that selftest is one-directional
+#   too. A SUITE THAT ONLY TESTS ONE DIRECTION OF A DECISION CANNOT TELL A WORKING GUARD
+#   FROM A STUCK ONE, AND WHICH DIRECTION IT TESTS IS DECIDED BY WHICH FAILURE YOU WERE
+#   AFRAID OF THAT DAY.
+
+MERGED F5  f7e4259 pits:kb/pits/F5.md accept:PASS
+#   The inspector. Closes TWO of F6's five reds; only the three miscategorised shots
+#   remain, with L2.
+#   THE PREDICATE'S ONE HOLLOW PATH is both sides coming from the same place. Rows are
+#   walked from the RENDERED DOM, tools from document.modelContext.getTools(). And the
+#   panel reads modelContext rather than our registry ON PURPOSE: the registry is what
+#   we TRIED to register, modelContext is what the browser HOLDS, and they differ
+#   exactly when something is wrong.
+#   FOUR IDENTICAL COMPARISONS ARE ONE COMPARISON -- the four counts are asserted NOT
+#   ALL EQUAL, a guard UX added after noticing they happened to differ.
+
+# D-98: D1's PREDICATE COULD NOT FAIL ON THE TWO CLAUSES THAT MATTER MOST, and I found it
+#   while reporting the node GREEN. `curl -w '%{http_code}'` PRINTS the code and exits 0
+#   WHATEVER IT IS; and the version clause said "equals git rev-parse HEAD" in PROSE while
+#   the runner ran the two as separate spans and NEVER COMPARED THEM. FOUR GREEN SPANS WERE
+#   CONSISTENT WITH A 500 AND A MISMATCHED SHA.
+#   The only reason it was caught rather than banked is that I checked the four clauses
+#   EXPLICITLY instead of trusting four exit-0s. A PREDICATE THAT CANNOT FAIL IS NOT A
+#   WEAKER PREDICATE, IT IS A DECORATION -- the fourth artifact class this sprint has found
+#   one in, after a lint that never ran, a hook git never invoked, and a clause that passed
+#   on zero call sites.
+#   Corrected by PM and proven in the FAILING direction: 500-vs-200 exits 1, 200-vs-200
+#   exits 0. Re-run now: spans 0-2 green, span 3 RED because main moved under the deploy --
+#   which is D-92(b) working, not a regression. D1's done status rests on the explicit
+#   manual observation, and is re-verified in the final pass with D6.
+
+FOLLOWUP D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
+#   An S5 follow-up, not a node. THE PAGE CAN NOW COMPLETE A SIGNATURE.
+#   The invariant is held BY CONSTRUCTION, not by filtering: a session-scoped route that
+#   is NOT a registered tool (0 in defs.js, absent from the export surface), a page-only
+#   openForDialog() companion, and beginSign()/continueSign() BYTE-FOR-BYTE UNCHANGED.
+#   THE AGENT CANNOT READ THE TOKEN BECAUSE THERE IS NO CALL THAT RETURNS IT.
+#   Clause 3 is why clause 2 means anything: "no tool leaks the token" is satisfied by
+#   THERE BEING NO TOKEN, so the same run proves one EXISTS and is PAGE-READABLE.
+#   AND THE F7 DEFECT IT REPAIRS: sign-install.js read three fields off a beginSign()
+#   that never carries them, so a real click posted to /api/sign/null/respond. Root
+#   cause: browserDialogPort HAD NO TEST, because every F7 test stubs the port -- EVERY
+#   INJECTION POINT SPLITS THE CODE INTO A TESTED HALF AND A SHIPPED HALF, AND THE
+#   SHIPPED HALF IS INVISIBLE TO EXACTLY THE TESTS THE INJECTION MADE POSSIBLE.
+#   And: DEFENSIVE DEFAULTS ON A REQUIRED VALUE CONVERT A LOUD FAILURE INTO A WRONG ONE.
+
+FOLLOWUP DEV-abort-rejection b26c737 pits:kb/pits/DEV-abort-rejection.md accept:N/A (not a node)
+#   The unhandled AbortError QA found on the LIVE site. registerTool RETURNS A PROMISE
+#   that rejects on abort; register.js discarded it and we revoke the previous
+#   generation on every flip on purpose -- so every registration in the revoked
+#   generation rejected unhandled. Cause PROBED on Chrome 152, not inferred.
+#   QA's 12 and I2's 13 are the same bug: one rejection PER REGISTERED TOOL, so the
+#   count tracks surface size and the deployed build predates T3. The discrepancy WAS
+#   the evidence.
+#   Fix is narrow: swallow only an AbortError whose controller is OURS. I sabotaged it
+#   myself -- the pre-fix discard fails exactly tests 184 and 185, restored 197/197.
+#   I2 NEARLY SHIPPED TWO FALSE NEGATIVES, BOTH THE BUG\'S OWN SHAPE: Playwright had no
+#   WebMCP so it measured the __simulated shim, and a later run showed 0 exceptions
+#   because the server had died of EADDRINUSE and the page never loaded.
+#   A ZERO IS ONLY EVIDENCE IF YOU CAN SHOW THE THING THAT PRODUCES NON-ZERO WAS RUNNING.
+
+FOLLOWUP DEV-sign-crash 38d6afb pits:kb/pits/DEV-sign-crash.md accept:N/A (not a node)
+#   A WHOLE-SITE OUTAGE on the signature path. One malformed POST /api/sign killed the
+#   Node PROCESS -- uncaught CanonError from digest() on an undefined field. Found while
+#   running the shoot gate against production: the 502 and the subsequent 401s were ONE
+#   EVENT, because the instance restarted and SESSIONS ARE IN-MEMORY.
+#   Two fixes, each verified independently: field validation in open() (400 with the
+#   missing names), and a TOP-LEVEL GUARD that did not exist at all -- so any throwing
+#   handler now costs one client a 500 instead of the site.
+#   I proved the general guard alone suffices by disabling only the specific validation:
+#   500 not 000, CanonError still thrown, /api/me still 200. MY FIRST SABOTAGE SILENTLY
+#   FAILED TO APPLY and returned 400 -- A SABOTAGE THAT DOES NOT APPLY IS A GREEN THAT
+#   MEANS NOTHING.
+#   The narrowing is undefined-ONLY because NULL IS A VALID OCF-1 VALUE; a stricter first
+#   draft broke three passing tests and was caught before it shipped.
+
+MERGED E4  50b8cd4 pits:kb/pits/E4.md accept:PASS (clause 1 verified BY HAND — see below)
+#   C1's blind packet. Clause [1] is DECORATION: its prose says "`ls -1` IN IT prints 2",
+#   "in it" binds to nothing in a shell, the extracted span is a bare `ls -1`, and it
+#   EXITS 0 FROM THE REPO ROOT ON ANY PACKET OR NONE. Demonstrated. I verified the real
+#   property instead: 2 entries, both byte-identical to source, and rev-parse inside the
+#   packet exits 128 (outside any repo). With PM.
+#   THE FINDING IS THE MIRROR OF D-90: prove the detector still returns the POSITIVE on
+#   the real corpus, not only the negative on injected cases. L2's own workflow-order
+#   pattern fired on its OWN schema ("in task order" != tool call order). A DETECTOR THAT
+#   FIRES ON EVERYTHING IS EXACTLY AS SATISFIABLE AS ONE THAT FIRES ON NOTHING, and the
+#   false-positive direction is the one that gets an instrument DISABLED.

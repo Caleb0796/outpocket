@@ -52,6 +52,42 @@ never `T0`–`T4`, which collide with live tool-surface node ids. Every
 `UNVERIFIED` row must name an existing node id from `erp/graph.json` as its
 fallback; a row with no named fallback is malformed and the node does not pass.
 
+## Before you rule a follow-up — D-101
+
+**A RULING THAT COMMISSIONS WORK BUT CREATES NO NODE COMMISSIONS WORK THAT
+CANNOT BE COMMITTED.** L1's sentence, and it is the third instance of one
+shape with three different causes: `F7`'s outputs were one entry short, `W`
+owned no nodes at all, and `D-89` was a **ruling rather than a node** — so
+there was no `outputs` array for ownership clause (a) to match and clause (b)
+sent every path to whoever owned the glob.
+
+**D-104 — L1 SHARPENED THIS QUESTION AND ITS VERSION SUPERSEDES MINE.** Mine
+caught three instances and missed the fourth, because `erp/RUBRIC.md`'s path
+EXISTS and IS declared — just to somebody else. **THE QUESTION THAT CATCHES
+ALL FOUR IS: DOES THE SEAT I AM GRANTING THIS TO OWN THE PATHS IT WILL HAVE
+TO WRITE?** Ask that before ruling any follow-up, writing any charter clause,
+or creating any node. The four granting artifacts were a NODE with a short
+outputs list (F7), a CHARTER for a seat owning no nodes (W), a RULING that
+created no node (D-89), and a CHARTER granting an edit to another node's
+declared file (L2) — **four different artifacts, one shape: a document that
+grants work cannot grant the right to commit it, because ownership lives in a
+different document.** Then take the cheapest sufficient option: Then take the cheapest sufficient option:
+
+1. **Every path already declared by the owning node** → nothing to do. Today's
+   follow-ups on `H2` (drive.mjs), `S1` (index.mjs), `F1` (index.html), `E1`
+   (eval.mjs) and `F0` (STORYBOARD.md) were all safe **by luck of touching
+   files those nodes already declared**, and I did not check once.
+2. **A new path, but the follow-up belongs to an existing node** → extend that
+   node's `outputs`. This is D-101 and it is almost always the answer: no
+   schedule slot, no node count change, no restatement cascade.
+3. **A genuinely new capability nobody owns** → a node, with the D-93 checklist
+   applied to its predicate and its test file in `outputs`.
+
+**A node may also declare a SPECIFIC deviation ticket it authored** — clause
+(a) beats the `.team/deviations/**` glob D-79 gave W. The glob stays W's
+default; a named ticket is the node's. `S5` already did this for `DEV-E3`
+before I ruled it, which is where the precedent comes from.
+
 ## Before you commit a predicate — the checklist, D-93
 
 **Three revisions of one T3 clause each corrected the previous and each
