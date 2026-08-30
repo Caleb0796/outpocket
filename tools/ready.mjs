@@ -910,6 +910,71 @@ function checkTables() {
 
 // ---------------------------------------------------------------- main
 
+
+// ------------------------------------------------------- --check-dispatch
+// UX, 2026-08-30, and the gap is mine: I GENERATED F2's CONTRACT AND NEVER
+// DISPATCHED IT. .team/contracts/F2.txt existed from 21:26; the only mention
+// that ever reached UX was a subordinate clause in a message about a different
+// defect. UX read it as context, correctly, because that is what it was.
+//
+// A CONTRACT WRITTEN AND A CONTRACT DISPATCHED ARE TWO EVENTS, AND ONLY THE
+// FIRST LEAVES A TRACE ON DISK. The monitoring sweep looked for a seat branch --
+// a DOWNSTREAM artifact -- and correctly found nothing. But the same absence is
+// produced by "never started" and by "never told", and those need opposite
+// fixes: one is a chase, the other is an apology and a re-send.
+//
+// So this checks the step that would have produced the missing thing, rather
+// than inferring from its absence. For every contract file on disk whose node
+// is not already done, is there ANY downstream trace -- a seat branch, an
+// in_flight entry, a merge row? None at all means the contract was written and
+// never became work.
+function checkDispatch() {
+  const state = JSON.parse(fs.readFileSync('erp/graph.state.json', 'utf8'));
+  const done = new Set(state.done || []);
+  const inFlight = new Set(Object.keys(state.in_flight || {}));
+  const LOG2 = '.team/log/merges.txt';
+  const record = fs.existsSync(LOG2) ? fs.readFileSync(LOG2, 'utf8') : '';
+  let branches = '';
+  const r = spawnSync('git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads/', 'refs/remotes/origin/'], { encoding: 'utf8' });
+  branches = r.stdout || '';
+
+  const dir = '.team/contracts';
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.txt')) : [];
+  let bad = 0, weak = 0, checked = 0;
+  for (const f of files) {
+    const id = f.replace(/\.txt$/, '');
+    if (done.has(id)) continue;
+    const node = (G.nodes || []).find((n) => n.id === id);
+    checked++;
+    const owner = node ? node.owner : null;
+    const hasBranch = owner
+      ? new RegExp(`seat/${owner}-${id}\\b`).test(branches)
+      : new RegExp(`[-/]${id}\\b`).test(branches);
+    const hasRow = new RegExp(`^(MERGED|FOLLOWUP|PARTIAL)\\s+${id}\\b`, 'm').test(record);
+    // in_flight is L1 ASSERTING it dispatched something. That is the very claim
+    // under test, so it CANNOT corroborate itself -- F2 sat in in_flight all night
+    // while the seat had never been told. Only a seat branch or a merge row is an
+    // INDEPENDENT trace, because a seat produced it. in_flight alone is reported as
+    // UNCONFIRMED: weaker than dispatched, stronger than silence.
+    const independent = hasBranch || hasRow;
+    if (!independent && inFlight.has(id)) {
+      weak++;
+      console.log(`  UNCONFIRMED   ${dir}/${f}${owner ? ` (owner ${owner})` : ''} is in_flight, but in_flight is`);
+      console.log(`                L1's own claim. No seat branch and no merge row, so nothing a`);
+      console.log(`                SEAT produced confirms the dispatch was ever delivered.`);
+    }
+    if (!independent && !inFlight.has(id)) {
+      bad++;
+      console.log(`  UNDISPATCHED  ${dir}/${f} exists${owner ? ` (owner ${owner})` : ''} but there is NO seat branch,`);
+      console.log(`                NO in_flight entry and NO merge row. A contract on disk is`);
+      console.log(`                invisible to a seat unless something tells it to read it.`);
+    }
+  }
+  console.log(`${checked} undone contract(s) checked; ${bad} never dispatched, ${weak} asserted-only`);
+  if (!bad) console.log('  ok    every contract on disk for an undone node has a downstream trace');
+  return bad === 0;
+}
+
 const MODES = [
   ['--check-cuts', checkCuts],
   ['--path', longestPath],
@@ -921,6 +986,7 @@ const MODES = [
   ['--check-modes', checkModes],
   ['--check-orphans', checkOrphans],
   ['--check-record', checkRecord],
+  ['--check-dispatch', checkDispatch],
   ['--selftest-orphans', selftestOrphans],
 ];
 
