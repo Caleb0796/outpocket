@@ -1,0 +1,72 @@
+NODE:      D-89 (S5 follow-up — NOT a graph node; ruled by PM 2026-08-29)
+OWNER:     I3
+HOURS:     1.0
+INPUTS:    S5, F4, F7 (all merged)
+OUTPUTS:   server/sign.mjs and whatever channel the honest implementation needs.
+           If a frozen contract must be amended, SAY SO — do not touch
+           erp/contracts/** yourself; L1 re-cuts FREEZE.md.
+
+DO:        The page CANNOT COMPLETE A SIGNATURE and it is an ON-CAMERA SHOT.
+           Verified in server/sign.mjs: :168 requireConfirmToken defaults true
+           (the shipped, enforced position); :366 /respond rejects without a
+           matching token; stripTicketAndToken at :91 removes it from EVERY
+           agent-visible response; :21 documents peekConfirmTokenForDialog as
+           "this module's stand-in for the DOM" — TEST-ONLY. So F4's POST would
+           answer 403 E_NO_CONFIRM_TOKEN, and SB-10/SB-11 are shots of a human
+           COMPLETING a signature the page cannot today complete.
+
+           TWO OF THE THREE OPTIONS ARE REFUSED BY PM AND YOU MAY NOT TAKE THEM.
+           Reconsidering requireConfirmToken is REFUSED: the token is the
+           human-presence proof, stripped from every agent-visible response
+           precisely so only a human at the DOM can supply it — deleting it
+           removes the thing that makes the signature mean anything, which is
+           the property this project exists to demonstrate. Staging the shot
+           differently is REFUSED OUTRIGHT: that is filming a capability we do
+           not have.
+
+           THE INVARIANT ANY IMPLEMENTATION MUST PRESERVE, PM's words verbatim:
+           THE TOKEN REACHES THE DOM BY A CHANNEL THE AGENT CANNOT READ THROUGH
+           THE TOOL SURFACE. A session-scoped endpoint the surface does not
+           expose, or server-side delivery into the page, are BOTH ADMISSIBLE;
+           anything an agent can call is NOT.
+
+           IF THE HONEST IMPLEMENTATION NEEDS A FROZEN CONTRACT AMENDED, AMEND
+           IT AND SAY SO. D-77 settled that a freeze catches ACCIDENTAL change
+           and the sanctioned route for an intentional reviewed one is a BUMP.
+           DO NOT ROUTE AROUND A FREEZE WITH A FILTER. Send me the new hashes;
+           erp/contracts/** is mine and the hook will stop you anyway.
+
+           WHY NOBODY CAUGHT THIS EARLIER, and it is D-90 arriving one node
+           ahead of itself: IT SURFACED AT THE GLUE AND NOWHERE ELSE BECAUSE
+           EVERY TEST STUBS THE HUMAN, F7's included. So whatever you build,
+           the test that proves it must NOT stub the delivery channel — a test
+           that mocks the thing under test is the same defect one level down.
+
+ACCEPT:    ** OWED BY PM — DO NOT WAIT ON IT TO START, DO NOT INVENT ONE. **
+           D-89 is a RULING with an INVARIANT, not a node with a predicate, and
+           L1 does not write acceptance predicates (charter: a contract whose
+           acceptance clause is not mechanical goes back to PM). I have asked PM
+           for it. PROPOSE ONE WITH YOUR GREEN — the strongest form you can
+           make MECHANICAL — and PM ratifies. Suggested shape, yours to improve:
+           a test proving (i) a human at the DOM CAN complete /respond, and
+           (ii) the token is NOT reachable through any tool on the surface in
+           any of the six canonical states — the negative half is the half that
+           matters, and per D-90 it must assert the PRECONDITION that makes its
+           subject reachable, not merely the outcome.
+
+PIT:       CLAUSE 6e (D-83), BINDING — THE REPORT IS A COMMIT, NOT A MESSAGE.
+           Five fields in a `PIT:` block in your final commit message on your
+           branch. L1 reads them with `git log` at the gate and writes the pit
+           file. You do NOT commit a pit file. Composing is committing; there
+           is no send step to forget. Four reports have been lost in four
+           different ways and every one depended on a channel between you and
+           the gate.
+
+           D-90, NEW AND BINDING: A NEGATIVE CONTROL SATISFIABLE BY THE TOOL
+           BEING ABSENT IS NOT A CONTROL. Assert the precondition that makes
+           its subject reachable, not merely the outcome. A control that can be
+           satisfied two ways tests neither.
+
+BRANCH:    seat/I3-D89-confirm-token
+DEADLINE:  BEFORE THE SHOOT. D4 is 4h of UX's time against a hard deadline and
+           the 1-day window notice to the user does not fire until this lands.
