@@ -51,7 +51,8 @@
     "F5",
     "E4",
     "E2",
-    "F6"
+    "F6",
+    "S8"
   ],
   "in_flight": {
     "D4": "UX \u2014 the video. All inputs done: H6, F0, F7, D1. F6 green. Shoot gated on QA's browser run (blocked on QA's user).",
