@@ -143,46 +143,116 @@ function compare(a, b, tolerance) {
 // The comparator is a gate, so its ability to FAIL is the property worth
 // proving. A green node is not evidence that its output runs; this is how this
 // one demonstrates that it does, and that each refusal above actually fires.
+// ------------------------------------------------------------------ selftest
+//
+// A COMPARATOR IS A GATE, AND A GATE THAT CANNOT SAY NO IS DECORATION. But a
+// gate that can ONLY say no is equally broken and looks identical in a selftest
+// that tests refusals alone. So every refusal below is exercised as a PAIR:
+//
+//     FIRES     — the refusal happens on the input it exists to catch
+//     DECLINES  — it does NOT happen on a minimally different, valid input
+//
+// The two members of a pair differ in exactly ONE field. That is what makes the
+// pair informative: if the guard were unconditional the DECLINES half goes red,
+// and if the guard were absent the FIRES half goes red. Neither failure can hide
+// behind the other.
+//
+// This is UX's rule, adopted 2026-08-29 after three instruments failed open in a
+// single day, one of them inside the fix for another: ARM NOTHING THAT HAS NOT
+// DEMONSTRATED IT CAN STILL RETURN THE NEGATIVE.
+//
+// D-90 IS WHY THE MISSING-OBSERVATION PAIR LOOKS OVER-BUILT. "A case satisfiable
+// by the input being ABSENT is not a case." A test that feeds two observation-less
+// files in and asserts "refused" passes just as well against a readRun() that
+// refuses everything — nothing was there to compare, so nothing was proved. The
+// pair below therefore also asserts the COUNTERFACTUAL: that the two malformed
+// docs ARE naively equal, so there really was a way for the comparator to pass
+// while discovering nothing, and the guard is what stops it. Without that
+// assertion the case is satisfied by absence.
+//
+// Every case runs the WHOLE path — readRun() from a real file, then compare() —
+// not compare() alone, because two of the four refusals live in readRun and
+// testing compare() in isolation would never reach them.
+
+function evaluatePair(tmp, aDoc, bDoc, tolerance = 0.20) {
+  const pa = join(tmp, 'a.json');
+  const pb = join(tmp, 'b.json');
+  writeFileSync(pa, typeof aDoc === 'string' ? aDoc : JSON.stringify(aDoc));
+  writeFileSync(pb, typeof bDoc === 'string' ? bDoc : JSON.stringify(bDoc));
+  const a = readRun(pa);
+  const b = readRun(pb);
+  unlinkSync(pa); unlinkSync(pb);
+  if (!a.ok) return { pass: false, reason: 'rejected', why: a.why };
+  if (!b.ok) return { pass: false, reason: 'rejected', why: b.why };
+  return compare(a, b, tolerance);
+}
+
+// Run-file builders. Each takes exactly the one field a pair varies.
+const secs = (client, seconds) => ({ run: 1, client, observation: { timedOut: true, seconds } });
+const noTimeout = (client) => ({ run: 1, client, observation: { timedOut: false, literal: NO_TIMEOUT } });
+
 function selftest() {
-  const R = (client, kind, seconds) => kind === 'no-timeout'
-    ? { ok: true, kind, client, doc: {} }
-    : { ok: true, kind: 'seconds', seconds, client, doc: {} };
-  const cases = [
-    ['equal readings pass',            R('X', 's', 22.0), R('X', 's', 22.0), 0.20, true,  'within-tolerance'],
-    ['19% apart passes',               R('X', 's', 20.0), R('X', 's', 23.8), 0.20, true,  'within-tolerance'],
-    ['21% apart fails',                R('X', 's', 20.0), R('X', 's', 24.2), 0.20, false, 'over-tolerance'],
-    ['both no-timeout pass',           R('X', 'no-timeout'), R('X', 'no-timeout'), 0.20, true,  'both-no-timeout'],
-    ['no-timeout vs numeric fails',    R('X', 'no-timeout'), R('X', 's', 22.0), 0.20, false, 'kind-mismatch'],
-    ['different clients never compare',R('A', 's', 22.0), R('B', 's', 22.0), 0.20, false, 'client-mismatch'],
-    ['identical but unlike clients',   R('A', 'no-timeout'), R('B', 'no-timeout'), 0.20, false, 'client-mismatch'],
-  ];
-  let bad = 0;
-  for (const [name, a, b, tol, wantPass, wantReason] of cases) {
-    const r = compare(a, b, tol);
-    const good = r.pass === wantPass && r.reason === wantReason;
-    if (!good) bad++;
-    out(`${good ? 'ok  ' : 'FAIL'}  ${name}  -> pass=${r.pass} reason=${r.reason}`);
-  }
-  // Malformed inputs must be rejected by readRun, not silently compared.
-  // Scratch files go to the OS temp dir, never into evidence/: a selftest that
-  // writes into the evidence directory can leave a stray file behind that a
-  // later reader mistakes for a measurement.
   const tmp = mkdtempSync(join(tmpdir(), 'compare-runs-selftest-'));
-  const probes = [
-    ['missing observation', JSON.stringify({ client: 'X' })],
-    ['missing client',      JSON.stringify({ observation: { timedOut: true, seconds: 1 } })],
-    ['bad literal',         JSON.stringify({ client: 'X', observation: { timedOut: false, literal: 'nope' } })],
-    ['non-positive seconds',JSON.stringify({ client: 'X', observation: { timedOut: true, seconds: 0 } })],
-  ];
-  for (const [name, body] of probes) {
-    const p = join(tmp, 'run.json');
-    writeFileSync(p, body);
-    const r = readRun(p);
-    const good = r.ok === false;
+  let bad = 0;
+
+  const check = (label, got, wantPass, wantReason) => {
+    const good = got.pass === wantPass && got.reason === wantReason;
     if (!good) bad++;
-    out(`${good ? 'ok  ' : 'FAIL'}  rejects ${name}`);
-    unlinkSync(p);
+    out(`${good ? 'ok  ' : 'FAIL'}  ${label} -> pass=${got.pass} reason=${got.reason}`);
+  };
+
+  // ── PAIR 1 — two runs naming DIFFERENT CLIENTS are refused ────────────────
+  // The refusal this whole node turns on: run 1 is the built-in browser's own
+  // CDP-wrapper timeout, so a run from any other client measures a different
+  // quantity and neither agreement nor disagreement with it means anything.
+  check('client-mismatch  FIRES    (X vs Y, same reading)',
+    evaluatePair(tmp, secs('X', 22.267), secs('Y', 22.267)), false, 'client-mismatch');
+  check('client-mismatch  DECLINES (X vs X, same reading)',
+    evaluatePair(tmp, secs('X', 22.267), secs('X', 22.267)), true, 'within-tolerance');
+
+  // ── PAIR 2 — missing observations do not compare equal ────────────────────
+  // D-90: the counterfactual is asserted first, so this case cannot be satisfied
+  // by there being nothing to compare.
+  const bare = { run: 1, client: 'X' };
+  const naivelyEqual = JSON.stringify(bare.observation) === JSON.stringify(bare.observation);
+  if (!naivelyEqual) { bad++; out('FAIL  counterfactual: two observation-less docs were expected to be naively equal'); }
+  else out('ok    counterfactual: two observation-less docs ARE naively equal (undefined === undefined), ' +
+           'so there really is a way to pass while discovering nothing');
+  check('missing-observation FIRES    (neither doc has one)',
+    evaluatePair(tmp, bare, bare), false, 'rejected');
+  check('missing-observation DECLINES (same docs, observation restored)',
+    evaluatePair(tmp, secs('X', 22.267), secs('X', 22.267)), true, 'within-tolerance');
+
+  // ── PAIR 3 — a no-timeout run does not average with a numeric one ─────────
+  check('kind-mismatch    FIRES    (no-timeout vs 22.267s)',
+    evaluatePair(tmp, noTimeout('X'), secs('X', 22.267)), false, 'kind-mismatch');
+  check('kind-mismatch    DECLINES (no-timeout vs no-timeout)',
+    evaluatePair(tmp, noTimeout('X'), noTimeout('X')), true, 'both-no-timeout');
+  check('kind-mismatch    DECLINES (numeric vs numeric)',
+    evaluatePair(tmp, secs('X', 22.0), secs('X', 22.0)), true, 'within-tolerance');
+
+  // ── PAIR 4 — malformed run files are rejected ─────────────────────────────
+  // Each malformed doc is paired against the SAME doc made well-formed, so a
+  // readRun that rejected everything would light up the DECLINES half.
+  const malformed = [
+    ['not JSON',             '{ this is not json',                                              secs('X', 22.267)],
+    ['missing client',       { run: 1, observation: { timedOut: true, seconds: 22.267 } },       secs('X', 22.267)],
+    ['bad literal',          { run: 1, client: 'X', observation: { timedOut: false, literal: 'nope' } }, noTimeout('X')],
+    ['non-positive seconds', { run: 1, client: 'X', observation: { timedOut: true, seconds: 0 } }, secs('X', 22.267)],
+    ['timedOut not boolean', { run: 1, client: 'X', observation: { timedOut: 'yes', seconds: 1 } }, secs('X', 22.267)],
+  ];
+  for (const [name, badDoc, goodDoc] of malformed) {
+    check(`malformed FIRES    (${name})`, evaluatePair(tmp, badDoc, goodDoc), false, 'rejected');
+    check(`malformed DECLINES (${name} corrected)`, evaluatePair(tmp, goodDoc, goodDoc), true,
+      goodDoc.observation.timedOut === false ? 'both-no-timeout' : 'within-tolerance');
   }
+
+  // ── PAIR 5 — the tolerance boundary itself ────────────────────────────────
+  check('over-tolerance   FIRES    (20.0 vs 24.2, 21% of the smaller)',
+    evaluatePair(tmp, secs('X', 20.0), secs('X', 24.2)), false, 'over-tolerance');
+  check('over-tolerance   DECLINES (20.0 vs 23.8, 19% of the smaller)',
+    evaluatePair(tmp, secs('X', 20.0), secs('X', 23.8)), true, 'within-tolerance');
+
   rmSync(tmp, { recursive: true, force: true });
   out(bad === 0 ? 'selftest: all green' : `selftest: ${bad} failure(s)`);
   return bad === 0 ? 0 : 1;
