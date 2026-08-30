@@ -1037,3 +1037,18 @@ FOLLOWUP D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
 #   INJECTION POINT SPLITS THE CODE INTO A TESTED HALF AND A SHIPPED HALF, AND THE
 #   SHIPPED HALF IS INVISIBLE TO EXACTLY THE TESTS THE INJECTION MADE POSSIBLE.
 #   And: DEFENSIVE DEFAULTS ON A REQUIRED VALUE CONVERT A LOUD FAILURE INTO A WRONG ONE.
+
+FOLLOWUP abort-fix b26c737 pits:kb/pits/DEV-abort-rejection.md accept:N/A (not a node)
+#   The unhandled AbortError QA found on the LIVE site. registerTool RETURNS A PROMISE
+#   that rejects on abort; register.js discarded it and we revoke the previous
+#   generation on every flip on purpose -- so every registration in the revoked
+#   generation rejected unhandled. Cause PROBED on Chrome 152, not inferred.
+#   QA's 12 and I2's 13 are the same bug: one rejection PER REGISTERED TOOL, so the
+#   count tracks surface size and the deployed build predates T3. The discrepancy WAS
+#   the evidence.
+#   Fix is narrow: swallow only an AbortError whose controller is OURS. I sabotaged it
+#   myself -- the pre-fix discard fails exactly tests 184 and 185, restored 197/197.
+#   I2 NEARLY SHIPPED TWO FALSE NEGATIVES, BOTH THE BUG\'S OWN SHAPE: Playwright had no
+#   WebMCP so it measured the __simulated shim, and a later run showed 0 exceptions
+#   because the server had died of EADDRINUSE and the page never loaded.
+#   A ZERO IS ONLY EVIDENCE IF YOU CAN SHOW THE THING THAT PRODUCES NON-ZERO WAS RUNNING.
