@@ -904,3 +904,16 @@ MERGED H6  12ea923 pits:kb/pits/H6.md accept:PASS
 #   SHARE A CHANNEL WHEN ONE OF THEM IS GRADED FOR BYTE-STABILITY. Putting per-step
 #   ms in the dump would have broken H4's byte-identical accept and looked like
 #   non-determinism in the demo.
+
+MERGED F7  64363da pits:kb/pits/F7.md accept:PASS
+#   The signature provider, installed. --check-orphans FULLY GREEN for the first time,
+#   and by the right route: sign-bridge.js is closed by being IMPORTED, not exempted.
+#   THE ORPHAN AND THE MISSING GLUE WERE ONE DEFECT SEEN FROM TWO SIDES.
+#   Clause 2 drives the REAL tool through the double lock with only the human stubbed;
+#   APPROVE completes with CH-0001 and S5's ticket, DECLINE refuses on the same wire
+#   with the human's own words.
+#   CLAUSE 3 PASSED FOR THE WRONG REASON FIRST: the fixture passed amount as a STRING,
+#   toCents() returned null, the draft stayed dirty, and submit_expense_report was
+#   never on the surface -- so "the submit must not complete" was true and tested
+#   nothing. A NEGATIVE CONTROL SATISFIABLE BY THE TOOL BEING ABSENT IS NOT A CONTROL.
+#   STILL OPEN: the page cannot COMPLETE a signature (403 E_NO_CONFIRM_TOKEN). D-89.
