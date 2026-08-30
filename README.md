@@ -4,8 +4,9 @@ A WebMCP expense-reimbursement desk. The employee's own agent works inside the
 employee's own authenticated session — no second front door, no second identity
 system, no new credential holder.
 
-> **Status: planning.** No product code yet. The build plan lives in
-> [`erp/`](erp/) and is the single source of truth for execution.
+> **Status: live.** Deployed at
+> [outpocket.onrender.com](https://outpocket.onrender.com). The build plan and
+> node-by-node progress record live in [`erp/`](erp/).
 
 ## What this is
 
@@ -50,8 +51,8 @@ Judges can drive `outpocket` two ways:
 | Path | Contents |
 | --- | --- |
 | `erp/` | Build plan: work graph, agent-team charters, contracts, eval design, risk register |
-| `src/` | Application source (not yet created) |
-| `tests/` | Test suite (not yet created) |
+| `src/` | Application source |
+| `tests/` | Test suite |
 
 ## Related repositories
 
