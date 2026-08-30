@@ -888,3 +888,19 @@ MERGED S6  46fe9d1 pits:kb/pits/S6.md accept:PASS
 #   canonicalisation attacks prove an honestly-reformatted report is NEVER rejected,
 #   beside two real content changes that ARE caught. A check that rejects everything
 #   is as useless as one that rejects nothing.
+
+MERGED H6  12ea923 pits:kb/pits/H6.md accept:PASS
+#   The rehearsal rig. Grader written BEFORE the runner, because "5 of 5 under 120s
+#   with per-step timings" is satisfied by a rig that starts and stops.
+#   Both falsifiability arms verified by me, not taken: --break-run gives 4/5 with
+#   run 3 named and exit 1; --selftest drives all eight grading clauses to failure
+#   on synthetic dumps, including one carrying ONLY the pre-seeded archive -- which
+#   is exactly what a rehearsal that did nothing produces. That second arm exists
+#   because the clauses that carry the weight CANNOT BE REACHED BY A LIVE RUN, and
+#   an unexercised branch in a grader is indistinguishable from one that does not work.
+#   I1 DID NOT BELIEVE ITS OWN GREEN: 0.6s per run including a Chrome launch is the
+#   exact shape of a rig that did nothing, so it timed one invocation independently.
+#   EARLIER is a new rule: A DERIVED MEASUREMENT AND THE THING IT MEASURES MUST NOT
+#   SHARE A CHANNEL WHEN ONE OF THEM IS GRADED FOR BYTE-STABILITY. Putting per-step
+#   ms in the dump would have broken H4's byte-identical accept and looked like
+#   non-determinism in the demo.
