@@ -159,19 +159,44 @@ async function waitFor(fn, { timeoutMs = 15000, everyMs = 50 } = {}) {
   }
 }
 
-/** Say so, on the page. Never throws — a missing element must not kill the demo. */
+/**
+ * Say so, on the page. Never throws — a missing element must not kill the demo.
+ *
+ * APPENDS, and does not defer. The first version of this deferred: it wrote the
+ * demo label only when #agent-banner was EMPTY, on the reasoning that H3's
+ * "simulated agent" text is the more important message and must not be
+ * overwritten. That reasoning is right and the conclusion was wrong, because the
+ * two are not alternatives.
+ *
+ * FOUND BY UX, and it is the same family as the banner defect this seat caught on
+ * H3: with WebMCP ABSENT and ?demo=1 set, the page is BOTH self-driving AND
+ * running a scripted seeded filing. H3's labelAsSimulated writes the banner
+ * unconditionally, so deferring meant the demo half was NEVER disclosed in that
+ * configuration — in either tag order. This module's own header says an automated
+ * run that looks like a human filing is dishonest for the same reason an
+ * unlabelled self-driving agent is, and in exactly the case where both were true
+ * it said only one of them.
+ *
+ * So: empty banner gets the full sentence, occupied banner gets the demo clause
+ * appended. Nothing is ever overwritten and nothing is ever silently dropped.
+ */
 export function labelAsDemo(doc, seed) {
+  const full =
+    `Demo mode — this page is running a scripted filing with seed ${seed}. ` +
+    "Every choice below comes from that seed, so the same link replays the same demo. " +
+    "Nothing is submitted: signing is still the human's act.";
+  const clause = `Demo mode, seed ${seed} — a scripted filing; nothing is submitted.`;
   try {
     const b = doc && doc.getElementById("agent-banner");
-    // Never overwrite H3's "simulated agent" text: when both apply, that one is
-    // the more important message, and index.html's own onerror guard follows the
-    // same rule for the same reason.
-    if (b && b.textContent.trim() === "") {
-      b.textContent = `Demo mode — this page is running a scripted filing with seed ${seed}. ` +
-        "Every choice below comes from that seed, so the same link replays the same demo. " +
-        "Nothing is submitted: signing is still the human's act.";
-      return true;
+    if (!b) return false;
+    const existing = b.textContent.trim();
+    if (existing === "") {
+      b.textContent = full;
+    } else if (!existing.includes(`Demo mode, seed ${seed}`) && !existing.startsWith("Demo mode —")) {
+      // Idempotent: re-labelling must not stack the clause up twice.
+      b.textContent = `${existing} · ${clause}`;
     }
+    return true;
   } catch { /* a label is not worth failing a demo over */ }
   return false;
 }
@@ -183,6 +208,7 @@ export function labelAsDemo(doc, seed) {
  */
 export async function runDemo({ seed, tools, shell, doc }) {
   const steps = [];
+  const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
   // A CALL THAT RETURNED IS NOT A CALL THAT WORKED, and this is the one place
   // that mistake is easy to make here. compile.js's `toolset.call` NEVER THROWS
@@ -200,35 +226,48 @@ export async function runDemo({ seed, tools, shell, doc }) {
   const isErrorText = (t) =>
     typeof t === "string" && (/^Error \[[A-Z_]+\]:/.test(t) || /^No tool named "/.test(t));
 
+  // Each step is timed INDIVIDUALLY. H6 rehearses this flow and its whole value
+  // is being able to say WHICH step is slow before it becomes a 120-second
+  // problem in front of a judge; one total divided by six is not a timing.
+  //
+  // `ms` deliberately never reaches harness/dump-state.mjs — drive.mjs's read
+  // projects each step to {tool, ok} only. A duration in the dump would make it
+  // vary run to run and would break H4's accept, which is a byte-for-byte diff
+  // of two runs at the same seed. Timings travel on their own channel.
   const call = async (name, args) => {
+    const t0 = now();
     const onSurface = tools.names().includes(name);
     if (!onSurface) {
-      steps.push({ tool: name, ok: false, text: `not on the surface at ${tools.state()}; present: ${tools.names().join(", ")}` });
+      steps.push({ tool: name, ok: false, ms: Math.round(now() - t0),
+        text: `not on the surface at ${tools.state()}; present: ${tools.names().join(", ")}` });
       return { ok: false };
     }
     try {
       const res = await tools.executeTool(name, args ?? {}, { source: "agent" });
       const text = res?.content?.[0]?.text ?? null;
       const ok = !isErrorText(text);
-      steps.push({ tool: name, ok, text });
+      steps.push({ tool: name, ok, ms: Math.round(now() - t0), text });
       return { ok, text };
     } catch (e) {
-      steps.push({ tool: name, ok: false, text: String((e && e.message) || e) });
+      steps.push({ tool: name, ok: false, ms: Math.round(now() - t0), text: String((e && e.message) || e) });
       return { ok: false };
     }
   };
 
   // 1 — sign in the way a human does. Not a tool, and not faked.
+  const tSignIn = now();
   const btn = doc.querySelector('[data-persona="chen"]');
   if (btn) {
     btn.click();
     await waitFor(() => tools.state() !== "S0", { timeoutMs: 10000 });
   }
   if (tools.state() === "S0") {
-    steps.push({ tool: "(sign-in)", ok: false, text: "no session — [data-persona] missing or not wired" });
+    steps.push({ tool: "(sign-in)", ok: false, ms: Math.round(now() - tSignIn),
+      text: "no session — [data-persona] missing or not wired" });
     return { steps, reachedState: tools.state() };
   }
-  steps.push({ tool: "(sign-in)", ok: true, text: "signed in via the page's own [data-persona] affordance" });
+  steps.push({ tool: "(sign-in)", ok: true, ms: Math.round(now() - tSignIn),
+    text: "signed in via the page's own [data-persona] affordance" });
 
   // 2 — the plan, decided entirely by the seed.
   const erpNow = () => tools.erp.now();
