@@ -1,0 +1,35 @@
+NODE:      D3
+OWNER:     I4
+INPUTS:    D1, S9
+DO:        Build tools/survive.mjs and evidence/survive.json. `node tools/survive.mjs --idle 1800` exits 0: after THIRTY IDLE MINUTES a cold request returns 200 in under 10 seconds, and /api/state-digest equals the boot digest recorded by S9. DO THIS TONIGHT AND DO IT FIRST — AHEAD OF D2, and ahead of everything else in your queue except the README. THE REASON IS IN THE ACCEPT ITSELF: it needs THIRTY IDLE MINUTES. We have those tonight; tomorrow afternoon, beside D5 prep and a shoot, we do not. I parked this node earlier tonight on the grounds that D2/D3 change the artifact being filmed. THAT WAS WRONG ABOUT D3 AND I BUNDLED THE PAIR WITHOUT SEPARATING THEM: your outputs here are tools/survive.mjs and evidence/survive.json — you touch NO page and NO deploy. There was never a camera risk in this node and I gave it one for a day. D3 IS ALSO NOW THE MEASUREMENT THAT PROVES TONIGHT'S UPGRADE DID WHAT WE THINK IT DID. The user moved the service to Render Starter at 21:32 specifically so the unattended 2026-09-04 -> 09-21 judging window would not hit cold starts, and the spin-down banner is gone. Your accept — "after 30 idle minutes a cold request returns 200 in UNDER 10 SECONDS" — is exactly that claim, stated as a number. On the free tier this could plausibly have failed; on Starter it should pass comfortably, AND THAT GAP IS THE EVIDENCE. Record the actual time_total, not merely that it was under the bound: a pass at 0.4s and a pass at 9.6s are the same exit code and completely different facts about the judging window. THE SECOND CLAUSE IS THE ONE THAT CAN GO HOLLOW. "/api/state-digest equals the boot digest recorded by S9" is satisfied if BOTH are empty, absent, or error strings. Assert the digest is NON-EMPTY and well-formed BEFORE comparing, and print both values — otherwise you have proved the endpoint and the record are both silent, which is D-90's exact shape and cost me two hours on production tonight when a wrong token and a malformed body both returned the same 400. AND YOUR OWN LESSON FROM THE DEPLOY RECORD BINDS THIS NODE HARDEST: you wrote that a fast cold-start result "is NOT proof the tier is fast to wake, only that either it woke fast OR IT NEVER SLEPT." That caveat is now the central measurement rather than a footnote. SHOW THE INSTANCE ACTUALLY WENT IDLE — or, if Starter never sleeps at all, say THAT plainly and record that the node measures a different thing than it did on the free tier. Either answer is fine; an unlabelled fast number is not. Per D-108, also prove the check can still return the POSITIVE on a healthy host, not only that it can fail. AND ONE THING NOTHING SURVIVES, learned twice tonight at cost: NOTHING IN SERVER MEMORY SURVIVES A DEPLOY. The 21:32 plan change restarted the process and reseeded state; earlier a push of mine destroyed evidence a human had just generated. If your idle window straddles a merge, the state digest you compare against may be from a different process than the one that booted. Record the sha you measured against. STANDING: FORCE_COLOR=3 is injected — `node tools/accept-gate.mjs D3 --run-clean`; and process.stdout.write(String(x)) if you scrape a value into a shell variable, because console.log COLOURISES INSPECTED VALUES (D-111).
+ACCEPT:    `node tools/survive.mjs --idle 1800` exits 0: after 30 idle minutes a cold request returns 200 in under 10 seconds and /api/state-digest equals the boot digest recorded by S9.
+PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMIT, NOT A
+           MESSAGE. Put the five fields in a `PIT:` BLOCK IN YOUR FINAL COMMIT MESSAGE on
+           your own branch. L1 reads them with `git log` at the gate and writes
+           kb/pits/D3.md from them (D-31 still stands: you do NOT commit a pit FILE).
+           COMPOSING IS COMMITTING. There is no send step to forget.
+           WHY THIS CHANGED: four reports have been lost, in FOUR DIFFERENT WAYS — a seat
+           that finished and went idle, a seat still running whose message never arrived, a
+           restarted session whose transcript was gone, and two composed as ordinary
+           conversation text and never sent. Every arrangement so far depended on a channel
+           between you and the gate, and THE CHANNEL HAS FAILED IN FOUR WAYS OUT OF FOUR.
+           A REPORT COMPOSED BUT NOT TRANSMITTED IS INDISTINGUISHABLE, FROM THE RECEIVING
+           END, FROM A REPORT NEVER WRITTEN. So the mechanism removes the channel: the
+           report rides inside the artifact being gated.
+           Send it in your green message TOO if you like, but the commit is what counts.
+           D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and
+           L1 writes kb/pits/D3.md from them. In order: TRIED, HAPPENED, CHANGED,
+           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1
+           cannot merge you without one.
+           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.
+           Reports have been made and lost three times in this sprint, and a seat stopped
+           before it reports takes its pit with it — one node's pit had to be written
+           marked "NOT the seat's own report", which is worse than the node deserved.
+           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is
+           worse than no pit. EARLIER is the field that pays: what you would tell
+           yourself an hour before you learned it.
+           (This block previously said "write it on your branch" — a contradiction with
+           D-31 that survived a reset of mine and misled three seats, all of which
+           correctly followed the ruling over the template and told me.)
+BRANCH:    seat/I4-D3
+DEADLINE:  2026-08-31T08:00-07:00
