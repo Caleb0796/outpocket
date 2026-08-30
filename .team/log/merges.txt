@@ -1038,7 +1038,7 @@ FOLLOWUP D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
 #   SHIPPED HALF IS INVISIBLE TO EXACTLY THE TESTS THE INJECTION MADE POSSIBLE.
 #   And: DEFENSIVE DEFAULTS ON A REQUIRED VALUE CONVERT A LOUD FAILURE INTO A WRONG ONE.
 
-FOLLOWUP abort-fix b26c737 pits:kb/pits/DEV-abort-rejection.md accept:N/A (not a node)
+FOLLOWUP DEV-abort-rejection b26c737 pits:kb/pits/DEV-abort-rejection.md accept:N/A (not a node)
 #   The unhandled AbortError QA found on the LIVE site. registerTool RETURNS A PROMISE
 #   that rejects on abort; register.js discarded it and we revoke the previous
 #   generation on every flip on purpose -- so every registration in the revoked
