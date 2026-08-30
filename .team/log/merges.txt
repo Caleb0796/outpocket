@@ -1371,3 +1371,18 @@ FOLLOWUP S7 2db6594 pits:kb/pits/S7.md accept:N/A (pit debt cleared; node merged
 FOLLOWUP D-118 2db6594 pits:kb/pits/D-118.md accept:N/A (a PM ruling, not a graph node)
 #   Supersedes the earlier D-118 row's pits:PENDING. The block was in history all along;
 #   I recorded PENDING without checking whether it was recoverable.
+
+MERGED F2 ae75fc5 pits:kb/pits/F2.md accept:PASS
+#   Accept 8/8 in a merged worktree; suite 229/229. THE FIXTURE IS NOT FABRICATED:
+#   every report in the test is built by REAL writes through server/store.mjs, and
+#   data-prev-source is derived from the LEDGER'S OWN supersedes link rather than from
+#   anything the renderer remembers -- a UI tracking "what it used to be" is a second
+#   source of truth, and the moment it disagreed the VISIBLE claim would be the wrong one.
+#   D-100 holds UPSTREAM: the renderer cannot mislabel because it does not label. S8
+#   refuses the mislabel at the write (R-21), so F2 gets to be simple.
+#   THE ATTRIBUTE IS NOT THE CLAIM -- provenance asserted as VISIBLE TEXT, with a legend,
+#   distinguished by text + weight + rule, never colour alone and never hover.
+#   UX's pit line, kept: WHEN A MODULE REFUSES YOUR FIRST CALL, THE REFUSAL IS USUALLY
+#   THE MODULE'S THESIS. Its first probe threw E_PROVENANCE_MISLABEL -- the exact error
+#   F2 exists to make visible, committed while building F2. Working around it by
+#   relabelling the write would have "worked" and produced a test asserting a lie.

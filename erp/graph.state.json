@@ -57,7 +57,8 @@
     "S7",
     "E3",
     "E10",
-    "D3"
+    "D3",
+    "F2"
   ],
   "in_flight": {
     "D4": "THE SHOOT GATE IS CLOSED — a human completed a signature on production at 2026-08-30T04:14:49Z, live sha f28f37c, witnessed by the live report reading status:submitted / method:signature-click. evidence/L1-shoot-gate.md. D4's inputs H6, F0, F7, D1 are all done and F6 is green at 13/13 through the REAL pipeline.",
@@ -65,8 +66,7 @@
     "known defects, routed, not blocking": "sign-dialog.js discards submitDecision with its fetch UNWRAPPED — a failed POST renders NOTHING (UX). fallback-agent's shim never rejects, so it cannot reproduce the abort class (I1).",
     "pit debts": "H5 and T2 evidenced-unrecoverable; G2 collectable from I4.",
     "parked": "D2/D3 until the shoot wraps — every push redeploys the artifact being filmed. S7/G1 day-gated.",
-    "D1": "DONE, all four clauses, and its evidence now records one-instance as EXPLICIT CONFIG + STRUCTURAL GATE after tonight's upgrade retired the free-tier reason.",
-    "F2": "UX — dispatched, NOT delivered. L1 cleared this from in_flight in error while recording the train and restored it in the same minute; F2 is a 3.5h node and nothing about it has landed."
+    "D1": "DONE, all four clauses, and its evidence now records one-instance as EXPLICIT CONFIG + STRUCTURAL GATE after tonight's upgrade retired the free-tier reason."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
