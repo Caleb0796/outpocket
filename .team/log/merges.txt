@@ -1245,3 +1245,31 @@ MERGED E8 96ca184 pits:kb/pits/E8.md accept:PASS
 #   was NOT identifier-free and that blindness rested on an after-the-fact transcript
 #   check. Without the disclosure the number is inadmissible. The MEANING of 9/12 is
 #   L2's to rule -- not L1's and not PM's.
+
+#   CORRECTION to the E8 row above, add-only, NOT a rewrite (D-103). L2 ruled the
+#   "5 of 8 tasks completable" figure INADMISSIBLE AS WRITTEN under RUBRIC-ADDENDA
+#   §2.4 -- a figure from our own instrument carries its achievable maximum.
+#   evals/blind/tasks.md, frozen and dated BEFORE the run, declares T4/T7/T8 as
+#   deliberately possibly-unfulfillable, and T4 and T8 are genuinely unfulfillable:
+#   no registered tool takes a file-shaped argument, and an auditor session
+#   registers no write tool at all. THE ACHIEVABLE CEILING IS 6 AGAINST A PASS MARK
+#   OF >=6 -- zero slack, a perfection test on the completable subset wearing the
+#   label of a three-quarters test. C1's 5 accounts for exactly T4, T8 and T3, so
+#   THERE IS ONE GENUINE SHORTFALL, T3, NOT THREE.
+#   ADMISSIBLE FORM, ceiling in the same sentence, never a bare "5 of 8" and never
+#   a bare "gate: FAILED":
+#     "gate not passed: 5 of a possible 6, the other two tasks being deliberately
+#      unfulfillable by design"
+#   THIRD DISCLOSURE ITEM, joining D-121's two rather than replacing them: L2 ruled
+#   the reasoning-effort axis UNEVALUABLE for this run under RUBRIC-ADDENDA
+#   §3.6(a) -- a control is armed only if the artifact it inspects is produced by
+#   the run it grades. No event in the transcript names a model or an effort, so
+#   the existence+effect pair recorded above measures a SIBLING run. "The run
+#   executed at reasoning effort low" is OUR-ESTIMATE and must carry those words.
+#   DO NOT RE-RUN TO CURE THIS: EVAL.md 8.5 forbids re-rolling after seeing the
+#   number, and re-firing now would be exactly that whatever the motive.
+#   Do NOT cite reasoning_output_tokens as evidence of the setting -- it is
+#   consumption, not configuration.
+#   PRE-REGISTERED AND BANKABLE: C1 picked list_receipts, not link_receipt. The key
+#   said before the run that link_receipt would be the most important result in the
+#   whole run. Seven of eight inside the frozen accepted set.
