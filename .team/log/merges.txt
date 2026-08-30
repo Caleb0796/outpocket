@@ -1333,3 +1333,23 @@ MERGED E10 1331808 pits:kb/pits/E10.md accept:PASS
 #   for a GREEN node.
 #   C4's "five unrelated inspector failures" VERIFIED rather than taken: 221/0 here, zero
 #   not-ok lines. Chrome was unavailable in its sandbox; the characterisation was right.
+
+MERGED D3 adb1c80 pits:kb/pits/D3.md accept:PASS
+#   ACCEPT EXECUTED BY I4 AT MEASUREMENT TIME, skipped in the gate. Re-running it now
+#   would take 30 minutes AND FAIL: D3 measures a DEPLOYED state and the train moved the
+#   served build, so /api/state-digest no longer matches S9's baseline. PM D-132: every
+#   subsequent push invalidates it (D1's property under D-92(b)), so any re-run is stale
+#   the moment the next push lands. STANDS WITH ITS BUILD NAMED (617a109); re-verifies in
+#   the FINAL PASS with D1 and D6, against a fresh S9 baseline owned by that pass.
+#   preCheck matchesS9Baseline TRUE, read before the clock and kept separate.
+#   requestsMadeDuringIdleWindow 0. Cold request 200 in 280.5ms against a 10000ms bound.
+#   Verified independently: ZERO pushes to main landed inside 22:09:45-22:39:45.
+#   The 280.5ms is the Starter upgrade as a MEASURED FACT, not a pricing-page promise.
+
+FOLLOWUP G2-pit adb1c80 pits:kb/pits/G2.md accept:N/A (pit debt cleared, node long merged)
+#   G2's pit REFUSES to write TRIED and HAPPENED: the original work belongs to a different
+#   session, and reconstructing a report from the diff is the artifact D-31 exists to
+#   prevent. EVIDENCED-UNRECOVERABLE, same class as H5. Its EARLIER is measured and real:
+#   readme-credentials.test.mjs asserts exactly the two things it was written for and
+#   nothing else, so the stale status line sat ONE SCREEN ABOVE the text the test does
+#   check, false for two days. THE GATE'S SILENCE MEANS "NOT CHECKED," NEVER "TRUE".

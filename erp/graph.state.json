@@ -56,7 +56,8 @@
     "E8",
     "S7",
     "E3",
-    "E10"
+    "E10",
+    "D3"
   ],
   "in_flight": {
     "D4": "THE SHOOT GATE IS CLOSED — a human completed a signature on production at 2026-08-30T04:14:49Z, live sha f28f37c, witnessed by the live report reading status:submitted / method:signature-click. evidence/L1-shoot-gate.md. D4's inputs H6, F0, F7, D1 are all done and F6 is green at 13/13 through the REAL pipeline.",
