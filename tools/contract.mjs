@@ -43,7 +43,7 @@ process.stdout.write(
   `           yourself an hour before you learned it.\n` +
   `           (This block previously said "write it on your branch" — a contradiction with\n` +
   `           D-31 that survived a reset of mine and misled three seats, all of which\n` +
-  `           correctly followed the ruling over the template and told me.)\n`
+  `           correctly followed the ruling over the template and told me.)\n` +
   `BRANCH:    seat/${node.owner}-${node.id}\n` +
   `DEADLINE:  ${val('--deadline')}\n`
 );

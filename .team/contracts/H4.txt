@@ -1,0 +1,21 @@
+NODE:      H4
+OWNER:     I1
+INPUTS:    S9
+DO:        YOU ARE THE HEAD OF THE CRITICAL PATH. H6 takes hard inputs H2, H3 and H4; H2 and H3 are green and merged, so H4 is the ONLY node standing between this build and H6 -> D4 -> D5 -> D6. Build src/page/demo-mode.js (a deterministic demo driven by ?demo=1&seed=N) and harness/dump-state.mjs, and give drive.mjs the --dump-state flag the predicate calls (drive.mjs is H2's output, so it is yours to extend). READ YOUR ACCEPT PREDICATE AS AN ADVERSARY BEFORE YOU BUILD, BECAUSE IT CAN PASS WHILE PROVING NOTHING: `diff a.json b.json` exits 0 when --dump-state writes an empty file, a constant, or a field set that happens to exclude everything the seed touches. That is this sprint's dominant failure and it has cost us more than every other bug combined -- EXIT 0 IS ALSO SATISFIED BY A CHECK THAT DISCOVERED NOTHING. So do not report green on the predicate alone. Report it alongside TWO falsifiability runs that you actually execute: (a) the same command with seed=7 vs seed=8, where the diff MUST be NON-EMPTY -- paste the differing lines, and if they are identical your dump is not observing the seeded state; and (b) evidence that the dump covers the state a judge cares about, i.e. the ledger/receipt/policy surface and not just a version string and a timestamp. If your dump has to exclude a genuinely nondeterministic field to pass, NAME THE FIELD AND WHY in your report rather than quietly dropping it -- an exclusion list is a claim about the system and it belongs in the open. $URL IS LOCAL AND YOU ARE NOT BLOCKED ON A DEPLOYED ORIGIN: S9's accept uses the same $URL and boots the server itself, and S9 is green -- the deployed-origin dependency is D1's alone, because header checks need the real host. Boot the static server the way S1/S9 do and point --url at it. ONE OWNERSHIP LINE: index.html is NOT yours. If demo-mode.js needs a mount, DO NOT EDIT index.html -- serve a copy of src/ carrying the tag and drive that with --url, exactly as you did for H3, then report the tag you need and UX lands it. A module nobody mounts is a file, not a feature, and `node tools/ready.mjs --check-orphans` will catch it before I do. TWO DAY-0 LESSONS, BOTH PAID FOR: every seat runs with FORCE_COLOR=3 injected by the harness, so any predicate that greps a colourising tool's output fails inside a seat and passes in a bare shell -- run it through `node tools/accept-gate.mjs H4 --run-clean` before you conclude anything is broken; and an unexplained exit 1 GETS RE-RUN BEFORE IT GETS A THEORY. kb/pits/L0.md is the hour that bought both. AND THE ONE YOU YOURSELF FOUND ON H3, WHICH IS NOW THE HOUSE RULE: a green node is not evidence that its output tells the truth. You caught the banner claiming "WebMCP present" on a browser with WebMCP off while the flip walk was 7/7 green throughout, because the walk cannot see the banner. Apply that here -- LOOK AT THE DUMP, do not infer its contents from the fact that diff exited 0.
+ACCEPT:    `node harness/drive.mjs --url "$URL/?demo=1&seed=7" --dump-state > /tmp/a.json && node harness/drive.mjs --url "$URL/?demo=1&seed=7" --dump-state > /tmp/b.json && diff /tmp/a.json /tmp/b.json` exits 0.
+PIT:       D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and
+           L1 writes kb/pits/H4.md from them. In order: TRIED, HAPPENED, CHANGED,
+           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1
+           cannot merge you without one.
+           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.
+           Reports have been made and lost three times in this sprint, and a seat stopped
+           before it reports takes its pit with it — one node's pit had to be written
+           marked "NOT the seat's own report", which is worse than the node deserved.
+           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is
+           worse than no pit. EARLIER is the field that pays: what you would tell
+           yourself an hour before you learned it.
+           (This block previously said "write it on your branch" — a contradiction with
+           D-31 that survived a reset of mine and misled three seats, all of which
+           correctly followed the ruling over the template and told me.)
+BRANCH:    seat/I1-H4
+DEADLINE:  2026-08-30T10:00-07:00
