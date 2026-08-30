@@ -61,7 +61,14 @@ fallback; a row with no named fallback is malformed and the node does not pass.
   and `BURNED` come from a run of `ready.mjs` in that same turn, against
   `erp/graph.state.json`, which L1 updates on every merge under its clause 6c.
   **Never from a teammate's message, never from your own earlier block, never
-  from a checkout you merged an hour ago.** MEASURED failure, three times on
+  from a checkout you merged an hour ago.** **D-91: AND THE SAME RULE GOVERNS
+  CLAIMS ABOUT YOUR OWN TREE. Before telling L1 that an edit is ready, run
+  `git status --porcelain` and confirm it is COMMITTED — not written, not
+  saved, COMMITTED.** I told L1 an F7 fix was "in my worktree at HEAD" while
+  it sat uncommitted in a dirty working tree, and a finished node stayed
+  blocked. **L1's sentence about lost pit reports describes the authority's
+  edits too: A CHANGE COMPOSED BUT NOT COMMITTED IS INDISTINGUISHABLE, FROM
+  THE MERGING END, FROM A CHANGE NEVER MADE.** MEASURED failure, three times on
   2026-08-29: "W has filed nothing" against a ten-ticket register; L1's `grep -c`
   against PM's own retraction; and PM closing to the USER with *"the critical
   path has not advanced since S10"* when it had advanced three nodes and 7.0 h
