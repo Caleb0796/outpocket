@@ -555,10 +555,37 @@ function checkOrphans() {
     let via = null;
     for (const [f, text] of stripped) {
       if (f === t.path) continue;
-      // A reference is a quoted specifier ending in this basename: import,
-      // require, dynamic import, or a <script src>. Bare prose cannot match
-      // because the quote characters are required.
-      const re = new RegExp(`["'\\\`][^"'\\\`]*${base.replace(/\./g, '\\.')}["'\\\`]`);
+      // A REFERENCE IN HTML IS AN src= OR href= ATTRIBUTE, NOT ANY QUOTED STRING.
+      // UX predicted this hole and I reproduced it: delete the real <script src>
+      // from index.html, leave the comment table, the block comment and the
+      // onerror MESSAGE — all of which quote the filename — and this check still
+      // reported the module as mounted and exited 0. A FALSE GREEN IN THE
+      // INSTRUMENT BOUGHT TO PREVENT FALSE GREENS. index.html names
+      // fallback-agent.js four times and register.js eleven; exactly one of each
+      // is a mount.
+      // JS IS SPECIFIER-ONLY TOO, and this is a REVERSAL I am stating rather than
+      // making quietly. I first kept it broad — any quoted string bearing the
+      // basename — to avoid inventing an orphan for `const mod = "./x.js";
+      // import(mod)`. But harness/drive.mjs names src/page/fallback-agent.js in a
+      // DIAGNOSTIC MESSAGE TABLE, and that string alone made the module look
+      // mounted. A message about a file is not an execution path.
+      // The stripper's conservatism stands unchanged (it may leave a comment in,
+      // it must never remove live code). The MATCHER's rule is different and now
+      // says: only from/import/require specifiers count. A dynamic specifier
+      // assembled at run time will be reported as an orphan — a FALSE FAIL, which
+      // is LOUD and gets investigated, where the false PASS it replaces was
+      // silent and shipped.
+      const b = base.replace(/\./g, '\\.');
+      const re = f.endsWith('.html')
+        ? new RegExp(`(?:src|href)\\s*=\\s*["'][^"']*${b}["']`)
+        : base.endsWith('.html')
+          // AN HTML ENTRY POINT IS SERVED, NEVER IMPORTED. src/page/index.html is
+          // referenced by server/index.mjs as a PATH, not a specifier, so the
+          // specifier rule invented it as an orphan on its first run. Caught before
+          // shipping by running the checker against the real tree — the same way the
+          // missing tests/ corpus was caught the first time this mode was built.
+          ? new RegExp("[\"'`][^\"'`]*" + b + "[\"'`]")
+          : new RegExp("(?:from|import|require)\\s*\\(?\\s*[\"'`][^\"'`]*" + b + "[\"'`]");
       if (re.test(text)) { via = f; break; }
     }
     if (!via && new RegExp(`["'][^"']*${base.replace(/\./g, '\\.')}`).test(pkg)) via = 'package.json scripts';
@@ -585,13 +612,17 @@ function selftestOrphans() {
     ['import "./ghost.js";\n', true, 'real import'],
     ['<!-- <script src="./ghost.js"></script> -->', false, 'html comment', true],
     ['<script src="./ghost.js"></script>', true, 'real script tag', true],
+    ['<div onerror="./ghost.js is missing"></div>', false, 'an onerror MESSAGE quoting a filename is NOT a mount', true],
+    ['<!-- table: #x  H3/I1  src/page/ghost.js -->', false, 'a comment table naming the file is NOT a mount', true],
     ['const mod = "./ghost.js";\n', true, 'a quoted specifier in live code, after a stripper pass'],
     ['const s = "not a path";\n// import "./ghost.js"\n', false, 'comment AFTER live code still stripped'],
   ];
   let fails = 0;
   for (const [src, want, label, isHtml] of cases) {
     const out = isHtml ? stripHtmlComments(src) : stripJsComments(src);
-    const got = /["'`][^"'`]*ghost\.js["'`]/.test(out);
+    const got = isHtml
+      ? /(?:src|href)\s*=\s*["'][^"']*ghost\.js["']/.test(out)
+      : /["'`][^"'`]*ghost\.js["'`]/.test(out);
     if (got !== want) { bad(`selftest-orphans: ${label} — expected reference ${want}, got ${got}`); fails++; }
     else ok(`selftest-orphans: ${label}`);
   }
