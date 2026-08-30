@@ -28,9 +28,11 @@ the project, so anything a still frame cannot carry does not count as shown.
 
 ## The three beats, in this order
 
-1. **Policy edit, surface change, refusal.** Finance edits a policy, the
-   version chip bumps, the tool surface visibly changes in the inspector, and
-   the same agent's next attempt is refused.
+1. **Policy edit, surface change, the agent finds it gone.** Finance edits a
+   policy, the version chip bumps, the open draft stops satisfying it, the tool
+   surface visibly changes in the inspector, and the same agent — re-prompted —
+   finds the tool it needs is no longer offered and is told which policy version
+   removed it.
 2. **One sentence, two sessions.** The identical instruction succeeds in an
    employee session; in an auditor session the tool is simply not present; and
    forcing the request past the page reaches a real server 403.
@@ -46,21 +48,21 @@ A short honesty card closes. Nothing after beat 3 introduces a new claim.
 Durations are whole seconds. **Total: 162s** (budget: under 170s; finished
 video under 3 minutes).
 
-| SHOT | BEAT | DUR | ON SCREEN | SELECTOR | STILL? |
-|---|---|---|---|---|---|
-| `SB-01` | 1 | 10s | Employee home. Surface inspector open, one row per registered tool. Policy chip reads its current version. Environment banner sits at the top of the page. | `#surface-inspector [data-tool-row]` | yes |
-| `SB-02` | 1 | 12s | Finance edits the policy. The version chip changes value on screen. | `[data-policy-version]` | yes |
-| `SB-03` | 1 | 12s | The inspector's row count changes in the same frame as the chip. A tool that was listed is no longer listed. | `#surface-inspector` | yes |
-| `SB-04` | 1 | 14s | The same agent is re-prompted with the same sentence. On its next turn it is refused, and the refusal names the policy version. | `[data-agent-transcript]` | yes |
-| `SB-05` | 2 | 12s | Employee session, `chen`. One sentence typed to the agent. It succeeds; the draft appears with per-field provenance. | `[data-persona="chen"]` | yes |
-| `SB-06` | 2 | 12s | Auditor session, `ruiz`. The identical sentence. The inspector shows the tool is not on the surface at all. | `[data-persona="ruiz"]` | yes |
-| `SB-07` | 2 | 10s | The client asks the human to approve a cookie-bearing call before it is made. Prompt shown as-is. | `#agent-banner` | yes |
-| `SB-08` | 2 | 14s | The request is forced past the page with a hand-made call. The server answers 403 against the session the human already holds. | `[data-forced-call-result]` | yes |
-| `SB-09` | 3 | 12s | Receipt attached by a human through the upload control. Beside it, the agent's only receipt affordance: link an id that already exists. | `[data-receipt-channel]` | yes |
-| `SB-10` | 3 | 16s | Signature dialog. The worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes |
-| `SB-11` | 3 | 10s | The human confirms. The page POSTs the decision to the sign endpoint; the response carries the server's own attribution and timestamp. | `[data-signature-line]` | yes |
-| `SB-12` | 3 | 16s | The agent alters the amount after signing. The server re-canonicalises the snapshot, the digest no longer matches, and the write is rejected. | `[data-commit-result]` | yes |
-| `SB-13` | close | 12s | Honesty card. Environment banner still on screen, still reporting the installed Chromium major and WebMCP presence. | `#env-banner` | yes |
+| SHOT | BEAT | DUR | ON SCREEN | SELECTOR | STILL? | SURFACE |
+|---|---|---|---|---|---|---|
+| `SB-01` | 1 | 10s | Employee home. Surface inspector open, one row per registered tool. Policy chip reads its current version. Environment banner sits at the top of the page. | `#surface-inspector [data-tool-row]` | yes | `page` |
+| `SB-02` | 1 | 12s | Finance edits the policy. The version chip changes value on screen. | `[data-policy-version]` | yes | `page` |
+| `SB-03` | 1 | 12s | The inspector's row count changes in the same frame as the chip. A tool that was listed is no longer listed. | `#surface-inspector` | yes | `page` |
+| `SB-04` | 1 | 14s | The agent's own client window. Re-prompted with the same sentence, the agent finds that the tool it used a moment ago is no longer on the surface. It asks the surface why, and the answer names the policy version that removed it and the rule the draft now breaks. | `n/a` | yes | `agent-client` |
+| `SB-05` | 2 | 12s | Employee session, `chen`. One sentence typed to the agent. It succeeds; the draft appears with per-field provenance. | `[data-persona="chen"]` | yes | `page` |
+| `SB-06` | 2 | 12s | Auditor session, `ruiz`. The identical sentence. The inspector shows the tool is not on the surface at all. | `[data-persona="ruiz"]` | yes | `page` |
+| `SB-07` | 2 | 10s | The agent client's own approval prompt, rendered by the client and not by our page. It asks the human to approve a cookie-bearing call before that call is made. Shown as-is. | `n/a` | yes | `agent-client` |
+| `SB-08` | 2 | 14s | The request is forced past the page with a hand-made call. The server answers 403 against the session the human already holds. | `n/a` | yes | `terminal` |
+| `SB-09` | 3 | 12s | Receipt attached by a human through the upload control. Beside it, the agent's only receipt affordance: link an id that already exists. | `[data-receipt-channel]` | yes | `page` |
+| `SB-10` | 3 | 16s | Signature dialog. The worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes | `page` |
+| `SB-11` | 3 | 10s | The human confirms. The page POSTs the decision to the sign endpoint; the response carries the server's own attribution and timestamp. | `[data-signature-line]` | yes | `page` |
+| `SB-12` | 3 | 16s | The agent alters the amount after signing. The server re-canonicalises the snapshot, the digest no longer matches, and the write is rejected. | `[data-region="editor"]` | yes | `page` |
+| `SB-13` | close | 12s | Honesty card. Environment banner still on screen, still reporting the installed Chromium major and WebMCP presence. | `#env-banner` | yes | `page` |
 
 `162s` = `10+12+12+14+12+12+10+14+12+16+10+16+12`.
 
@@ -103,12 +105,25 @@ this shot claims otherwise.
 ### `SB-04` — the same agent, re-prompted
 
 **Re-prompt the agent.** Do not imply the running turn changed underneath it.
-The measured behaviour is that the surface reaches the agent on its **next
-turn** with no page reload, and "on its next turn" is the phrasing this shot,
-its caption and its narration all use.
+The measured behaviour is that the surface reaches the agent on its next turn
+with no page reload, and "on its next turn" is the phrasing this shot, its
+caption and its narration all use.
 
-The refusal must name the policy version, so the still frame carries the causal
-link back to `SB-02` without narration.
+**This shot is filmed in the agent's own client window, and what it shows is
+ABSENCE, NOT REFUSAL.** The surface is compiled from role, report state and
+validation verdict. The policy version is not one of those axes, so a policy
+edit reaches the surface indirectly: the edited policy makes the open draft stop
+validating, the draft goes clean to dirty, and `submit_expense_report` is simply
+not offered in the dirty state. There is nothing to refuse the agent with —
+exactly as `SB-06` already says of the auditor session, in this same document.
+
+**The frame therefore has two moments and needs both.** First the agent finds
+the tool absent. Then it asks the surface why, and the absence register answers
+with the policy version and the real violation code the validator actually
+returned. The second moment is the one that carries the causal link back to
+`SB-02`, and it does not happen unless the agent asks — so film the asking. A
+shot that stops at "I don't have that tool" names no version, and is
+indistinguishable from a confused agent.
 
 ### `SB-05` / `SB-06` — one sentence, two sessions
 
@@ -127,6 +142,14 @@ is: the client is asking for approval before this cookie-bearing call. It is a
 client policy, it is absent on localhost, and it is not evidence about our
 design. **Rehearse on the remote origin** — the prompt does not appear on
 localhost, and the take that counts is not the place to discover it.
+
+**This is filmed on the client, not on our page, and that is why it carries no
+selector.** It was anchored to `#agent-banner`, which is our own banner and does
+resolve — so it read as a page shot and would have gone on reading as one.
+Beyond the miscategorisation there is a claim cost: a client policy that appears
+to be on our surface invites exactly the credit `RUBRIC` §3.3 refuses to let us
+take for it. Nothing in this shot is evidence about our design, and the
+narration already says so.
 
 ### `SB-08` — forcing the request past the page
 

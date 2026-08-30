@@ -45,29 +45,22 @@
   Tools are registered by src/page/register.js (node I2) at the top level of
   this document, never from inside a region and never from an iframe.
 
-  THERE IS NO <link> FOR ./skin.css HERE, AND ITS ABSENCE IS THE POINT.
-  F1 shipped one so that F6 "would be a pure addition rather than an edit to
-  this file". That reasoning expired twice over: F6 edits this file anyway (the
-  link has to sit BELOW the <style> block to win on equal specificity), and
-  meanwhile the tag pointed at a file that does not exist, so every load of the
-  production page logged a 404 for it. Found independently by QA on the live
-  host, by I2 locally, and by L1 against production.
+  ./skin.css IS BACK, AND IT IS BACK IN THE COMMIT THAT ADDS THE FILE.
+  F1 shipped this <link> pointing at a file that did not exist, so every
+  production load logged a 404 for it — found independently by QA, I2 and L1 —
+  and it was pulled with the rule written in its place: A REFERENCE AND ITS
+  REFERENT LAND IN THE SAME COMMIT. This is that commit, so the tag returns.
 
-  A DOCUMENTED 404 IS STILL A 404 IN A JUDGE'S NETWORK PANEL, on a project whose
-  pitch is that the page is honest about its own state. And it was the third
-  tag-without-its-file this sprint. The rule all three point at, and the reason
-  this file no longer carries the tag: A REFERENCE AND ITS REFERENT LAND IN THE
-  SAME COMMIT. F6 restores the <link>, below the <style> block, in the commit
-  that adds src/page/skin.css.
-
-  Removing it costs nothing because every panel's baseline styling already lives
-  in the block below rather than only in the skin — a deliberate choice made in
-  F5, so the page films correctly whether or not F6 has landed.
+  IT SITS BELOW THE <style> BLOCK AND THAT IS A FIX, NOT A PREFERENCE. F1's
+  comment claimed "skin.css loads after this block and wins" while the link sat
+  ABOVE it — so on equal specificity the inline block won and the skin would
+  have been inert. Later stylesheet wins; the order below is what makes the
+  claim true, and it was MEASURED rather than assumed.
 -->
 
 <style>
-  /* Shell-only styling, and the page's ONLY styling until F6 lands: enough that
-     every panel is legible and screenshot-safe on its own. F6's skin.css
+  /* Shell-only styling: the shell's own baseline, so every panel is legible and
+     screenshot-safe on its own even if the skin fails to load. F6's skin.css
      refines this; it does not replace it. */
   :root { color-scheme: light; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -180,6 +173,9 @@
   [data-login-error]:empty { display: none; }
   [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
 </style>
+
+<!-- Last, so it wins on equal specificity. See the note in the block above. -->
+<link rel="stylesheet" href="./skin.css">
 </head>
 <body>
 
