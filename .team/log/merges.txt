@@ -716,7 +716,14 @@ MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 #   immediately when a producer artifact lands." That is exactly when this became
 #   visible.
 
-MERGED T2  0483c20 pits:PENDING accept:PASS
+MERGED T2  0483c20 pits:PENDING-UNRECOVERABLE accept:PASS
+#   T2's PIT IS UNRECOVERABLE FROM I2's CURRENT SEAT, on the same footing as H5, and
+#   I2 said so rather than writing one. T2 was already merged and green when that
+#   session opened; everything it knows about the node -- 7/7 clauses, the walk,
+#   submit appearing and vanishing -- it knows FROM MY SUMMARY, not from having done
+#   it. Five fields written from that would be a seat TRANSCRIBING THE FOREMAN AND
+#   SIGNING ITS OWN NAME TO IT, which is the exact failure D-31 exists to prevent
+#   and worse than the PENDING row. Carried as unrecoverable; not waiting on I2.
 # T2 — THE CORK IS OUT. 7/7 clauses, 1 -> 5 -> 12 -> 13, submit_expense_report
 #   appearing at S3 and vanishing after a violation raised through the REAL policy
 #   engine. Merged as a TRIO with I3's browser-safe canonicaliser and C4's
