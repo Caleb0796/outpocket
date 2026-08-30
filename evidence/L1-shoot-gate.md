@@ -37,3 +37,44 @@ the server answered 400. I have quoted that pit into every dispatch brief today.
 point the wrong token became a **403 `E_NO_CONFIRM_TOKEN`**, a different code entirely. A
 validation error that masks an authorization error makes the authorization error untestable
 from outside; worth someone's attention, not fixed here.
+
+---
+
+# Addendum — the DOM half, partially closed
+
+**Run by L1 against a LOCAL server, real Chrome, `--enable-features=WebMCP`.** Local
+deliberately: the wiring question is about CODE, not about which host it runs on, and QA's
+harness had blocked the equivalent write on production pending its own user's approval — which
+was the right refusal and not one to route around.
+
+## Measured, and this is the D-89 wiring question answered
+
+| | |
+|---|---|
+| surface state after the seeded demo | **S3** |
+| `submit_expense_report` on the surface | **true** |
+| `outpocketSignInstall.result` | **`{"installed":true}`** |
+| agent calls `executeTool('submit_expense_report')` → dialogs mounted | **0 → 1** |
+| **`confirm_token` present in the mounted dialog** | **true** |
+| **`confirm_token` shape `ct_<32hex>`** | **true** |
+| `[data-worst-case]` (SB-10) | *"You are certifying that expense report RP-1018 — 3 lines, $43.95 — is complete a…"* |
+| `[data-signature-line]` (SB-11) | **present** |
+| `[data-sign-confirm]` | **present** |
+
+**So F4's mount, F7's provider and I3's `openForDialog` do work together in a real browser:
+an agent's submit raises a real dialog that has obtained a real, correctly-shaped token
+through the page's own channel.** That is the thing nobody had shown, and it is shown.
+
+## NOT established, and I am not claiming it
+
+**That clicking confirm completes the signature.** My click probe is inconclusive: it captured
+no `fetch` call, the dialog remained mounted, and the page's words after the click ("signed",
+"submitted") **may have been present before it** — I did not capture a before/after diff of
+that text, so it is not evidence. Two follow-up probes to settle it server-side were both
+wrong: `GET /api/reports` does not exist (the route is POST-only) so its `signature:null`
+proved nothing, and my next attempt at the page's own ERP threw.
+
+**Three probe errors in a row is the point at which the instrument is the problem, not the
+subject.** I stopped rather than keep grinding, because a fourth attempt risks producing a
+green I would want to believe. **The click-completes step remains OPEN and belongs to QA's
+browser run**, which is blocked on QA's own user and correctly so.
