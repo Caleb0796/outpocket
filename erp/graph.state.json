@@ -45,15 +45,12 @@
     "H6"
   ],
   "in_flight": {
-    "H6": "NOW READY \u2014 H2, H3, H4 all done. Head of the critical path, I1's.",
-    "T3": "I2 \u2014 building (a) behind the D-77 freeze bump; export-surface + validate-contracts deliberately RED on main until it lands.",
-    "S6": "I3 \u2014 taken.",
-    "F6": "UX \u2014 taken.",
-    "SIGN GLUE": "UNOWNED \u2014 setSignatureProvider is never called. Escalated to PM; needs a node.",
-    "E5/E2": "C4 \u2014 contracts ready, HELD until T3 clears the deliberate red.",
-    "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide.",
-    "V4": "I1 \u2014 parked.",
-    "pit debts": "H5 (evidenced unrecoverable), G2, T4, T2."
+    "D1": "I4 (route) + I3 (wiring) \u2014 UNBLOCKED, the user deployed https://outpocket.onrender.com. /version is the only failing clause; server/routes/version.mjs is not on main. GATE THIS LAST: Render auto-deploys on push, so /version==HEAD is only true between a deploy and my next push.",
+    "F7": "UX \u2014 FINISHED AND GREEN, blocked on PM committing F7.outputs. The edit exists uncommitted in PM's worktree.",
+    "T3": "I2 \u2014 green, HELD: accept span still omits --url and cannot run verbatim. Third defect, with PM.",
+    "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
+    "E5/E2/E3": "C4 \u2014 contracts ready, held until T3 clears export-surface + validate-contracts.",
+    "pit debts": "H5 (evidenced unrecoverable), G2, T2."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
