@@ -1,0 +1,106 @@
+{
+  "schema": "outpocket.capability_suite/1",
+  "canonical_state_count": 6,
+  "expected_source": "artifacts/tools.export.json",
+  "expected_fixture": "evals/surfaces.expected.json",
+  "states": [
+    {
+      "state_id": "S0-anon",
+      "expected_internal_state": "S0",
+      "setup": []
+    },
+    {
+      "state_id": "S1-emp-home",
+      "expected_internal_state": "S1",
+      "setup": [
+        {
+          "type": "click",
+          "selector": "[data-persona=\"chen\"]"
+        }
+      ]
+    },
+    {
+      "state_id": "S3-emp-draft-dirty",
+      "expected_internal_state": "S2",
+      "setup": [
+        {
+          "type": "discover_active_project"
+        },
+        {
+          "type": "discover_policy"
+        },
+        {
+          "type": "tool",
+          "name": "create_expense_report",
+          "args": {
+            "project": "$project",
+            "title": "capability suite"
+          },
+          "require_text": "Draft .* created and opened"
+        },
+        {
+          "type": "tool",
+          "name": "add_expense_line",
+          "args": {
+            "amount": "$over_transport_cap",
+            "category": "transport",
+            "currency": "USD",
+            "date": "$yesterday",
+            "merchant": "Capability dirty-state probe"
+          },
+          "capture": {
+            "name": "line_id",
+            "pattern": "Line (ln_[A-Za-z0-9_-]+) added"
+          },
+          "require_text": "[1-9][0-9]* blocking"
+        }
+      ]
+    },
+    {
+      "state_id": "S2-emp-draft-clean",
+      "expected_internal_state": "S3",
+      "setup": [
+        {
+          "type": "tool",
+          "name": "update_expense_line",
+          "args": {
+            "amount": "$clean_transport_amount",
+            "line_id": "$line_id",
+            "merchant": "Capability clean-state probe"
+          },
+          "require_text": "0 blocking"
+        }
+      ]
+    },
+    {
+      "state_id": "S4-emp-submitted",
+      "expected_internal_state": "S4",
+      "setup": [
+        {
+          "type": "install_signature_provider",
+          "scope": "state construction only; this capability suite does not grade the signature path"
+        },
+        {
+          "type": "tool",
+          "name": "submit_expense_report",
+          "args": {},
+          "require_text": "Signed and submitted"
+        }
+      ]
+    },
+    {
+      "state_id": "S5-aud",
+      "expected_internal_state": "S5",
+      "setup": [
+        {
+          "type": "click",
+          "selector": "[data-action=\"switch\"]"
+        },
+        {
+          "type": "click",
+          "selector": "[data-persona=\"ruiz\"]"
+        }
+      ]
+    }
+  ]
+}
