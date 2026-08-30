@@ -103,6 +103,15 @@ function isDescriptor(v) {
  * three ways it refuses.
  */
 const shim = {
+  // SELF-DECLARING. src/page/env-banner.js reads this marker so the environment
+  // banner cannot say "WebMCP present" about a simulation — MEASURED: without
+  // it, a --disable-features=WebMCP page carrying this shim rendered
+  // "Chromium 152 · WebMCP present", which is a lie the banner exists to
+  // prevent. Reading a marker beats trusting every caller to pass a flag: the
+  // label survives a caller that forgets and an install that happens after the
+  // shell has already mounted the banner once.
+  __simulated: true,
+
   registerTool(def, opts) {
     if (!isDescriptor(def)) throw new TypeError("registerTool: a tool definition is required");
     registered.set(def.name, def);
@@ -182,15 +191,33 @@ export function labelAsSimulated(doc = typeof document !== "undefined" ? documen
       done.agentBanner = true;
     }
   } catch { /* a banner is not worth failing a demo over */ }
-  try {
-    const shell = globalThis.outpocketShell;
-    if (shell && typeof shell.refreshEnvBanner === "function") {
-      // Appends " · simulated agent" to the environment banner — the suffix
-      // H5's banner test matches.
-      shell.refreshEnvBanner({ simulated: true });
-      done.envBanner = true;
-    }
-  } catch { /* same */ }
+  // The environment banner. This module and ./ui/shell.js are separate module
+  // tags, so the shell may not have evaluated yet — MEASURED: mounted before
+  // shell.js, `outpocketShell` was undefined here and the refresh silently did
+  // not happen. Two independent belts, because the label is an acceptance
+  // condition and must not depend on tag order:
+  //   1. re-render now if the shell is already up;
+  //   2. otherwise re-render once it is. The shell's own mountEnvBanner() will
+  //      in any case read the shim's __simulated marker through readEnv, so the
+  //      banner is correct even if neither call below lands.
+  const refresh = () => {
+    try {
+      const shell = globalThis.outpocketShell;
+      if (shell && typeof shell.refreshEnvBanner === "function") {
+        // Appends " · simulated agent" — the suffix H5's banner test matches.
+        shell.refreshEnvBanner({ simulated: true });
+        return true;
+      }
+    } catch { /* a banner is not worth failing a demo over */ }
+    return false;
+  };
+  done.envBanner = refresh();
+  if (!done.envBanner && typeof document !== "undefined" && doc) {
+    try {
+      doc.addEventListener("DOMContentLoaded", refresh, { once: true });
+      if (typeof window !== "undefined") window.addEventListener("load", refresh, { once: true });
+    } catch { /* same */ }
+  }
   return done;
 }
 
