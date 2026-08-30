@@ -1361,3 +1361,13 @@ FOLLOWUP G2 adb1c80 pits:kb/pits/G2.md accept:N/A (pit debt cleared; the node it
 #   instrument every other check validates against. The basename-identity check is one I
 #   added to ready.mjs myself, and it did exactly its job; the defect was that nothing
 #   stopped me walking past it.
+
+FOLLOWUP S7 2db6594 pits:kb/pits/S7.md accept:N/A (pit debt cleared; node merged above)
+#   Two clause-6e blocks, both I3's: S7 as built (56a875a) and the CONFLICT RESOLUTION
+#   with D-118 (131ccec). The second is the one worth reading -- the merged commit()
+#   produced a property NEITHER branch could test alone, and I3 wrote the phantom-entry
+#   tests to cover it rather than treating a clean auto-merge as a correct one.
+
+FOLLOWUP D-118 2db6594 pits:kb/pits/D-118.md accept:N/A (a PM ruling, not a graph node)
+#   Supersedes the earlier D-118 row's pits:PENDING. The block was in history all along;
+#   I recorded PENDING without checking whether it was recoverable.
