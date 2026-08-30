@@ -295,12 +295,15 @@ function reportExportIdentifiers(exportPath) {
 // project owned and still could not be used. A CONFORMANCE GAP BETWEEN THE
 // VALIDATOR WE TEST WITH AND THE VALIDATOR THAT RUNS IS INVISIBLE TO BOTH.
 //
-// `minItems`/`maxItems` are treated as ALLOWED here, and that status is INFERRED
-// rather than confirmed: the rejection named properties.rubric.properties.R1,
-// and `tasks` — which carries both keywords — is validated before `rubric`, so
-// the validator got past them. Strong, and not the same as being told. It is
-// printed on every run so the inference stays visible instead of hardening into
-// a fact nobody rechecks.
+// `minItems`/`maxItems` are ALLOWED, and that is now CONFIRMED rather than
+// inferred. It began as an inference — the rejection named
+// properties.rubric.properties.R1, and `tasks`, which carries both keywords, is
+// validated before `rubric`, so the validator had got past them. Strong, and not
+// the same as being told. L1's pre-flight probe on 2026-08-29 (one throwaway
+// `codex exec --output-schema`, one-word prompt, no packet) was accepted with
+// both keywords present: MEASURED. The distinction is kept in writing because
+// the inference could have been wrong and the cost of finding out that way would
+// have been another firing of a one-shot instrument.
 const REJECTED_KEYWORDS = Object.freeze([
   "allOf", "oneOf", "not", "if", "then", "else", "dependentRequired",
   "dependentSchemas", "patternProperties", "propertyNames", "contains",
@@ -385,6 +388,40 @@ export function verifyVerdict(v) {
       "No JSON Schema could have caught this, which is why it is checked here.");
   }
   return problems;
+}
+
+/**
+ * compareVerdictToKey(verdict, key) -> rows
+ *
+ * The comparison EVAL.md §8.3 describes, done mechanically so a reader can
+ * re-run it instead of taking a summary on trust. PURELY MECHANICAL ON PURPOSE:
+ * it reads the key exactly as frozen and adds no judgement of its own. In
+ * particular it does NOT carry a "was this task fulfillable" flag — that flag
+ * does not exist in the key, and adding one AFTER seeing a verdict is the quiet
+ * re-interpretation the key's own mismatchMeans field exists to prevent.
+ *
+ * MATCH     = C1's firstTool is the key's primary expectation
+ * ACCEPTED  = it is one of the alternates the key pre-registered as defensible
+ * MISMATCH  = neither, and per §8.3 that is A FINDING ABOUT OUR DESCRIPTIONS,
+ *             never a mark against C1.
+ */
+export function compareVerdictToKey(verdict, key) {
+  const byTask = new Map((verdict.tasks ?? []).map((t) => [t.task, t]));
+  return (key.tasks ?? []).map((k) => {
+    const got = byTask.get(k.task);
+    const actual = got ? got.firstTool : null;
+    const alts = k.alsoAcceptable ?? [];
+    let outcome = "MISMATCH";
+    if (actual === null) outcome = "ABSENT";
+    else if (actual === k.expect) outcome = "MATCH";
+    else if (alts.includes(actual)) outcome = "ACCEPTED";
+    return {
+      task: k.task, expect: k.expect, alts, actual, outcome,
+      canConstructArgs: got?.canConstructArgs ?? null,
+      missingInfo: got?.missingInfo ?? [],
+      mismatchMeans: outcome === "MISMATCH" ? k.mismatchMeans : null,
+    };
+  });
 }
 
 // ── build ───────────────────────────────────────────────────────────────────
@@ -644,9 +681,45 @@ if (argv.includes("--lint-schema")) {
     process.exit(1);
   }
   err("rubric.schema.json: lints clean against the structured-output subset.");
-  err(`  INFERRED SAFE, not confirmed: ${inferred.join(", ") || "none"}`);
-  err("  (the run-1 rejection named properties.rubric.properties.R1, and `tasks` is validated");
-  err("   before `rubric`, so the validator got past those keywords. Evidence, not a guarantee.)");
+  err(`  CONFIRMED ACCEPTED, 2026-08-29: ${inferred.join(", ") || "none"}`);
+  err("  (began as an inference from run 1's error path; settled by a throwaway pre-flight probe");
+  err("   that the real validator accepted with both keywords present. MEASURED, not reasoned.)");
+  process.exit(0);
+}
+if (argv.includes("--compare-verdict")) {
+  const path = argv[argv.indexOf("--compare-verdict") + 1] || join(REPO, "evals", "blind", "C1-verdict.json");
+  const verdict = JSON.parse(readFileSync(path, "utf8"));
+  const key = JSON.parse(readFileSync(KEY_SRC, "utf8"));
+  const rows = compareVerdictToKey(verdict, key);
+  err(`comparing ${path} against the key frozen ${key.frozen_at} for export ${key.export_app_commit.slice(0, 12)}`);
+  err("");
+  err("TASK  OUTCOME   EXPECTED                  ACTUAL                    ARGS");
+  for (const r of rows) {
+    err(`${r.task}    ${r.outcome.padEnd(9)} ${String(r.expect || "(none)").padEnd(25)} ` +
+      `${(r.actual === null ? "(absent)" : (r.actual || "(none)")).padEnd(25)} ${r.canConstructArgs === false ? "NO" : "yes"}`);
+  }
+  const tally = rows.reduce((m, r) => ({ ...m, [r.outcome]: (m[r.outcome] ?? 0) + 1 }), {});
+  err("");
+  err(`tally: ${Object.entries(tally).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  for (const r of rows) {
+    if (r.outcome === "MISMATCH") {
+      err("");
+      err(`${r.task} MISMATCH — the pre-registered reading, quoted from the key and not composed now:`);
+      err(`  ${r.mismatchMeans}`);
+    }
+  }
+  for (const r of rows) {
+    if (r.canConstructArgs === false) {
+      err("");
+      err(`${r.task} could not construct arguments. EVAL.md §8.3 calls this the single most`);
+      err(`  actionable output of the whole eval: it names a required field the surface never`);
+      err(`  explains how to obtain. Missing: ${JSON.stringify(r.missingInfo)}`);
+    }
+  }
+  err("");
+  err("The gate is reported as-is and is NOT recomputed here. evals/blind/tasks.md, frozen");
+  err("before the run, states that T4, T7 and T8 were deliberately written as things the");
+  err("surface may not be able to do — read the gate against that, and see L2's ruling.");
   process.exit(0);
 }
 if (argv.includes("--verify-verdict")) {
