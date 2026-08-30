@@ -62,7 +62,8 @@
     "known defects, routed, not blocking": "sign-dialog.js discards submitDecision with its fetch UNWRAPPED \u2014 a failed POST renders NOTHING (UX). fallback-agent's shim never rejects, so it cannot reproduce the abort class (I1).",
     "pit debts": "H5 and T2 evidenced-unrecoverable; G2 collectable from I4.",
     "parked": "D2/D3 until the shoot wraps \u2014 every push redeploys the artifact being filmed. S7/G1 day-gated.",
-    "D-118": "I3 \u2014 the policy-digest refusal the frozen contract names and no node builds. AFTER the shoot: commit() is the demo's central beat and a FALSE refusal reaches the camera."
+    "D-118": "I3 \u2014 the policy-digest refusal the frozen contract names and no node builds. AFTER the shoot: commit() is the demo's central beat and a FALSE refusal reaches the camera.",
+    "D1 clause 4": "UNSUPPORTED AS OF 2026-08-30 21:32 PDT. The user upgraded to Render Starter, which CLOSES D-08's divergence and eliminates the cold-start risk \u2014 and FIRES D-92(a)'s trap: 'exactly ONE instance' passed because the FREE tier is single-instance BY NATURE, and that reason is now gone. evidence/D1-url.txt's first line ('this deploy is on Render's FREE tier') is now FALSE, and the file itself says the upgrade requires autoscale-off and replica-count-1 to be EXPLICITLY configured and re-verified. NOBODY HAS DONE THAT. This is a CORRECTNESS dependency, not bookkeeping: S12's lock and S6's TOCTOU closure are true by construction OF A SINGLE PROCESS. Routed to I4 (owns the file) and the relay (dashboard access). D1 stays done on its other three clauses; clause 4 is honestly unsupported until re-verified."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"

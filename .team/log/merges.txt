@@ -1167,3 +1167,19 @@ FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep
 #   REJECTS, so it cannot reproduce the class -- a FALSE-NEGATIVE GENERATOR that nearly
 #   convinced I2 there was nothing to find.
 #   IN A CLASSIFICATION THE DANGEROUS CELL IS NOT THE INSTANCE, IT IS THE CLEARED ONE.
+
+# D-92(a)'s TRAP FIRED, 2026-08-30 21:32 PDT, EXACTLY AS I4 WROTE IT TO.
+#   The user upgraded to Render Starter. Good news twice over: D-08's recorded
+#   divergence closes four days early, and the 09-04 -> 09-21 unattended judging window
+#   no longer risks cold starts.
+#   AND D1's CLAUSE 4 IS NOW UNSUPPORTED. "Exactly ONE instance" passed because the FREE
+#   tier is single-instance BY NATURE -- a PROPERTY OF THE TIER, not a configured replica
+#   count. That property is gone. evidence/D1-url.txt's opening line is now FALSE.
+#   THE CLAUSE BROKE PRECISELY WHEN SOMEBODY DID THE RIGHT THING, which is what PM named
+#   at D-92(a) and what I4 wrote the reason down to catch. A recorded FACT would have gone
+#   silently stale; a recorded REASON announced its own expiry.
+#   IT IS A CORRECTNESS DEPENDENCY, NOT BOOKKEEPING: S12's sign lock and S6's TOCTOU
+#   closure are true BY CONSTRUCTION OF A SINGLE PROCESS. A second instance reopens the
+#   lock race S6 closes.
+#   Routed: I4 owns the file; the dashboard needs the relay and the user. D1 stays done on
+#   its other three clauses and clause 4 is carried HONESTLY UNSUPPORTED until re-verified.
