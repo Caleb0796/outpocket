@@ -1,0 +1,98 @@
+{
+  "schema": "outpocket.expected_surfaces/1",
+  "source": {
+    "app_commit": "5ba890a73a81cac617b0e778f0fd5d65a74b00c5",
+    "distinct_tool_count": 17,
+    "path": "artifacts/tools.export.json",
+    "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
+    "policy_version": "2026-08.1",
+    "schema": "outpocket.tool_export/1"
+  },
+  "states": [
+    {
+      "state_id": "S0-anon",
+      "surface_digest": "sha256:f06bcc69e91399f550951ed1e7627b4999ba946884ec79503fc33aa8b2254d53",
+      "tool_names": [
+        "explain_missing_tool",
+        "get_signin_status"
+      ]
+    },
+    {
+      "state_id": "S1-emp-home",
+      "surface_digest": "sha256:dddbdfd1bc404351540552bb5d16f91a701b2fbe8fba7d7872984e7fd2deea96",
+      "tool_names": [
+        "create_expense_report",
+        "explain_missing_tool",
+        "get_expense_policy",
+        "get_session_scope",
+        "list_expense_reports",
+        "open_expense_report"
+      ]
+    },
+    {
+      "state_id": "S2-emp-draft-clean",
+      "surface_digest": "sha256:e251898e471645517d481d803bbb3e39f02aad8bdf72228e5e9a916276cf10f4",
+      "tool_names": [
+        "add_expense_line",
+        "create_expense_report",
+        "explain_missing_tool",
+        "get_expense_policy",
+        "get_open_report",
+        "get_session_scope",
+        "link_receipt",
+        "list_expense_reports",
+        "list_receipts",
+        "open_expense_report",
+        "remove_expense_line",
+        "submit_expense_report",
+        "update_expense_line",
+        "validate_expense_report"
+      ]
+    },
+    {
+      "state_id": "S3-emp-draft-dirty",
+      "surface_digest": "sha256:1ffd45cd481d33e72d580d00aa41c01e5c097955924c941cd26ea9b22fc7bc79",
+      "tool_names": [
+        "add_expense_line",
+        "create_expense_report",
+        "explain_missing_tool",
+        "get_expense_policy",
+        "get_open_report",
+        "get_session_scope",
+        "link_receipt",
+        "list_expense_reports",
+        "list_receipts",
+        "open_expense_report",
+        "remove_expense_line",
+        "update_expense_line",
+        "validate_expense_report"
+      ]
+    },
+    {
+      "state_id": "S4-emp-submitted",
+      "surface_digest": "sha256:8cc5df1c8f86a1826d907a59c06367f09cea8aacc1039f157340239880242578",
+      "tool_names": [
+        "create_expense_report",
+        "explain_missing_tool",
+        "get_expense_policy",
+        "get_open_report",
+        "get_session_scope",
+        "list_expense_reports",
+        "open_expense_report"
+      ]
+    },
+    {
+      "state_id": "S5-aud",
+      "surface_digest": "sha256:10950a36c3356afd2c87e57d24834ff055d9a39219647282f3018443ba635520",
+      "tool_names": [
+        "explain_missing_tool",
+        "get_day_book",
+        "get_expense_policy",
+        "get_open_report",
+        "get_report",
+        "get_session_scope",
+        "list_expense_reports"
+      ]
+    }
+  ]
+}
