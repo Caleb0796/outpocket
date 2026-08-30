@@ -179,15 +179,57 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
   // reaches the handler anyway must still be refused there. That is the case
   // the test dispatches.
   if (fetchImpl) {
-    confirm.addEventListener("click", () => {
-      submitDecision(root, { signRequest, decision: "signed", fetchImpl, doc });
-    });
-    root.querySelector("[data-sign-decline]")?.addEventListener("click", () => {
-      submitDecision(root, { signRequest, decision: "declined", reason: "sent back from the dialog", fetchImpl, doc });
-    });
+    // THE PROMISE IS NOT DISCARDED. It used to be — `submitDecision(...)` with
+    // no catch — so anything that threw inside became an unhandled rejection
+    // and the dialog rendered nothing. submitDecision handles its own failures
+    // now, and this catch is the belt behind that brace: whatever goes wrong,
+    // the person at the camera sees a sentence rather than a frozen dialog.
+    const run = (opts) => {
+      Promise.resolve(submitDecision(root, { signRequest, fetchImpl, doc, ...opts }))
+        .catch((err) => {
+          console.error("sign-dialog: the decision could not be sent", err);
+          setStatus(root,
+            "Something went wrong sending your decision, so nothing was signed. " +
+            "Your report is unchanged. Start a new signature request.", { kind: "error" });
+        });
+    };
+    confirm.addEventListener("click", () => run({ decision: "signed" }));
+    root.querySelector("[data-sign-decline]")?.addEventListener("click", () =>
+      run({ decision: "declined", reason: "sent back from the dialog" }));
   }
 
   return root;
+}
+
+/**
+ * Write the dialog's status line. ONE PLACE, AND IT IS NEVER LEFT EMPTY.
+ *
+ * THE INVARIANT THIS FILE NOW HOLDS: A CLICK NEVER LEAVES THE DIALOG SILENT.
+ * Before this, submitDecision's fetch was unwrapped and its promise was
+ * discarded by the click handler — so a POST that THREW (server down, network
+ * gone, request aborted) rejected into nothing and the page rendered NOTHING AT
+ * ALL. Not an error, not a retry, not a state: a dead dialog, mid-take, with no
+ * way for the person at the camera to know why.
+ *
+ * That is the failure mode worth the most here and the least visible: a 4xx or
+ * 5xx already rendered a line, because the response came back. Only a THROWN
+ * fetch was silent, and a thrown fetch is exactly what a server that has just
+ * died produces.
+ */
+function setStatus(root, text, { kind = null } = {}) {
+  const el = root?.querySelector?.("[data-sign-status]");
+  if (!el) return;
+  el.textContent = text;
+  if (kind) el.setAttribute("data-sign-status-kind", kind);
+  else el.removeAttribute("data-sign-status-kind");
+}
+
+/** Offer a retry. Only ever shown when we know NOTHING reached the server. */
+function offerRetry(root, doc, onRetry) {
+  if (!root || root.querySelector("[data-sign-retry]")) return;
+  const again = el(doc, "button", { type: "button", "data-sign-retry": "" }, "Try again");
+  again.addEventListener?.("click", onRetry);
+  root.querySelector(".sign-controls")?.appendChild(again);
 }
 
 /** True when the dialog is in a state that may be confirmed. */
@@ -231,12 +273,27 @@ export async function submitDecision(root, {
     acknowledgedRevision: signRequest.revision,
   });
 
-  const res = await fetchImpl(`/api/sign/${requestId}/respond`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  setStatus(root, "Sending your decision to the server…", { kind: "pending" });
+
+  let res;
+  try {
+    res = await fetchImpl(`/api/sign/${requestId}/respond`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // NOTHING REACHED THE SERVER. That is the one case where a retry is
+    // unambiguously safe: the record is untouched and still open, so trying
+    // again cannot double-answer it. Say what happened in words a person can
+    // act on, not a stack trace.
+    setStatus(root,
+      "Could not reach the server, so nothing was signed. Your report is unchanged and this " +
+      "request is still open — try again.", { kind: "unreachable" });
+    offerRetry(root, doc, () => submitDecision(root, { signRequest, decision, reason, fetchImpl, doc }));
+    return { posted: false, refused: "unreachable", error: String(err?.message ?? err) };
+  }
 
   const payload = await res.json().catch(() => ({}));
 
@@ -245,8 +302,20 @@ export async function submitDecision(root, {
     return { posted: true, status: 409, alreadyAnswered: true, body };
   }
 
-  const status = root.querySelector("[data-sign-status]");
-  if (status) status.textContent = res.ok ? "Signed. The server recorded who and when." : `Could not sign (${payload?.error ?? res.status}).`;
+  if (res.ok) {
+    setStatus(root, "Signed. The server recorded who and when.", { kind: "signed" });
+    return { posted: true, status: res.status, response: payload, body };
+  }
+
+  // THE SERVER REFUSED, AND IT SAYS WHY — so show ITS sentence, not our
+  // paraphrase of its code. server/index.mjs's sendSignError returns
+  // {error, message}; a bare code tells the person at the camera nothing, and
+  // new refusal conditions land on this path faster than this file can learn
+  // their names.
+  const code = payload?.error ?? `HTTP ${res.status}`;
+  const detail = payload?.message ? ` ${payload.message}` : "";
+  setStatus(root, `The server refused this signature (${code}).${detail} Nothing was signed.`,
+    { kind: "refused" });
   return { posted: true, status: res.status, response: payload, body };
 }
 
