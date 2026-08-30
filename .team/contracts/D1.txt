@@ -1,13 +1,35 @@
 NODE:      D1
 OWNER:     I4
 INPUTS:    S9, F1
-DO:        Build to the accept and nothing beyond it. Read any merged evidence your node depends on before writing — several answers landed today.
+DO:        THE USER HAS DEPLOYED AND YOUR INPUT STARVATION IS OVER: https://outpocket.onrender.com. I verified it from the command line rather than relaying it — GET / returns 200 in 0.15s, and Origin-Agent-Cluster is ABSENT, so your first accept clause already passes on the live host. D1 is now blocked on a MISSING FILE instead of a missing URL. GET /version returns {"error":"E_NOT_FOUND"}; server/routes/ holds only policy.mjs and state-digest.mjs; server/index.mjs has no version wiring. YOUR createVersionHandler APPEARS TO HAVE BEEN LOST — most likely in the morning's worktree removal that took uncommitted files with it, which is DEV-008/DEV-013's family and not your error. Re-land server/routes/version.mjs, which is your declared output. THE WIRING INTO createApp() IS NOT YOURS — server/index.mjs is S1's file and therefore I3's; I have dispatched I3 to wire your handler in before the static fallback, in parallel with you. Build the route so it can be wired without I3 having to read your mind: export a handler with the same shape as the two routes already in that directory, and say in your green message exactly what the two lines should be. THEN THE ORDERING, AND IT IS THE PART MOST LIKELY TO WASTE YOUR TIME IF NOBODY TELLS YOU: your accept requires `curl -s $URL/version` to EQUAL `git rev-parse HEAD`, and Render AUTO-DEPLOYS ON PUSH TO MAIN. So that clause is only true in the window between a deploy finishing and the next push to main — EVERY MERGE I MAKE INVALIDATES IT UNTIL RENDER CATCHES UP. Do not treat a mismatch as a bug in your route without first checking whether main has moved under you; compare against the sha the deploy actually built, and if they differ, wait for the redeploy rather than debugging. I will gate D1 LAST for exactly this reason, and I would rather you know that now than rediscover it at 02:00. WHAT THE ROUTE MUST RETURN: the commit it was BUILT from, not a value read at request time from a git command that will not exist on the deployed host — there is no .git on Render. Bake it in at build/start time from the environment Render provides, or from a file written at build. If you cannot make it exact, STOP AND REPORT rather than approximating; a /version that is confidently wrong is worse than one that 404s, because D1's whole purpose is to prove WHICH COMMIT IS SERVING. evidence/D1-url.txt IS YOURS and it must record the URL and the ONE-INSTANCE REASON. Be precise about that reason rather than just asserting one instance: the deploy is on Render's FREE tier today, which is single-instance BY NATURE, and the user intends to upgrade to D-08's paid tier before Day-6 go-live so the 9/4-9/21 judging window does not hit cold starts. So "one instance" is true today for a reason that CHANGES on upgrade. Write which it is. I have asked PM whether the temporary free-tier state needs a recorded deviation against D-08; do not wait on that answer to land your route. Also capture evidence/headers.txt from the live host as your accept directs. TWO STANDING LESSONS: FORCE_COLOR=3 is injected into every seat, so a predicate that greps a colourising tool's output fails here and passes in a bare shell — `node tools/accept-gate.mjs D1 --run-clean`; and an unexplained exit 1 GETS RE-RUN BEFORE IT GETS A THEORY, kb/pits/L0.md.
 ACCEPT:    `curl -sI $URL | tee evidence/headers.txt` then the Origin-Agent-Cluster check `grep -i '^origin-agent-cluster:' evidence/headers.txt | grep -q '?0' && exit 1; exit 0` — the header must be ABSENT, or present with a value that is not ?0 — AND `curl -s -o /dev/null -w '%{http_code}' $URL` returns 200 AND `curl -s $URL/version` equals `git rev-parse HEAD` AND the deploy is configured for exactly ONE instance, recorded in evidence/D1-url.txt with the reason.
-PIT:       kb/pits/D1.md — REQUIRED BEFORE MERGE, no exceptions and no discretion.
-           Five keys, in order: TRIED, HAPPENED, CHANGED, EARLIER, GRADE. "No pit" is a
-           legal ENTRY; a missing FILE is not. One paragraph per key is enough. Write it
-           on your branch. (kb/pits/** is glob-owned by L1 while the merge gate demands
-           the file from you — that contradiction is L1's to carry to PM, not yours to
-           resolve. Write the file; L1 absorbs the ownership finding.)
+PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMIT, NOT A
+           MESSAGE. Put the five fields in a `PIT:` BLOCK IN YOUR FINAL COMMIT MESSAGE on
+           your own branch. L1 reads them with `git log` at the gate and writes
+           kb/pits/D1.md from them (D-31 still stands: you do NOT commit a pit FILE).
+           COMPOSING IS COMMITTING. There is no send step to forget.
+           WHY THIS CHANGED: four reports have been lost, in FOUR DIFFERENT WAYS — a seat
+           that finished and went idle, a seat still running whose message never arrived, a
+           restarted session whose transcript was gone, and two composed as ordinary
+           conversation text and never sent. Every arrangement so far depended on a channel
+           between you and the gate, and THE CHANNEL HAS FAILED IN FOUR WAYS OUT OF FOUR.
+           A REPORT COMPOSED BUT NOT TRANSMITTED IS INDISTINGUISHABLE, FROM THE RECEIVING
+           END, FROM A REPORT NEVER WRITTEN. So the mechanism removes the channel: the
+           report rides inside the artifact being gated.
+           Send it in your green message TOO if you like, but the commit is what counts.
+           D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and
+           L1 writes kb/pits/D1.md from them. In order: TRIED, HAPPENED, CHANGED,
+           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1
+           cannot merge you without one.
+           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.
+           Reports have been made and lost three times in this sprint, and a seat stopped
+           before it reports takes its pit with it — one node's pit had to be written
+           marked "NOT the seat's own report", which is worse than the node deserved.
+           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is
+           worse than no pit. EARLIER is the field that pays: what you would tell
+           yourself an hour before you learned it.
+           (This block previously said "write it on your branch" — a contradiction with
+           D-31 that survived a reset of mine and misled three seats, all of which
+           correctly followed the ruling over the template and told me.)
 BRANCH:    seat/I4-D1
-DEADLINE:  2026-08-31T23:59-07:00
+DEADLINE:  2026-08-30T18:00-07:00
