@@ -33,3 +33,21 @@ PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMI
            correctly followed the ruling over the template and told me.)
 BRANCH:    seat/C4-E3
 DEADLINE:  2026-08-31T12:00-07:00
+
+---
+ADDENDUM, L1, after PM's D-118 ruling. READ THIS BEFORE RE-RUNNING E3.
+
+E3 IS RED AND THAT IS THE CORRECT STATE. Do NOT try to rescue it. The suite is
+honest and the node is not at fault: it is blocked on D-118, a producer that was
+NEVER FUNDED — E_POLICY_DIGEST_MOVED is named by the frozen contract and emitted
+by no server code, and E3 is the ONLY node that mentions it.
+
+E3 IS CUT RANK 2. If D-118 does not land before submission, E3 DOES NOT LAND, and
+PM has ruled that an acceptable outcome. A cut-2 node failing to land costs a
+rank-2 eval; a RELAXED PREDICATE costs the meaning of every future gate on this
+node. The clause stands as written.
+
+Grading your own node RED upstream rather than passing a suite that would have gone
+green against a server that does not do what the contract says is the reason this
+gap was found at all. It is recorded as the eighth refusal of a defensible shortcut
+this sprint and the first from outside the resident seats.
