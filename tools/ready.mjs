@@ -656,7 +656,20 @@ function checkRecord() {
       const r = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]);
       if (r.status !== 0) { bad(`${node}: sha ${sha} is not a commit in this repository`); violations++; }
     }
-    if (pit !== 'PENDING' && !fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+    if (pit !== 'PENDING') {
+      // TWO checks, because for one revision this was one. EXISTENCE was checked and
+      // IDENTITY was not, so on 2026-08-29 a bad replace() put `pits:kb/pits/H3.md` on
+      // H5's row -- H5 being the one node whose pit is evidenced UNRECOVERABLE and must
+      // stay PENDING -- and this mode exited 0 and printed "every row names ... a pit
+      // that exists". It did. It was the wrong node's pit. That is the same defect the
+      // whole sprint is about (existence reported as the thing you wanted to know), and
+      // it was in the instrument built to catch it.
+      if (!fs.existsSync(pit)) { bad(`${node}: names ${pit}, which DOES NOT EXIST`); violations++; }
+      else if (path.basename(pit, '.md') !== node) {
+        bad(`${node}: names ${pit}, which is ANOTHER NODE'S PIT (basename ${path.basename(pit, '.md')})`);
+        violations++;
+      }
+    }
   }
   const done = new Set(st.done || []);
   const rowsNotDone = seen.filter((n) => !done.has(n));

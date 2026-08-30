@@ -344,7 +344,7 @@ MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
 # THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
 #   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
 
-MERGED H5  b446bc2 pits:kb/pits/H3.md accept:PASS
+MERGED H5  b446bc2 pits:PENDING accept:PASS
 
 # CORRECTION TO THAT MERGE COMMIT, MADE HERE BECAUSE IT IS ALREADY PUSHED.
 #   The message says spans 1 and 2 are "backticked FRAGMENTS, not commands".
@@ -787,7 +787,7 @@ MERGED S12 be34298 pits:PENDING accept:PASS
 
 MERGED V6  b6313e6 pits:kb/pits/V6.md accept:PASS
 
-MERGED H3  8123246 pits:PENDING accept:PASS
+MERGED H3  8123246 pits:kb/pits/H3.md accept:PASS
 # H3 — the in-page fallback agent, and the honesty defect it caught on the way.
 #   Under --disable-features=WebMCP with the fallback mounted, the first screen
 #   read "Chromium 152 · WebMCP present" ON A BROWSER WHERE WebMCP IS OFF, because
