@@ -1229,3 +1229,19 @@ FOLLOWUP DEV-017 57ec039 pits:PENDING accept:N/A (a deviation ticket)
 #   login lines and NEVER LOOKED AT THE STATUS BANNER.
 #   SEVERITY INVERTED FROM THE WHOLE SPRINT: every other defect was a document claiming
 #   MORE than we measured; this one claimed dramatically LESS.
+
+MERGED E4 d2d0c86 pits:kb/pits/E4.md accept:PASS
+
+MERGED E8 96ca184 pits:kb/pits/E8.md accept:PASS
+#   ACCEPT SKIPPED IN THE GATE AND EXECUTED AT FIRE TIME INSTEAD: E8's span 0 IS the
+#   blind run, so running it inside the merge gate would re-fire a one-shot instrument
+#   and overwrite the artifact being merged. Span 0 exit 0 in L1's presence.
+#   Fourth admissibility clause recorded against PM's branch (ii) -- existence + effect.
+#   Branch (i) was checked FIRST and is ABSENT: the JSONL's distinct top-level keys
+#   across all 11 events are item, thread_id, type, usage; zero mentions of the model
+#   and no effort key on any event.
+#   RESULT: R1..R6 = 1,1,2,2,1,2 (9/12); gate.passed FALSE; 5 of 8 tasks completable.
+#   D-121 BINDS: any citation of this total travels with the disclosure that the packet
+#   was NOT identifier-free and that blindness rested on an after-the-fact transcript
+#   check. Without the disclosure the number is inadmissible. The MEANING of 9/12 is
+#   L2's to rule -- not L1's and not PM's.
