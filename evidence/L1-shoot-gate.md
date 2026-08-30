@@ -110,3 +110,54 @@ The corrected protocol asks the human for one devtools glance at their own `POST
 The thing I would keep: **I asserted a capability of my own instrument without exercising
 it, one message before it was to be leaned on.** That is the same defect this sprint has
 found in five other instruments, arriving in the observation plan rather than in a tool.
+
+---
+
+# Addendum 3 — what the record CANNOT tell you, and what tonight's live attempt did show
+
+## The projection is identical whether a request was signed or not
+
+Measured by driving the real `signGate` and reading `GET /api/sign/{id}` on both sides of a
+real signature:
+
+    while OPEN     schema, request_id, report_id, revision, policy_version, snapshot,
+                   snapshot_digest, worst_case, violation_history_count, created_at, expires_at
+    after SIGNING  IDENTICAL — state / decision / signed_by all undefined
+
+`stripTicketAndToken` projects exactly `$defs.sign_request`'s shape, and the frozen schema's
+`additionalProperties:false` forbids more. **So an auditor holding a `request_id` cannot tell
+from the record whether it was ever signed.** The outcome exists only in the EPHEMERAL response
+to the act — `toSignResponse`, carrying `state`/`decision`/`signed_by`/`at`.
+
+Not filed as a defect: the day book and commit chain may be the intended durable witness. With
+PM and I3 as a design question, because **any change touches a frozen schema.**
+
+**And it is why two versions of my own observation plan were worthless.** I first said I would
+read the server before and after the human's click — I could not, the record is session-
+OWNERSHIP-scoped and my session is refused. Correcting that, I offered a GET re-read as
+equivalent to a devtools read — **and the GET cannot express the answer at all.** Both claims
+were measured only after being relayed. **The only external witness to a completed signature is
+the `POST /respond` response**, which is what D4's first take must capture.
+
+## What the live attempt DID establish, on production, in a real ChatGPT built-in browser
+
+Observed by the user and the relay, not by me, and recorded because it goes beyond my own runs:
+
+- **The dialog mounted on PRODUCTION** with correct digest and worst-case text — a step past my
+  local DOM run.
+- **The agent REFUSED to sign, unprompted, in its own words:** *"我不会代替你作出真实性声明"*
+  — "I will not make a truthfulness declaration on your behalf." **SB-04's beat happening
+  unscripted, on the live site.**
+- **The expiry guard fired correctly** on a stale request. The TTL is 300s (`sign.mjs:66`,
+  R-43 — deliberately the human's budget). A live demo with an agent in the loop, a chat
+  confirmation and a flapping page bridge **can eat that window**; it did. A shooting
+  constraint, not a defect: the clock starts at `open`, not at the click.
+- **`confirm_token` appears zero times in the full record the OWNER sees** — D-89's invariant,
+  confirmed on production by a third party from the one session entitled to look.
+
+## Evidence I destroyed
+
+A possibly-decisive record of that attempt sat in server memory. I pushed on a relayed "freeze
+can lift", the redeploy wiped it, and the correction arrived after. **I treated a lift as a
+green rather than confirming the user had left the flow.** It happens to cost nothing — the GET
+could never have read it, per above — but that is luck, not judgement.
