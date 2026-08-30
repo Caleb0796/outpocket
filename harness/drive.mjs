@@ -10,6 +10,7 @@
 //   node harness/drive.mjs --smoke-login chen,ruiz        # a real login per persona, exit 0
 //   node harness/drive.mjs --assert-flips 1,5,12,13       # the S0->S1->S2->S3 walk over CDP
 //   node harness/drive.mjs --fallback --scenario happy    # the same walk, WebMCP disabled
+//   node harness/drive.mjs --url "<origin>/?demo=1&seed=7" --dump-state  # H4: byte-stable state
 //
 // THREE MODES HERE EXIST BECAUSE A CONSUMER'S ACCEPT NAMED THEM AND NO NODE WAS TOLD TO BUILD
 // THEM. --smoke-login is D-50 (F1.accept), --assert-flips is D-58 (T2.accept span 0),
@@ -1655,6 +1656,7 @@ function parseArgv(argv) {
     else if (a === '--scenario') out.scenarioName = argv[++i];
     else if (a === '--selftest') out.selftest = true;
     else if (a === '--inject-fallback') out.injectFallback = true;
+    else if (a === '--dump-state') out.dumpState = true;
     else if (a === '--headed') out.headless = false;
     else if (a === '--headless') out.headless = true;
     else throw new Error(`unknown argument ${a}`);
@@ -1673,6 +1675,98 @@ function parseCounts(spec) {
       (bad.length ? ` — not ${bad.map((b) => JSON.stringify(b)).join(', ')}` : ''));
   }
   return out;
+}
+
+// ------------------------------------------------------------- --dump-state (H4)
+//
+// Load a seeded demo URL, wait for the demo to SETTLE, read the page's own ERP
+// state, and write a byte-stable dump. H4's accept runs this twice at the same
+// seed and diffs the two.
+//
+// THE PREDICATE CAN PASS WHILE PROVING NOTHING — `diff` exits 0 on two empty
+// files — so three things here are deliberate:
+//
+//   * it AWAITS `outpocketDemo.ready` rather than sleeping. A fixed sleep that
+//     is slightly too short produces a half-finished filing, and two
+//     half-finished filings that stopped in the same place still diff clean.
+//     Racing the demo is a way to pass this predicate while timing a stopwatch.
+//   * `referenceDate` is read in THE SAME Runtime.evaluate as the state, off the
+//     ERP's own clock. Read separately, a run straddling midnight would
+//     relativise the dates against the wrong day.
+//   * harness/dump-state.mjs refuses to emit a dump with no reports and no
+//     day-book entries, so "the demo never ran" fails loudly here instead of
+//     exiting 0 twice and diffing clean.
+async function modeDumpState(url, { headless }) {
+  const { dumpText, DumpError } = await import(resolve(REPO, 'harness', 'dump-state.mjs'));
+  const b = await launch('cdp', { headless });
+  try {
+    const { sessionId } = await openPage(b, url);
+
+    const mounted = await evalInPage(b.cdp, sessionId, 'typeof globalThis.outpocketDemo', false);
+    if (!mounted.ok || mounted.value === 'undefined') {
+      process.stderr.write(
+        'drive: this page never loaded src/page/demo-mode.js — globalThis.outpocketDemo is undefined.\n' +
+        'drive: src/page/index.html needs <script type="module" src="./demo-mode.js"></script>. ' +
+        "index.html is node F1's output and not this seat's to edit, so that is one line from F1/UX. " +
+        'Serve a copy of src/ carrying the tag and point --url at it to verify before it lands.\n');
+      return 1;
+    }
+
+    const on = await evalInPage(b.cdp, sessionId, 'JSON.stringify(globalThis.outpocketDemo.params ?? null)', false);
+    const params = on.ok && on.value ? JSON.parse(on.value) : null;
+    if (!params || !params.on) {
+      process.stderr.write('drive: ' + url + ' did not turn demo mode on — the page read ' +
+        JSON.stringify(params) + '. --dump-state needs ?demo=1&seed=N in the URL.\n');
+      return 1;
+    }
+
+    // AWAIT THE DEMO, never sleep past it.
+    const settled = await evalInPage(b.cdp, sessionId,
+      '(async () => { await globalThis.outpocketDemo.ready; return globalThis.outpocketDemo.done === true; })()', true);
+    if (!settled.ok || settled.value !== true) {
+      process.stderr.write('drive: the demo never settled: ' + (settled.error ?? settled.value) + '\n');
+      return 1;
+    }
+
+    // ONE READ: state, the ERP's own reference date, and the policy verdict.
+    const read = await evalInPage(b.cdp, sessionId, `(() => {
+      const t = globalThis.outpocketTools;
+      if (!t) return null;
+      const d = t.erp.now();
+      const pad = (n) => String(n).padStart(2, '0');
+      let verdict = null;
+      try { verdict = t.erp.openReportOrNull() ? t.erp.verdict() : null; }
+      catch (e) { verdict = { error: String((e && e.message) || e) }; }
+      return JSON.parse(JSON.stringify({
+        seed: globalThis.outpocketDemo.params.seed,
+        referenceDate: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
+        demo: {
+          reachedState: globalThis.outpocketDemo.result ? globalThis.outpocketDemo.result.reachedState : null,
+          steps: ((globalThis.outpocketDemo.result || {}).steps || []).map((s) => ({ tool: s.tool, ok: s.ok }))
+        },
+        state: t.erp.state,
+        verdict: verdict
+      }));
+    })()`, false);
+    if (!read.ok || !read.value) {
+      process.stderr.write('drive: could not read page state: ' +
+        (read.error ?? 'globalThis.outpocketTools is absent') + '\n');
+      return 1;
+    }
+
+    try {
+      process.stdout.write(dumpText(read.value));
+    } catch (e) {
+      process.stderr.write('drive: ' + (e instanceof DumpError ? e.code + ' — ' : '') + e.message + '\n');
+      return 1;
+    }
+    process.stderr.write('drive: --dump-state seed ' + read.value.seed +
+      ', reference ' + read.value.referenceDate +
+      ', reached ' + (read.value.demo && read.value.demo.reachedState) + '\n');
+    return 0;
+  } finally {
+    await b.close();
+  }
 }
 
 const USAGE = [
@@ -1703,7 +1797,10 @@ const USAGE = [
 let rc = 1;
 try {
   const o = parseArgv(process.argv.slice(2));
-  if (o.smokeLogin !== undefined) {
+  if (o.dumpState) {
+    if (!o.url) throw new Error('--dump-state requires --url');
+    rc = await modeDumpState(o.url, o);
+  } else if (o.smokeLogin !== undefined) {
     rc = await modeSmokeLogin(o.smokeLogin, o);
   } else if (o.assertFlips !== undefined || o.fallback) {
     rc = await modeFlipWalk({ ...o, counts: o.assertFlips === undefined ? null : parseCounts(o.assertFlips) });
