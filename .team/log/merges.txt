@@ -675,7 +675,7 @@ MERGED E1  90dc51f pits:kb/pits/E1.md accept:PASS
 
 MERGED V3  dd6d662 pits:kb/pits/V3.md accept:PASS
 
-MERGED T4  da68e78 pits:PENDING accept:PASS
+MERGED T4  da68e78 pits:kb/pits/T4.md accept:PASS
 # --check-modes CAUGHT THE NEXT INSTANCE AT THE MOMENT THE PRODUCER LANDED, which
 #   is precisely what PM bought it for. E2, E3 and E5 all name
 #   `webmcp-eval-kit/bin/eval.mjs --suite`; E1 shipped eval.mjs WITHOUT --suite,
