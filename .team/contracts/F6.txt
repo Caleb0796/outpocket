@@ -1,0 +1,35 @@
+NODE:      F6
+OWNER:     UX
+INPUTS:    F0, F2, F4, F5, F7
+DO:        Build src/page/skin.css and tools/check-storyboard.mjs. YOU ARE BUILDING AN INSTRUMENT, AND YOU WROTE THE RULE THAT BINDS IT TODAY: ARM NOTHING THAT HAS NOT DEMONSTRATED IT CAN STILL RETURN THE NEGATIVE, against the tree in front of you, right now — not "can it fire", can it DECLINE to. Your watcher grepped the whole of graph.json for a string that lived in F7.ACCEPT and reported the bug as the fix; my --check-record proved a pit EXISTED without asking whether it belonged to that node; my --check-orphans counted a TEST import as a mount. Three instruments, one day, same failure. check-storyboard.mjs is the fourth and it is yours, so build the self-test in from the start rather than after. THREE WAYS YOUR PREDICATE PASSES WHILE PROVING NOTHING. FIRST: "every shot id in docs/STORYBOARD.md resolves" is TRUE OF ZERO SHOT IDS. A parser that fails to find any shot ids iterates an empty list, exits 0, and reports success — the for-loop-over-nothing that has cost this sprint more than any other single shape. Assert the count is greater than zero AND equals the number of shots STORYBOARD.md actually declares, print it, and make a parse that finds none a LOUD FAILURE rather than a silent pass. SECOND, AND IT IS THE ONE I WOULD BET ON: "a CSS selector matching AT LEAST ONE element" is satisfied by `body`. It is satisfied by `div`. A selector that matches something is not a selector that identifies the shot, and the whole value of this file is that a person reading STORYBOARD.md can find the thing on screen. Require each selector to be specific — I am not going to dictate the rule, you know the page, but "matches exactly one element" or "matches an element carrying the data-attribute the shot names" are both defensible and `body` is not. Whatever you choose, WRITE THE RULE DOWN IN THE TOOL so the next person argues with a stated rule rather than pattern-matching your list. THIRD: it must run against THE BUILT PAGE, not a fixture you wrote, for the same reason your F4 test drove the served page as well as its own fake document — a document you authored is not evidence about the page a judge loads. AND D-90 IS NOW BINDING AND IT IS YOUR OWN RULE: a negative control satisfiable by the subject being ABSENT is not a control. When you prove check-storyboard.mjs can fail, do it by making a shot's selector WRONG while the element still exists, not by deleting the element — deleting proves the tool notices missing elements, which is not the claim. TWO SHOTS MATTER MORE THAN THE REST AND YOU SHOULD KNOW WHY BEFORE YOU START: SB-10 "Signature dialog" and SB-11 "The human confirms" are the on-camera beats, they resolve to [data-worst-case] and [data-signature-line] inside the dialog your F7 mounts, and D4 takes a hard input from this node. THE PAGE CANNOT YET COMPLETE A SIGNATURE — the confirm_token has no DOM delivery channel, PM's D-89, dispatched to I3 and landing before the shoot. So those two selectors must resolve against the dialog as it exists once D-89 lands; if you reach them before I3 does, say so and I will sequence you rather than have you assert against a page that is about to change. STANDING: FORCE_COLOR=3 is injected into every seat — `node tools/accept-gate.mjs F6 --run-clean`; and an unexplained exit 1 GETS RE-RUN BEFORE IT GETS A THEORY.
+ACCEPT:    `node tools/check-storyboard.mjs` exits 0: every shot id in docs/STORYBOARD.md resolves to a CSS selector matching at least one element on the built page.
+PIT:       D-83 / CLAUSE 6e, RULED 2026-08-29, BINDING — THE REPORT IS A COMMIT, NOT A
+           MESSAGE. Put the five fields in a `PIT:` BLOCK IN YOUR FINAL COMMIT MESSAGE on
+           your own branch. L1 reads them with `git log` at the gate and writes
+           kb/pits/F6.md from them (D-31 still stands: you do NOT commit a pit FILE).
+           COMPOSING IS COMMITTING. There is no send step to forget.
+           WHY THIS CHANGED: four reports have been lost, in FOUR DIFFERENT WAYS — a seat
+           that finished and went idle, a seat still running whose message never arrived, a
+           restarted session whose transcript was gone, and two composed as ordinary
+           conversation text and never sent. Every arrangement so far depended on a channel
+           between you and the gate, and THE CHANNEL HAS FAILED IN FOUR WAYS OUT OF FOUR.
+           A REPORT COMPOSED BUT NOT TRANSMITTED IS INDISTINGUISHABLE, FROM THE RECEIVING
+           END, FROM A REPORT NEVER WRITTEN. So the mechanism removes the channel: the
+           report rides inside the artifact being gated.
+           Send it in your green message TOO if you like, but the commit is what counts.
+           D-31, RULED 2026-08-29 — DO NOT COMMIT A PIT FILE. You REPORT five fields and
+           L1 writes kb/pits/F6.md from them. In order: TRIED, HAPPENED, CHANGED,
+           EARLIER, GRADE. "No pit" is a legal ENTRY; no report at all is not, and L1
+           cannot merge you without one.
+           REPORT THEM IN THE SAME MESSAGE THAT SAYS YOUR ACCEPT IS GREEN, not after.
+           Reports have been made and lost three times in this sprint, and a seat stopped
+           before it reports takes its pit with it — one node's pit had to be written
+           marked "NOT the seat's own report", which is worse than the node deserved.
+           Report in YOUR OWN WORDS. L1 transcribes and names you; a pit L1 composed is
+           worse than no pit. EARLIER is the field that pays: what you would tell
+           yourself an hour before you learned it.
+           (This block previously said "write it on your branch" — a contradiction with
+           D-31 that survived a reset of mine and misled three seats, all of which
+           correctly followed the ruling over the template and told me.)
+BRANCH:    seat/UX-F6
+DEADLINE:  2026-08-31T12:00-07:00
