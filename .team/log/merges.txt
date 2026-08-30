@@ -1167,3 +1167,34 @@ FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep
 #   REJECTS, so it cannot reproduce the class -- a FALSE-NEGATIVE GENERATOR that nearly
 #   convinced I2 there was nothing to find.
 #   IN A CLASSIFICATION THE DANGEROUS CELL IS NOT THE INSTANCE, IT IS THE CLEARED ONE.
+
+# D-92(a)'s TRAP FIRED, 2026-08-30 21:32 PDT, EXACTLY AS I4 WROTE IT TO.
+#   The user upgraded to Render Starter. Good news twice over: D-08's recorded
+#   divergence closes four days early, and the 09-04 -> 09-21 unattended judging window
+#   no longer risks cold starts.
+#   AND D1's CLAUSE 4 IS NOW UNSUPPORTED. "Exactly ONE instance" passed because the FREE
+#   tier is single-instance BY NATURE -- a PROPERTY OF THE TIER, not a configured replica
+#   count. That property is gone. evidence/D1-url.txt's opening line is now FALSE.
+#   THE CLAUSE BROKE PRECISELY WHEN SOMEBODY DID THE RIGHT THING, which is what PM named
+#   at D-92(a) and what I4 wrote the reason down to catch. A recorded FACT would have gone
+#   silently stale; a recorded REASON announced its own expiry.
+#   IT IS A CORRECTNESS DEPENDENCY, NOT BOOKKEEPING: S12's sign lock and S6's TOCTOU
+#   closure are true BY CONSTRUCTION OF A SINGLE PROCESS. A second instance reopens the
+#   lock race S6 closes.
+#   Routed: I4 owns the file; the dashboard needs the relay and the user. D1 stays done on
+#   its other three clauses and clause 4 is carried HONESTLY UNSUPPORTED until re-verified.
+
+# D-92(a) RESOLVED, and the replacement reason is STRONGER than the one that expired.
+#   Dashboard read post-upgrade, transcribed under the D-48 precedent:
+#     AUTOSCALING OFF -- greyed, non-interactive, gated "requires a Pro plan or higher",
+#       and the workspace is on Hobby. DOUBLY LOCKED: switched off AND structurally
+#       unavailable without a deliberate plan purchase. IT CANNOT DRIFT ON SILENTLY.
+#     MANUAL SCALING 1 -- slider and numeric input both 1, Save greyed, no pending change.
+#   So "one instance" moved from an INCIDENTAL PROPERTY OF A TIER to an EXPLICIT
+#   CONFIGURATION plus a STRUCTURAL GATE. The clause is supported again, by a better
+#   reason than the one that expired.
+#   S12's sign lock and S6's TOCTOU closure remain true by construction of a single
+#   process under both facts.
+#   THE WHOLE EPISODE IS THE ARGUMENT FOR RECORDING REASONS RATHER THAN FACTS: the tier
+#   changed, the fact silently stopped holding, and the RECORDED REASON is what announced
+#   its own expiry loudly enough for anyone to act on.

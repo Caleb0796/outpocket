@@ -57,11 +57,13 @@
   "in_flight": {
     "D4": "THE SHOOT GATE IS CLOSED \u2014 a human completed a signature on production at 2026-08-30T04:14:49Z, live sha f28f37c, witnessed by the live report reading status:submitted / method:signature-click. evidence/L1-shoot-gate.md. D4's inputs H6, F0, F7, D1 are all done and F6 is green at 13/13 through the REAL pipeline.",
     "F2": "UX \u2014 dispatching now, the largest block available.",
-    "E3": "C4 \u2014 fired on the Codex pool.",
+    "E3": "C4 \u2014 RED and UNMERGED, correctly. Its suite is honest against the frozen contract; it is blocked on D-118, a producer node that was never funded. E3 is cut rank 2: if D-118 does not land before submission, E3 does not land, and PM ruled that acceptable. NOT a reason to weaken the clause.",
     "E8": "C1 \u2014 HELD pending L2's admissibility ruling under RUBRIC \u00a75 (PM routed it there; it is not PM's scale).",
     "known defects, routed, not blocking": "sign-dialog.js discards submitDecision with its fetch UNWRAPPED \u2014 a failed POST renders NOTHING (UX). fallback-agent's shim never rejects, so it cannot reproduce the abort class (I1).",
     "pit debts": "H5 and T2 evidenced-unrecoverable; G2 collectable from I4.",
-    "parked": "D2/D3 until the shoot wraps \u2014 every push redeploys the artifact being filmed. S7/G1 day-gated."
+    "parked": "D2/D3 until the shoot wraps \u2014 every push redeploys the artifact being filmed. S7/G1 day-gated.",
+    "D-118": "I3 \u2014 the policy-digest refusal the frozen contract names and no node builds. AFTER the shoot: commit() is the demo's central beat and a FALSE refusal reaches the camera.",
+    "D1 clause 4": "RE-SUPPORTED 2026-08-30, by a STRONGER reason than the one it replaces. Dashboard read post-upgrade (Starter 0.5c/512mb, Live): AUTOSCALING OFF \u2014 toggle greyed and non-interactive, gated on 'Autoscaling requires a Pro plan or higher', and the workspace is on Hobby. So autoscale is DOUBLY LOCKED: switched off AND structurally unavailable without a deliberate workspace-plan purchase. MANUAL SCALING: slider and numeric input both read 1, Save greyed. So one instance is now an EXPLICIT CONFIGURATION whose change requires a deliberate edit plus Save \u2014 which is exactly the remedy evidence/D1-url.txt named for itself. I4 owns the file rewrite; the clause is supported again."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
