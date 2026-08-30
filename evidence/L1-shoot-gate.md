@@ -161,3 +161,64 @@ A possibly-decisive record of that attempt sat in server memory. I pushed on a r
 can lift", the redeploy wiped it, and the correction arrived after. **I treated a lift as a
 green rather than confirming the user had left the flow.** It happens to cost nothing — the GET
 could never have read it, per above — but that is luck, not judgement.
+
+---
+
+# THE GATE IS CLOSED — a HUMAN completed a signature on PRODUCTION
+
+**2026-08-30T04:14:49.868Z (21:14:49 PDT), live sha `f28f37c`, request
+`sg_d294ba4e6ab7e624`, dialog digest `sha256:cc6bba23aa8e7672…`.** Driven by the user in the
+ChatGPT desktop app. **The click was the user's hand only; automation never touched the Sign
+button** — the relay enforced that as a non-negotiable without being asked.
+
+## The witness
+
+Live report, read through the real tool surface:
+
+    {"status":"submitted",
+     "signature":{"signedBy":"Chen Xiao","method":"signature-click",
+                  "at":"2026-08-30T04:14:49.868Z"},
+     "submittedAt":"2026-08-30T04:14:49.868Z"}
+
+**`method:"signature-click"` is the decisive marker and I traced it before accepting it.**
+`src/page/tools/defs.js` sets it at exactly one place — the line immediately after
+`if (!decision?.signed) return` — so it is **unreachable except through a signed decision,
+which is unreachable except through a successful `POST /respond`.** The report state is
+therefore downstream of the one thing the in-app browser cannot show.
+
+The submit call's own return, verbatim, is an even more direct witness — it too is downstream
+of `/respond`:
+
+> *"Signed and submitted. Confirmation CH-0001; routed to Mei Tanaka (Engineering Director).
+> Provenance: 1/1 line(s) filled via agent tools, 0 human-edited; signature by Chen Xiao. A
+> structured artifact (policy 2026-08.1, line provenance, receipt hashes, day-book digest) is
+> stored on the report."*
+
+And the agent's own attestation: **"Submitted successfully. I never clicked or signed."**
+
+## What is NOT claimed
+
+**No truthful pre-click control exists.** The signature completed before the agent's first read
+returned — its submit call was suspended the whole time the dialog was up. **A positive without
+its control, labelled rather than lost.** The relay flagged this itself rather than presenting
+the result as cleaner than it was.
+
+`get_report` is auditor-only and unavailable to chen, so the agent used a chen-accessible read
+instead. **Verified this does not weaken the witness:** `get_open_report` is on the employee
+surface and its projection carries `signature: r.signature` — the same live ERP state, not the
+frozen snapshot.
+
+## Two things this run established beyond the gate
+
+**The 300s window (R-43) was beaten by seconds-fast clicking**, after a first attempt earlier
+in the evening expired inside it. That is a real shooting constraint: the clock starts at
+`open`, not at the click.
+
+**The silence trap never fired.** I3's sweep had found that `sign-dialog.js` discards
+`submitDecision` with its fetch unwrapped, so a failed POST would render nothing at all — a
+click producing no visible change would have been a real finding rather than a fumble. It did
+not arise, and the trap remains a known defect routed to UX.
+
+**And the submit artifact carries a `dayBookDigest`** — which bears directly on D-116's
+durable-witness question. The report may carry its own audit artifact, answering the judge's
+question we routed to PM.
