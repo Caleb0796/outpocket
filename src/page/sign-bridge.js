@@ -25,6 +25,16 @@
 // snapshot_digest and revision from GET /api/sign/{request_id} — so this is
 // a discipline about this module's own surface, not a claim that it closes
 // the vector. See erp/contracts/signature.schema.json x-signRequestState.
+//
+// D-89: openForDialog() below is the ONE deliberate exception, and it does
+// not weaken the paragraph above — beginSign()/continueSign() (what a
+// tool's execute() calls) are UNCHANGED, still exactly {status, ticket} or
+// the server's own sign_response. openForDialog() exists for a DIFFERENT
+// caller — src/page/sign-install.js's dialogPort, which mounts F4's dialog
+// and whose own return value (approved/declined) never echoes requestId,
+// signRequest or confirmToken back out to the agent. Confirm_token still
+// reaches it via GET /api/sign/{request_id}/confirm-token, a session-scoped
+// route that is not, and must never become, a registered tool.
 
 export const SIGN_MODE = Object.freeze({ HANDSHAKE: "handshake", SUSPEND: "suspend" });
 
@@ -129,5 +139,45 @@ export function createSignBridge({
     return res.body;
   }
 
-  return { beginSign, continueSign };
+  async function getJson(path, signal) {
+    const res = await fetchImpl(`${baseUrl}${path}`, { headers, credentials: "include", signal });
+    const json = await res.json();
+    return { ok: res.ok, status: res.status, body: json };
+  }
+
+  /**
+   * openForDialog(openBody, signal) -> Promise<{requestId, signRequest, ticket, confirmToken}>
+   *
+   * D-89. NOT beginSign — this is the PAGE-SIDE-ONLY companion, for code
+   * that MOUNTS F4's dialog (src/page/sign-install.js's dialogPort, never a
+   * tool's execute()). It opens the SAME sign request beginSign would, but
+   * — unlike beginSign, which deliberately withholds everything except
+   * {status, ticket} per R-13/R-44 — it also returns the full signRequest
+   * and fetches confirm_token from the new session-scoped, non-tool route
+   * (GET /api/sign/{request_id}/confirm-token). Safe ONLY because nothing
+   * that calls this may let requestId/signRequest/confirmToken flow back
+   * out to whatever the agent sees — the ticket alone is what's agent-
+   * visible-safe to echo further. NEVER wire this into a tool's execute()
+   * or into anything whose return value reaches one.
+   */
+  async function openForDialog(openBody, signal) {
+    const opened = await postJson("/api/sign", openBody, signal);
+    if (!opened.ok) {
+      const err = new Error(opened.body?.message || opened.body?.error || "sign-bridge: open failed");
+      err.code = opened.body?.error;
+      err.status = opened.status;
+      throw err;
+    }
+    const { sign_request: signRequest, ticket } = opened.body;
+    const tokenRes = await getJson(`/api/sign/${signRequest.request_id}/confirm-token`, signal);
+    if (!tokenRes.ok) {
+      const err = new Error(tokenRes.body?.message || tokenRes.body?.error || "sign-bridge: confirm-token fetch failed");
+      err.code = tokenRes.body?.error;
+      err.status = tokenRes.status;
+      throw err;
+    }
+    return { requestId: signRequest.request_id, signRequest, ticket, confirmToken: tokenRes.body.confirm_token };
+  }
+
+  return { beginSign, continueSign, openForDialog };
 }

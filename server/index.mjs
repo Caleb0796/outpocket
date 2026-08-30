@@ -308,6 +308,22 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         }
       }
 
+      // D-89: the confirm_token channel. Session-scoped, NOT a registered
+      // WebMCP tool — nothing in src/page/tools/defs.js may ever wrap this
+      // route. That is the entire property PM's ruling requires: the agent
+      // cannot read this through the tool surface, because it is not on it.
+      const confirmTokenMatch = url.pathname.match(/^\/api\/sign\/([^/]+)\/confirm-token$/);
+      if (confirmTokenMatch && req.method === "GET") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          const confirm_token = signGate.peekConfirmTokenForDialog(confirmTokenMatch[1], { sessionId: session.sid });
+          return sendJson(res, 200, { confirm_token });
+        } catch (err) {
+          return sendSignError(res, err);
+        }
+      }
+
       const respondMatch = url.pathname.match(/^\/api\/sign\/([^/]+)\/respond$/);
       if (respondMatch && req.method === "POST") {
         const session = sessionFromRequest(req);
