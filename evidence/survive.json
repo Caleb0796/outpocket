@@ -1,0 +1,28 @@
+{
+  "url": "https://outpocket.onrender.com",
+  "measuredAgainstBuildSha": "617a109",
+  "note": "This is a measurement of a deployed state (D-92(b)'s property, same as D1): every push after this run invalidates it. Per PM's D-132, this stands as the record with its build named, re-verified in the final pass against the submission build and a fresh S9 baseline, rather than re-run now against a build that has already moved.",
+  "idleSeconds": 1800,
+  "idleWaitStartUtc": "2026-08-30T05:09:45.020Z",
+  "idleWaitEndUtc": "2026-08-30T05:39:45.026Z",
+  "preCheck": {
+    "note": "read BEFORE starting the idle clock, per L1's window protocol — separate from the two requests survive.mjs itself makes",
+    "atUtc": "2026-08-30T05:09:03Z",
+    "digest": "sha256:525b30a0d515e0d121ce426b0bfd5726c777b15410b8267d58081f63e4c51870",
+    "matchesS9Baseline": true
+  },
+  "coldRequest": {
+    "path": "/",
+    "status": 200,
+    "elapsedMs": 280.5,
+    "pass": true
+  },
+  "stateDigest": {
+    "path": "/api/state-digest",
+    "got": "sha256:525b30a0d515e0d121ce426b0bfd5726c777b15410b8267d58081f63e4c51870",
+    "expect": "sha256:525b30a0d515e0d121ce426b0bfd5726c777b15410b8267d58081f63e4c51870",
+    "pass": true
+  },
+  "requestsMadeDuringIdleWindow": 0,
+  "pass": true
+}
