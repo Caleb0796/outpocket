@@ -744,3 +744,5 @@ MERGED T2  0483c20 pits:PENDING accept:PASS
 #   said nothing about it.
 
 MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
+
+MERGED S12 be34298 pits:PENDING accept:PASS
