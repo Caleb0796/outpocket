@@ -1052,3 +1052,18 @@ FOLLOWUP DEV-abort-rejection b26c737 pits:kb/pits/DEV-abort-rejection.md accept:
 #   WebMCP so it measured the __simulated shim, and a later run showed 0 exceptions
 #   because the server had died of EADDRINUSE and the page never loaded.
 #   A ZERO IS ONLY EVIDENCE IF YOU CAN SHOW THE THING THAT PRODUCES NON-ZERO WAS RUNNING.
+
+FOLLOWUP DEV-sign-crash 38d6afb pits:kb/pits/DEV-sign-crash.md accept:N/A (not a node)
+#   A WHOLE-SITE OUTAGE on the signature path. One malformed POST /api/sign killed the
+#   Node PROCESS -- uncaught CanonError from digest() on an undefined field. Found while
+#   running the shoot gate against production: the 502 and the subsequent 401s were ONE
+#   EVENT, because the instance restarted and SESSIONS ARE IN-MEMORY.
+#   Two fixes, each verified independently: field validation in open() (400 with the
+#   missing names), and a TOP-LEVEL GUARD that did not exist at all -- so any throwing
+#   handler now costs one client a 500 instead of the site.
+#   I proved the general guard alone suffices by disabling only the specific validation:
+#   500 not 000, CanonError still thrown, /api/me still 200. MY FIRST SABOTAGE SILENTLY
+#   FAILED TO APPLY and returned 400 -- A SABOTAGE THAT DOES NOT APPLY IS A GREEN THAT
+#   MEANS NOTHING.
+#   The narrowing is undefined-ONLY because NULL IS A VALID OCF-1 VALUE; a stricter first
+#   draft broke three passing tests and was caught before it shipped.
