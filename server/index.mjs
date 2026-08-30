@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { policyHandler } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
+import { createVersionHandler } from "./routes/version.mjs";
 import { createSignGate, SignError } from "./sign.mjs";
 import { authorizeWrite, AuthzError } from "./authz.mjs";
 import { LockError } from "./locks.mjs";
@@ -158,6 +159,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
   const sessions = new Map(); // sid -> persona id
   const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
   const stateDigestHandler = createStateDigestHandler(() => state);
+  const versionHandler = createVersionHandler(); // D1 (I4): GET /version
   const serveStatic = makeStaticHandler(pageRoot);
 
   function findReport(reportId) {
@@ -486,6 +488,11 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
 
     if (stateDigestHandler(req, res, url)) return;
 
+    // D1 (I4): mounted BEFORE the static fallback on purpose — the fallback
+    // would otherwise answer /version with its own JSON 404 first, and a
+    // route shadowed that way is indistinguishable from one never wired.
+    if (versionHandler(req, res, url)) return;
+
     if (await serveStatic(req, res, url)) return;
 
     sendJson(res, 404, { error: "E_NOT_FOUND" });
@@ -497,8 +504,18 @@ export function createHttpServer(opts) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.PORT) || 3000;
-  createHttpServer().listen(port, () => {
-    console.log(`outpocket server listening on :${port}`);
+  // PORT=0 must mean "OS-assigned ephemeral port" (node:http honors this),
+  // not "unset" — `Number(process.env.PORT) || 3000` treated 0 as falsy and
+  // silently fell back to 3000, which is the opposite of what
+  // tests/acceptance/curl-403.sh and toctou.sh assumed when they set PORT=0
+  // for parallel-safety on a machine running many seats' worktrees at once.
+  const port = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
+  const server = createHttpServer();
+  server.listen(port, () => {
+    // Report the ACTUAL bound port, not the requested one — with PORT=0
+    // (OS-assigned ephemeral, now that it is honored instead of silently
+    // becoming 3000) those differ, and tests/acceptance/curl-403.sh and
+    // toctou.sh both parse this exact line to learn where to curl.
+    console.log(`outpocket server listening on :${server.address().port}`);
   });
 }
