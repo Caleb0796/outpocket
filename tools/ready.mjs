@@ -684,7 +684,16 @@ function checkRecord() {
   // FORMAT THAT DEFEATS ITS OWN CHECKER IS WORSE THAN NO RECORD. Partial rows are validated
   // for sha and pit like any other, and are required NOT to be in done -- the moment the node
   // finishes it becomes a MERGED row and the PARTIAL line stays as history.
-  const partials = all.filter((l) => l.startsWith('PARTIAL'));
+  // TWO KINDS OF NON-MERGED ROW, ONE RULE. PARTIAL: a node whose work landed but which is
+  // not yet done (D1's route and mount, with its /version clause deferred). FOLLOWUP: work
+  // that landed for a RULING rather than a node -- D-89 is an S5 follow-up and has no id in
+  // `nodes`, so a MERGED row for it can never validate.
+  // I have now broken this mode three times by inventing a token its parser reads: an id
+  // (`D1-partial`), a status (`PENDING-UNRECOVERABLE`), and a row kind. A RECORD FORMAT IS
+  // AN INTERFACE, and I kept treating the log as prose. So this is generalised ONCE rather
+  // than extended a fourth time: both kinds are validated for sha and pit exactly as MERGED
+  // rows are, and neither is required to name a node in `done`.
+  const partials = all.filter((l) => /^(PARTIAL|FOLLOWUP)\s/.test(l));
   const st = fs.existsSync(STATE_PATH) ? JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) : { done: [] };
   let violations = 0;
   const seen = [];
@@ -715,8 +724,8 @@ function checkRecord() {
   }
   const done = new Set(st.done || []);
   for (const line of partials) {
-    const m = line.match(/^PARTIAL\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
-    if (!m) { bad(`malformed PARTIAL row: ${line}`); violations++; continue; }
+    const m = line.match(/^(?:PARTIAL|FOLLOWUP)\s+(\S+)\s+(\S+)\s+pits:(\S+)/);
+    if (!m) { bad(`malformed PARTIAL/FOLLOWUP row: ${line}`); violations++; continue; }
     const [, node, sha, pit] = m;
     if (!/^[0-9a-f]{7,40}$/.test(sha)) { bad(`${node} (partial): "${sha}" is not a sha`); violations++; }
     else if (spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`]).status !== 0) {
@@ -734,7 +743,7 @@ function checkRecord() {
     // sitting in `done` on the strength of a PARTIAL row alone, which would let half-landed
     // work be counted as finished. I wrote the assertion without the exception my own
     // comment had already promised, and it went red on the first node to complete the cycle.
-    if (done.has(node) && !seen.includes(node)) {
+    if (line.startsWith('PARTIAL') && done.has(node) && !seen.includes(node)) {
       bad(`${node} is in done but its only row is PARTIAL -- half-landed work counted as finished`);
       violations++;
     }

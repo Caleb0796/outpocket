@@ -1023,7 +1023,7 @@ MERGED F5  f7e4259 pits:kb/pits/F5.md accept:PASS
 #   which is D-92(b) working, not a regression. D1's done status rests on the explicit
 #   manual observation, and is re-verified in the final pass with D6.
 
-MERGED D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
+FOLLOWUP D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
 #   An S5 follow-up, not a node. THE PAGE CAN NOW COMPLETE A SIGNATURE.
 #   The invariant is held BY CONSTRUCTION, not by filtering: a session-scoped route that
 #   is NOT a registered tool (0 in defs.js, absent from the export surface), a page-only
