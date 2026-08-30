@@ -3,8 +3,10 @@
 // NODE T1 PORTED THIS FILE'S BODY into src/page/tools/. What is left here is a
 // re-export facade and nothing else:
 //
-//   src/page/tools/defs.js     the sixteen definitions  (contract §2)
-//   src/page/tools/compile.js  the six-state compiler   (contract §1) + dispatch
+//   src/page/tools/defs.js     the sixteen expense-desk definitions
+//   src/page/tools/absence.js  the absence register     (node T3)
+//   src/page/tools/compile.js  the six-state compiler   (contract §1) + dispatch,
+//                              and the seventeen-name catalogue of contract §2
 //
 // Why a facade rather than a copy: tests/helpers.mjs, tests/surface.test.mjs and
 // tools/validate-contracts.mjs all import createToolset from this path. If the port

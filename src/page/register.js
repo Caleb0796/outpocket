@@ -50,7 +50,7 @@
 // A surface flip is cheap but it is not free: it costs roughly one prompt-cache
 // write on the agent's side, and the refreshed list reaches the agent on its
 // NEXT turn, not mid-turn. Registration measured at ~37 µs per tool and
-// revocation at ~1.1 µs per tool, so the whole 13-tool surface re-registers in
+// revocation at ~1.1 µs per tool, so the whole 14-tool surface re-registers in
 // well under a millisecond. There is nothing here worth optimising.
 //
 // ── WIRING (one line, owned by node F1) ───────────────────────────────────────
@@ -141,7 +141,7 @@ const toolset = createToolset(erp, hooks);
 // switch. Every flip therefore re-registers every tool against freshly built
 // definitions, and the previous generation is revoked whole.
 //
-// That costs ~0.5 ms for a 13-tool surface. The arrived/departed diff below is
+// That costs ~0.5 ms for a 14-tool surface. The arrived/departed diff below is
 // computed for reporting only; it never decides what gets registered.
 
 let generation = null; // { n, controller, names: string[], state: string }
