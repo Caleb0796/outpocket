@@ -17,10 +17,11 @@
 //
 // Two distinct secrets, never confused:
 //   - confirm_token (ct_...): minted with the sign request, delivered ONLY
-//     into the rendered dialog's DOM (never in any JSON response — see
-//     peekConfirmTokenForDialog below, this module's stand-in for "the DOM"
-//     until F4 exists), required by respond(). Defence in depth (R-13(c)),
-//     not proof of personhood (R-44).
+//     via GET /api/sign/{request_id}/confirm-token (D-89) — a session-scoped
+//     route that is NOT a registered tool — into the rendered dialog's DOM.
+//     Never in any JSON response a TOOL can produce (see
+//     peekConfirmTokenForDialog below and stripTicketAndToken), required by
+//     respond(). Defence in depth (R-13(c)), not proof of personhood (R-44).
 //   - ticket (tk_...): minted with the sign request, returned to the AGENT
 //     in the tool-execute result of the two-call handshake (contingencies[4]
 //     fired: handshake is the shipped mode, suspend stays behind the switch
@@ -330,13 +331,18 @@ export function createSignGate({
   /**
    * peekConfirmTokenForDialog(requestId, {sessionId}) -> confirm_token
    *
-   * TEST-ONLY STAND-IN FOR THE RENDERED DIALOG'S DOM. F4 (the sign dialog,
-   * not this node's output) is what actually writes confirm_token into the
-   * DOM in the shipped product; nothing in this repository serves it over
-   * JSON, ever — see stripTicketAndToken above and x-signRequestState
-   * .confirmToken. This accessor exists so tests/acceptance/sign-state
-   * .test.mjs can exercise the "caller with DOM read access" arm honestly,
-   * without inventing a second delivery channel that would leak it for real.
+   * D-89: THE REAL PRODUCTION CHANNEL, promoted from its earlier test-only
+   * status. Mounted at GET /api/sign/{request_id}/confirm-token
+   * (server/index.mjs) — a session-scoped endpoint that is NOT, and must
+   * never become, a registered WebMCP tool. That is the whole property:
+   * the agent cannot read this through the tool surface (nothing in
+   * src/page/tools/defs.js wraps it, and R-13's tool-facing functions —
+   * open()'s stripTicketAndToken projection, respond()'s toSignResponse —
+   * still never include confirm_token, unchanged). Page-authored,
+   * non-tool JS calling this with the session cookie is the admissible
+   * channel PM's D-89 ruling names; still used directly (no HTTP) by
+   * tests/acceptance/sign-state.test.mjs and sign-lock.test.mjs, which
+   * predate this route and don't need it.
    */
   function peekConfirmTokenForDialog(requestId, { sessionId }) {
     const rec = lookup(requestId);
