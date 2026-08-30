@@ -1099,3 +1099,12 @@ FOLLOWUP D-94-beats a338a5a pits:kb/pits/D-94-beats.md accept:N/A (a ruling, not
 #   EXECUTING IT -- found by running the parser regex of a node it was not reviewing.
 #   SB-04 needs a REWRITE not a relabel: the surface compiles from (role x report-state x
 #   verdict) and POLICY IS NOT AN AXIS, so an absent tool refuses nothing.
+
+FOLLOWUP D1-deploy-observations 5d4c2f6 pits:kb/pits/D1-deploy-observations.md accept:N/A
+#   Cold start MEASURED: 960s idle, then 200 in 0.414s -- AND THE HEDGE THAT MAKES IT
+#   HONEST: a fast result is not proof the tier wakes fast, only that either it woke
+#   fast OR IT NEVER SLEPT. A measurement that cannot distinguish its own two
+#   explanations, said so by the seat that took it.
+#   Deploy latency recorded as an upper BOUND (<=9m49s), not the unobserved flip.
+#   And it corrected me: version.mjs was never lost -- I inferred that from an absence
+#   on main and I4 checked instead of accepting it.
