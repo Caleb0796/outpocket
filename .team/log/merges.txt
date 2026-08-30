@@ -958,3 +958,19 @@ MERGED E5  c522af8 pits:kb/pits/E5.md accept:PASS
 #   because a marker identifying a hook by its function NAME is satisfied by anything
 #   wearing that name.
 #   Header names the MECHANISM, not a boolean -- an opinion vs a measurement.
+
+MERGED D1  c923725 pits:kb/pits/D1.md accept:PASS
+#   GRADED IN THE WINDOW. All four clauses observed to hold SIMULTANEOUSLY against the
+#   live host at c92372587a728300dd5bbd0686d2e31bcb01f7f0:
+#     (1) Origin-Agent-Cluster ABSENT from evidence/headers.txt
+#     (2) GET / returns 200            (checked EXPLICITLY -- the accept's own span
+#         prints the code with -o /dev/null and exits 0 whatever it is, so exit 0 on
+#         that span proves nothing on its own)
+#     (3) live /version == git rev-parse HEAD, both c923725...
+#     (4) evidence/D1-url.txt records ONE INSTANCE **with the reason** -- free tier,
+#         single-instance BY NATURE, not a configured replica count
+#   D-92(b) STILL BINDS: the version clause is RE-VERIFIED IN THE FINAL PASS WITH D6.
+#   The next push to main moves the sha and Render redeploys, so this row records an
+#   OBSERVATION AT A MOMENT, not a permanent property. DONE MEANS OBSERVED.
+#   The PARTIAL D1 row above stays as history: the route and mount landed hours before
+#   the clause could be graded.
