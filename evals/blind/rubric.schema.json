@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "blind.c1_verdict/1",
+  "$id": "blind.c1_verdict/2",
   "title": "Blind surface verdict",
-  "description": "The single source of the blind grader's verdict shape. Two halves: an operational half, one record per task, which is mechanically comparable against a fixed answer key; and a rubric half, which is judgement. The operational half is the one that carries weight.",
+  "description": "The single source of the blind grader's verdict shape. Two halves: an operational half, one record per task, which is mechanically comparable against a fixed answer key; and a rubric half, which is judgement. The operational half is the one that carries weight. NOTE ON SHAPE: the six dimensions are written out longhand rather than sharing a $ref. The structured-output validator refuses a $ref carrying any sibling keyword, and the per-dimension scoring anchors live in exactly that sibling `description`. Anchors are what make a score mean something, so the anchors stayed and the $ref went. Do not re-factor the six into a shared definition.",
   "type": "object",
   "additionalProperties": false,
   "required": ["tasks", "rubric", "gate", "worstProblem"],
@@ -15,33 +15,12 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "task",
-          "state",
-          "firstTool",
-          "canConstructArgs",
-          "missingInfo",
-          "ambiguousWith",
-          "wouldAskHuman",
-          "notes"
-        ],
+        "required": ["task", "state", "firstTool", "canConstructArgs", "missingInfo", "ambiguousWith", "wouldAskHuman", "notes"],
         "properties": {
-          "task": {
-            "type": "string",
-            "description": "The task id, T1 through T8."
-          },
-          "state": {
-            "type": "string",
-            "description": "The state id from the export that you judged yourself to be in for this task."
-          },
-          "firstTool": {
-            "type": "string",
-            "description": "The exact name of the single tool you would call FIRST. The empty string if no tool registered in that state fits the request."
-          },
-          "canConstructArgs": {
-            "type": "boolean",
-            "description": "Whether every required argument of that call could be built from the task text plus the tool surface alone."
-          },
+          "task": { "type": "string", "description": "The task id, T1 through T8." },
+          "state": { "type": "string", "description": "The state id from the export that you judged yourself to be in for this task." },
+          "firstTool": { "type": "string", "description": "The exact name of the single tool you would call FIRST. The empty string if no tool registered in that state fits the request." },
+          "canConstructArgs": { "type": "boolean", "description": "Whether every required argument of that call could be built from the task text plus the tool surface alone." },
           "missingInfo": {
             "type": "array",
             "description": "Each specific piece of information you would have lacked. Empty when canConstructArgs is true. Name the field or the value, not the difficulty.",
@@ -52,46 +31,82 @@
             "description": "Names of other tools you could not confidently tell apart from the one you chose, using names, descriptions and schemas alone. Empty if none.",
             "items": { "type": "string" }
           },
-          "wouldAskHuman": {
-            "type": "boolean",
-            "description": "Whether you would have to return to the person before making any call at all."
-          },
-          "notes": {
-            "type": "string",
-            "description": "At most two sentences. Use this to record anything you had to assume, any place you had to guess what a tool meant, or any reason the situation did not match a state cleanly."
-          }
+          "wouldAskHuman": { "type": "boolean", "description": "Whether you would have to return to the person before making any call at all." },
+          "notes": { "type": "string", "description": "At most two sentences. Use this to record anything you had to assume, any place you had to guess what a tool meant, or any reason the situation did not match a state cleanly." }
         }
       }
     },
     "rubric": {
       "type": "object",
-      "description": "Six dimensions. Score each 0, 1 or 2 against its anchors, and state your confidence separately from your score.",
+      "description": "Six dimensions. Score each 0, 1 or 2 against its own anchors, and state your confidence separately from your score.",
       "additionalProperties": false,
       "required": ["R1", "R2", "R3", "R4", "R5", "R6"],
       "properties": {
         "R1": {
-          "$ref": "#/definitions/dimension",
-          "description": "NAMEABILITY. Could the right tool be picked from names alone? 0 = names collide or actively mislead. 1 = mostly clear, at least one confusable pair. 2 = each name maps to one intent."
+          "type": "object",
+          "description": "NAMEABILITY. Could the right tool be picked from names alone? 0 = names collide or actively mislead. 1 = mostly clear, at least one confusable pair. 2 = each name maps to one intent.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         },
         "R2": {
-          "$ref": "#/definitions/dimension",
-          "description": "ARGUMENT CONSTRUCTIBILITY. Could required arguments be built from the surface? 0 = two or more tasks blocked. 1 = one task blocked. 2 = all constructible."
+          "type": "object",
+          "description": "ARGUMENT CONSTRUCTIBILITY. Could required arguments be built from the surface? 0 = two or more tasks blocked. 1 = one task blocked. 2 = all constructible.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         },
         "R3": {
-          "$ref": "#/definitions/dimension",
-          "description": "FAILURE LEGIBILITY. Does the surface tell you what happens when a call is refused? 0 = nothing at all. 1 = mentioned only in general terms. 2 = the shape of a refusal is described, or can be discovered by calling a tool that only reads."
+          "type": "object",
+          "description": "FAILURE LEGIBILITY. Does the surface tell you what happens when a call is refused? 0 = nothing at all. 1 = mentioned only in general terms. 2 = the shape of a refusal is described, or can be discovered by calling a tool that only reads.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         },
         "R4": {
-          "$ref": "#/definitions/dimension",
-          "description": "ABSENCE LEGIBILITY. When a tool you expected is not registered in the state you are in, can you find out why? 0 = no signal of any kind. 1 = inferable from what else is present. 2 = the surface itself gives you a way to ask."
+          "type": "object",
+          "description": "ABSENCE LEGIBILITY. When a tool you expected is not registered in the state you are in, can you find out why? 0 = no signal of any kind. 1 = inferable from what else is present. 2 = the surface itself gives you a way to ask.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         },
         "R5": {
-          "$ref": "#/definitions/dimension",
-          "description": "ECONOMY. Judged per description, against the single question: was any of this text unnecessary in order to make the call? 0 = at least one description carries substantial material you did not need. 1 = some are wordier than they need to be. 2 = each says what the call needs and stops."
+          "type": "object",
+          "description": "ECONOMY. Judged per description, against the single question: was any of this text unnecessary in order to make the call? 0 = at least one description carries substantial material you did not need. 1 = some are wordier than they need to be. 2 = each says what the call needs and stops.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         },
         "R6": {
-          "$ref": "#/definitions/dimension",
-          "description": "READ-ONLY HONESTY. Where a tool is annotated as read-only, does its description agree? 0 = a tool annotated read-only plainly changes something. 1 = cannot be determined from the description. 2 = annotations and descriptions agree throughout."
+          "type": "object",
+          "description": "READ-ONLY HONESTY. Where a tool is annotated as read-only, does its description agree? 0 = a tool annotated read-only plainly changes something. 1 = cannot be determined from the description. 2 = annotations and descriptions agree throughout.",
+          "additionalProperties": false,
+          "required": ["score", "confidence", "why"],
+          "properties": {
+            "score": { "type": "integer", "enum": [0, 1, 2], "description": "0, 1 or 2, against this dimension's anchors." },
+            "confidence": { "type": "string", "enum": ["low", "medium", "high"], "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess." },
+            "why": { "type": "string", "description": "At most two sentences and at most 300 characters, naming the specific tools or descriptions that drove the score." }
+          }
         }
       }
     },
@@ -101,46 +116,10 @@
       "additionalProperties": false,
       "required": ["tasksCompletable", "passed"],
       "properties": {
-        "tasksCompletable": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 8,
-          "description": "How many of the eight tasks you could have completed WITHOUT asking for information the surface does not contain."
-        },
-        "passed": {
-          "type": "boolean",
-          "description": "True when tasksCompletable is 6 or more. Report both; do not adjust one to match the other."
-        }
+        "tasksCompletable": { "type": "integer", "description": "How many of the eight tasks you could have completed WITHOUT asking for information the surface does not contain. A whole number from 0 to 8." },
+        "passed": { "type": "boolean", "description": "True when tasksCompletable is 6 or more. Report both; do not adjust one to match the other." }
       }
     },
-    "worstProblem": {
-      "type": "string",
-      "maxLength": 300,
-      "description": "The single worst problem with this surface, in your own words, at most 300 characters. If there is none, say so plainly."
-    }
-  },
-  "definitions": {
-    "dimension": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["score", "confidence", "why"],
-      "properties": {
-        "score": {
-          "type": "integer",
-          "enum": [0, 1, 2],
-          "description": "0, 1 or 2, against this dimension's anchors."
-        },
-        "confidence": {
-          "type": "string",
-          "enum": ["low", "medium", "high"],
-          "description": "How sure you are of the score. Low confidence with a reason is more useful to us than a confident guess."
-        },
-        "why": {
-          "type": "string",
-          "maxLength": 400,
-          "description": "At most two sentences naming the specific tools or descriptions that drove the score."
-        }
-      }
-    }
+    "worstProblem": { "type": "string", "description": "The single worst problem with this surface, in your own words, in at most 300 characters. If there is none, say so plainly." }
   }
 }
