@@ -1,0 +1,76 @@
+You are assessing a tool surface that a web page exposes to a browser-based AI
+agent. You are the agent's stand-in. Judge only what is in this directory.
+
+WHAT YOU HAVE
+
+Two files, and nothing else exists for you:
+
+  tools.export.json   the tool surface, captured in each of several session
+                      states. Per state you get the state's id, its
+                      preconditions, and the list of tools registered in it.
+  tasks.md            eight things an employee asks their assistant to do.
+
+There is no repository, no network, no documentation and no source code here.
+Do not go looking for any. If you find yourself reasoning from something that is
+not in these two files, stop and treat that as a gap in the surface instead.
+
+WHAT THE API IS
+
+A page registers tools with the browser at run time. For each tool an agent can
+see exactly four things, and you are given exactly those four:
+
+  name           an identifier
+  description    free text written by the page author
+  inputSchema    a JSON Schema for the call's arguments
+  annotations    optional metadata; may include a readOnlyHint boolean
+
+Two properties of the mechanism matter for how you read the export:
+
+  - The registered set is not fixed for the session. A page may register and
+    revoke tools as its own state changes, so the same tool may be present in
+    one state and absent in another. Revocation is done by aborting the
+    registration's AbortController; a revoked tool is gone from the surface on
+    the agent's next turn.
+  - Therefore a tool that is absent from a state is not necessarily a tool that
+    does not exist. It is a tool not offered in that state.
+
+That is the whole of the mechanism. Nothing about how a surface ought to be
+designed follows from it, and none is implied here.
+
+WHAT TO DO
+
+Work the eight tasks in order. For each one, first decide which state in the
+export you are in, then answer honestly, as the agent, from the surface alone:
+
+  - Which single tool would you call FIRST? Give its exact name. If no tool in
+    that state fits, say so with the empty string.
+  - Could you construct that call's arguments from what the surface gives you
+    plus the task text? If not, name each specific piece of information you
+    would be missing.
+  - Which other tools, if any, could you not confidently tell apart from the one
+    you picked, on names and descriptions alone?
+  - Would you have to go back to the human before calling anything?
+
+Then answer six general questions about the surface as a whole, and one
+yes/no question about whether you could have finished the tasks.
+
+HOW TO JUDGE
+
+Report what you actually experienced reading this surface cold. In particular:
+
+  - "I could not tell" is a RESULT, not a failure, and it is more useful to us
+    than a confident guess. If a description left you unsure what the tool does,
+    when it would work, or what it would do to the underlying data, say that.
+  - Do not repair the surface in your head. If you find yourself thinking "the
+    description is thin but it obviously means X", that substitution is exactly
+    what we need reported. Write down that you had to make it.
+  - Judge every tool on what it says, not on what its name suggests it probably
+    does.
+  - Your job is to describe this surface as you found it. There is no target
+    answer, no score we are hoping for, and no design you are being asked to
+    confirm or reject.
+
+OUTPUT
+
+Emit a single JSON document conforming to the provided output schema. Every
+field is required. Keep free text short and specific.
