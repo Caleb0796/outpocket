@@ -45,7 +45,7 @@ const base = val('--base') || 'main';
 // pair is a guard I have not seen fire, which is the thing this file exists to prevent.
 const mainline = val('--mainline') || 'origin/main';
 if (!node || !seat || !branch) {
-  console.error('usage: merge-gate.mjs --node <ID> --seat <SEAT> --branch <REF> [--base main] [--pit-pending] [--skip-accept]');
+  console.error('usage: merge-gate.mjs --node <ID> --seat <SEAT> --branch <REF> [--base main] [--pit-pending] [--skip-accept] [--accept-merged]');
   process.exit(2);
 }
 
@@ -119,7 +119,42 @@ if (dl.status !== 0) {
 if (has('--skip-accept')) {
   record('accept', true, 'SKIPPED by --skip-accept (declare why in the merge message)');
 } else {
-  const list = run('node', ['tools/accept-gate.mjs', node, '--list']);
+  // ---- WHERE THE PREDICATE RUNS, AND WHY IT IS SOMETIMES NOT HERE ----
+  // E3 was the first node whose accept depends on files the BRANCH introduces:
+  // `eval.mjs --suite negative` needs evals/suites/negative.suite.json, which exists
+  // only on seat/C4-E3. Run in the base checkout it fails; run in the merged tree it
+  // passes. The gate reported a RED predicate for a GREEN node, which is the worst
+  // direction for a gate to be wrong in -- it teaches you to distrust the gate.
+  // --accept-merged builds a throwaway worktree at base, merges the branch into it,
+  // and runs the predicate THERE: the tree the merge would actually produce.
+  let acceptCwd = process.cwd();
+  let tmpWt = null;
+  let acceptAborted = false;
+  if (has('--accept-merged')) {
+    tmpWt = (process.env.TMPDIR || '/tmp') + '/mg-' + node + '-' + Date.now();
+    const add = run('git', ['worktree', 'add', '-q', '--detach', tmpWt, mainline]);
+    if (add.status !== 0) {
+      record('accept', false, '--accept-merged: could not create worktree:\n' + (add.stdout + add.stderr).trim());
+      tmpWt = null; acceptAborted = true;
+    } else {
+      const m = run('git', ['-C', tmpWt, 'merge', '--no-ff', '-q', branch, '-m', 'merge-gate trial']);
+      if (m.status !== 0) {
+        record('accept', false, '--accept-merged: branch does not merge cleanly into ' + mainline + ':\n' + (m.stdout + m.stderr).trim());
+        run('git', ['worktree', 'remove', '--force', tmpWt]);
+        tmpWt = null; acceptAborted = true;
+      } else {
+        // node_modules is untracked, so a fresh worktree has none and every test
+        // importing a dependency fails at LOAD. That is not the node failing. It cost
+        // me an hour and a false regression report against another seat.
+        try { fs.symlinkSync(process.cwd() + '/node_modules', tmpWt + '/node_modules'); } catch {}
+        acceptCwd = tmpWt;
+      }
+    }
+  }
+  if (acceptAborted) {
+    // already recorded FAIL above; recording it again would print an ok after a FAIL
+  } else {
+  const list = run('node', [process.cwd() + '/tools/accept-gate.mjs', node, '--list'], { cwd: acceptCwd });
   if (list.status !== 0) {
     record('accept', false, `accept-gate could not list spans for ${node}:\n${(list.stdout + list.stderr).trim()}`);
   } else {
@@ -127,7 +162,7 @@ if (has('--skip-accept')) {
     let allOk = spans.length > 0;
     const lines = [];
     for (let i = 0; i < spans.length; i++) {
-      const r = run('node', ['tools/accept-gate.mjs', node, '--run', String(i)]);
+      const r = run('node', [process.cwd() + '/tools/accept-gate.mjs', node, '--run', String(i)], { cwd: acceptCwd });
       const nonCommand = /DOES NOT LOOK LIKE A SHELL COMMAND/.test(r.stdout + r.stderr);
       // A prose fragment is not a failing node -- accept-gate says so itself, and a
       // shell rejecting an English sentence must not read as a red predicate.
@@ -136,8 +171,15 @@ if (has('--skip-accept')) {
       lines.push(`  span ${i} exit ${r.status}${nonCommand ? '  (not a shell command -- not counted)' : ''}  ${spans[i].slice(0, 72)}`);
     }
     if (!spans.length) lines.push('  NO SPANS -- accept has no runnable command; this gate cannot pass it');
+    if (!allOk && !has('--accept-merged')) {
+      const added = run('git', ['diff', '--name-only', '--diff-filter=A', mainline + '...' + branch]);
+      const n = (added.stdout || '').trim().split('\n').filter(Boolean).length;
+      if (n > 0) lines.push('  HINT: this branch ADDS ' + n + ' file(s) absent from ' + mainline + '. If the predicate\n        needs them it CANNOT pass here -- re-run with --accept-merged.');
+    }
+    if (tmpWt) { lines.push('  (predicate ran in a MERGED worktree, not the base checkout)'); run('git', ['worktree', 'remove', '--force', tmpWt]); }
     record('accept', allOk, lines.join('\n'));
   }
+}
 }
 
 // ---- (2) Layer-0 lint -------------------------------------------------------------
