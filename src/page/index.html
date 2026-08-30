@@ -204,11 +204,40 @@
 <script type="module" src="./ui/shell.js"></script>
 
 <!--
-  THE onerror IS A GUARD, NOT DECORATION. src/page/register.js is node T2's
-  output and is not on main yet, so today this tag 404s on every page load. A
-  bare 404 is a raw console error on a project whose pitch is that the page is
-  honest about its own state — and no gate catches it, because node tests never
-  load the page and a failed module script does not stop the others evaluating.
+  H3's in-page fallback agent (src/page/fallback-agent.js, node I1). It installs
+  a document.modelContext shim backed by T2's registry when the real WebMCP is
+  absent, and it auto-installs on evaluation — so this tag is the whole wiring.
+
+  IT MUST COME AFTER ./ui/shell.js, AND THAT IS MEASURED, NOT ASSUMED. When it
+  drives, it must disclose that in BOTH places: #agent-banner in plain words,
+  and the environment banner's " · simulated agent" suffix, which it applies by
+  calling outpocketShell.refreshEnvBanner({simulated:true}). H5's banner test
+  checks that suffix. Placed BEFORE the shell, outpocketShell does not exist
+  yet, the call is skipped, and install() reports labelled.envBanner FALSE —
+  while #agent-banner is still set, so the page LOOKS correctly labelled and is
+  only half labelled. An unlabelled self-driving demo is dishonest; a
+  half-labelled one is worse, because it passes a glance.
+
+  Its position relative to ./register.js is genuinely free — measured both ways,
+  identical results (state S1, 5 tools, flips 1, both banners labelled), because
+  the module installs eagerly and resolves the registry lazily by design. It
+  sits before register.js anyway, so the shim exists at register.js's FIRST
+  sync rather than relying on the self-heal path.
+-->
+<script type="module" src="./fallback-agent.js" onerror="
+  console.error('outpocket: src/page/fallback-agent.js (node H3) did not load — this page cannot drive its own tools, and no simulated-agent label has been applied.');
+"></script>
+
+<!--
+  THE onerror IS A GUARD, NOT DECORATION. It was added while src/page/register.js
+  (node T2) was not yet on main and this tag 404'd on every load. T2 HAS SINCE
+  LANDED and the guard no longer fires, but it stays: a module that goes missing
+  or becomes unfetchable is otherwise a bare console error on a project whose
+  pitch is that the page is honest about its own state, and no gate catches that
+  — node tests never load the page, and a failed module script does not stop the
+  others evaluating. Note what it does NOT catch: a module that fetches 200 and
+  fails to LINK (a bad import) raises an uncaught error, not this element's error
+  event. That is the failure I3 hit with node:crypto in src/canonical.js.
 
   The handler is an ATTRIBUTE rather than a listener attached from script,
   deliberately: an attribute is bound before the fetch can fail, so the guard
