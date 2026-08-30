@@ -338,6 +338,7 @@
           "H3",
           "H4",
           "H6",
+          "F7",
           "D1",
           "D2",
           "F4",
@@ -1755,7 +1756,8 @@
         "F0",
         "F2",
         "F4",
-        "F5"
+        "F5",
+        "F7"
       ],
       "outputs": [
         "src/page/skin.css",
@@ -1767,6 +1769,27 @@
       "repo": "outpocket",
       "horizon": "A",
       "notes": "F0 is a HARD input and is the only one; F2, F4 and F5 are SOFT — the skin dresses whichever panels exist. F6 no longer produces docs/STORYBOARD.md and no longer grades itself against a file it wrote. It is now genuinely cuttable at rank 1 without touching the video: D4 depends on F0's shot ids, not on the skin. Hours raised 2.0 -> 2.5 for tools/check-storyboard.mjs. R-19, RESCHEDULED Day 1 -> Day 4: the predicate requires every shot id to resolve to a CSS selector matching at least one element on the BUILT PAGE, and there was no built page on Day 1 — F1 is Day 2 and F4/F5 are Day 3. It now runs on the same day as its last soft input, F2, and after all three of F1, F4 and F5."
+    },
+    {
+      "id": "F7",
+      "title": "Install the signature provider — wire register.js's seam to F4's dialog through S5's bridge",
+      "lane": "F",
+      "owner": "UX",
+      "inputs": [
+        "T2",
+        "S5",
+        "F4",
+        "F1"
+      ],
+      "outputs": [
+        "src/page/sign-install.js"
+      ],
+      "accept": "`node --test tests/acceptance/sign-install.test.mjs` passes AND `node tools/ready.mjs --check-orphans` exits 0 (the module is reachable from src/page/index.html, not merely present). THREE CLAUSES, AND THE THIRD IS THE ONE THAT MATTERS. (1) INSTALLED EXACTLY ONCE: loading the page's module graph calls register.js's setSignatureProvider exactly one time - not zero, and not once per registration. (2) THE WIRE CARRIES A DECISION, NOT MERELY A PATH: with the dialog stubbed to APPROVE, an agent-initiated submit_expense_report completes and the signed result carries the ticket from S5's continueSign; with the SAME wire and the dialog stubbed to DECLINE, the submit is REFUSED and the two outcomes DIFFER by a named reason. A test that only proves the provider was installed proves a path exists and says nothing about whether the human decision is consulted - PRESENT IS NOT USEFUL, the T3 lesson applied here. (3) NEGATIVE CONTROL: with the provider NOT installed, the same submit must reach the pre-D-80 behaviour and the test must FAIL - so the suite cannot pass on a page where the wiring was silently removed. An assertion that something changed is only as strong as the evidence it could have not changed.",
+      "hours": 1,
+      "cut": 0,
+      "repo": "outpocket",
+      "horizon": "A",
+      "notes": "ADDED NODE, D-80, PM 2026-08-29. A capability this project exists to demonstrate was NOT WIRED and was NOBODY'S NODE. MEASURED by four greps, verified by PM independently: setSignatureProvider is DEFINED at src/page/register.js:100 and EXPORTED at :326 and CALLED NOWHERE; createSignBridge is called ONLY from tests/acceptance/sign-state.test.mjs; src/page/ui/sign-dialog.js has ZERO imports; sign-bridge.js holds zero references to outpocketSignDialog. src/page/index.html:292 goes further and DESCRIBES wiring that does not exist - 'S5's sign-bridge calls' the published dialog - which sign-bridge.js never does. NO SEAT IS AT FAULT AND THAT IS WHY THIS IS A GRAPH DEFECT RATHER THAN A DEVIATION. sign-bridge.js (S5) is deliberately DOM-FREE, which is why its tests are as good as they are; sign-dialog.js (F4) is deliberately DOM-ONLY and correctly publishes rather than reaching for a transport; register.js (T2) did its part by exposing the seam. EACH SEAT SCOPED ITS MODULE CORRECTLY AND THE GLUE IS A FOURTH PIECE NOBODY WAS ASKED FOR. Bolting it onto T2 or F4 would be wrong for exactly the reason it fell through: both are correctly scoped to exclude it. CUT 0 AND ABOVE EVERY REMAINING CUT-2 AND CUT-3 NODE. Unwired, what a judge sees is an agent submitting WITHOUT the human step - the exact property this project claims. D4, D5, D6 and the video all run through that page. OWNER IS UX BECAUSE THE RECORDED INTENT SAYS SO: register.js:97's own comment reads 'F4 installs the real dialog by calling setSignatureProvider once'. F4 is UX's and correctly did not, being DOM-only; this node is that install, given a home and hours. THIS IS THE CLASS --check-orphans PRINTS THAT IT CANNOT CATCH, in its own output: an ARTIFACT NEVER REFERENCED is caught; a CAPABILITY NEVER BUILT is not. S1's missing static route was the last one. D-80 EDGE CORRECTION, MADE BEFORE COMMITTING RATHER THAN AFTER: I first drew F7 -> D1 and it was FALSE. D1's accept is a PURE DEPLOY CHECK - Origin-Agent-Cluster absent, 200, /version equals git rev-parse HEAD, exactly one instance - and names no feature at all. It is satisfied by a page with no sign gate whatever. Drawing that edge would have asserted a dependency the predicate does not support, lengthened the published critical path to 30.5 h, and triggered a forty-site restatement cascade for an edge that is not true. THE TRUE CONSUMERS ARE D4 AND F6, and the evidence is docs/STORYBOARD.md: SB-10 'Signature dialog' and SB-11 'The human confirms' are ON-CAMERA shots, and F6 resolves every shot id to a selector matching an element on the built page - SB-10's [data-worst-case] and SB-11's [data-signature-line] live inside the dialog this node mounts. ALSO RECORDED, BECAUSE IT NARROWS THE SEVERITY HONESTLY: the SECURITY property is NOT at risk. The server refuses an unsigned commit and that is enforced and tested - S12's sign-lock returns 423, S6's TOCTOU returns 409 E_SNAPSHOT_MISMATCH, and E3's N-15 asserts 409 E_NOT_SIGNED against the live URL. What is missing is the PAGE-SIDE DEMONSTRATION: the human step happens, and nothing on screen shows it happening. The claim is true and the demo of it is absent."
     },
     {
       "id": "E1",
@@ -2147,7 +2170,8 @@
       "inputs": [
         "H6",
         "D1",
-        "F0"
+        "F0",
+        "F7"
       ],
       "outputs": [
         "video/outpocket.mp4",
@@ -2688,6 +2712,36 @@
       "contract": "inspector DOM selectors"
     },
     {
+      "from": "F7",
+      "to": "F6",
+      "kind": "hard",
+      "contract": "src/page/sign-install.js — F6 resolves every shot id to a selector matching an element ON THE BUILT PAGE, and SB-10's [data-worst-case] and SB-11's [data-signature-line] live inside the dialog this node mounts. ADDED WITH THE NODE, D-80."
+    },
+    {
+      "from": "F1",
+      "to": "F7",
+      "kind": "hard",
+      "contract": "src/page/index.html — the page that must load the installer"
+    },
+    {
+      "from": "F4",
+      "to": "F7",
+      "kind": "hard",
+      "contract": "src/page/ui/sign-dialog.js globalThis.outpocketSignDialog — the DOM-only dialog"
+    },
+    {
+      "from": "S5",
+      "to": "F7",
+      "kind": "hard",
+      "contract": "src/page/sign-bridge.js createSignBridge/beginSign/continueSign — the DOM-free transport"
+    },
+    {
+      "from": "T2",
+      "to": "F7",
+      "kind": "hard",
+      "contract": "src/page/register.js setSignatureProvider — the seam this node installs into"
+    },
+    {
       "from": "H2",
       "to": "E1",
       "kind": "hard",
@@ -2908,6 +2962,12 @@
       "to": "D4",
       "kind": "hard",
       "contract": "docs/STORYBOARD.md shot ids and docs/VIDEO-SCRIPT.md — ADDED EDGE, replacing the freeze-table entry that had no edge and pointed at a cut-rank-1 producer"
+    },
+    {
+      "from": "F7",
+      "to": "D4",
+      "kind": "hard",
+      "contract": "src/page/sign-install.js — docs/STORYBOARD.md SB-10 'Signature dialog' and SB-11 'The human confirms' are ON-CAMERA shots. You cannot shoot them if the provider is never installed and the dialog never appears. ADDED WITH THE NODE, D-80."
     },
     {
       "from": "D4",
