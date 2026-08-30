@@ -284,17 +284,38 @@
 
 <!--
   F4's signature dialog. Loaded here so the module is reachable FROM THE PAGE
-  rather than only from its own test — `node tools/ready.mjs --check-orphans`
-  is satisfied by a test import, so it reports OK for a module no page loads,
-  and that is the weak form of the check. This tag is the strong form.
+  rather than only from its own test.
 
   It does not self-render: a sign dialog with no sign request is meaningless.
-  The tag publishes globalThis.outpocketSignDialog, and S5's sign-bridge calls
-  mountSignDialog({signRequest, confirmToken}) when a request is opened. The
-  confirm_token is handed in at that moment and written into this dialog's
-  rendered DOM, which is the only place it ever exists outside the server.
+  The tag publishes globalThis.outpocketSignDialog; ./sign-install.js (node F7)
+  is what raises it, when an agent calls submit_expense_report.
+
+  CORRECTED, AND THE OLD WORDING IS WHY F7 EXISTS. This comment used to say
+  "S5's sign-bridge calls mountSignDialog when a request is opened". IT NEVER
+  DID. sign-bridge.js is deliberately DOM-free and imports no dialog; the
+  sentence described a connection nobody had built, and it was written here by
+  the same seat that built the dialog. Prose asserting an integration is worse
+  than silence, because it stops the next reader from checking. If you change
+  the wiring, change this block in the same commit or delete it.
 -->
 <script type="module" src="./ui/sign-dialog.js"></script>
+
+<!--
+  F7's glue (src/page/sign-install.js): the only module allowed to know about
+  all three of register.js's setSignatureProvider seam, F4's DOM-only dialog and
+  S5's DOM-free bridge. It installs the provider EXACTLY ONCE, so an agent's
+  submit_expense_report raises the dialog and waits for a human decision.
+
+  AFTER ./register.js, and that is a dependency and not a preference: this
+  module reads globalThis.outpocketTools at evaluation to find the seam, and
+  installs nothing if the registry is not there yet. Unlike H3 and H4 it does
+  not poll, because installing late would mean an agent that called submit in
+  the gap got register.js's safe default instead of a dialog — a silent
+  downgrade rather than a visible failure.
+-->
+<script type="module" src="./sign-install.js" onerror="
+  console.error('outpocket: src/page/sign-install.js (node F7) did not load — submit_expense_report will fall back to register.js\'s safe default and no signature dialog will be raised.');
+"></script>
 <!--
   H4's seeded demo (src/page/demo-mode.js, node I1). `?demo=1&seed=N` drives a
   scripted filing through the page's own tool surface, so the video can be
