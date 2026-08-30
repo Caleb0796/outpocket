@@ -328,25 +328,81 @@ const STATES = [
     },
   },
   {
-    id: "sign-open", how: "the signature dialog mounted, as F7's provider mounts it",
+    id: "sign-open",
+    how: "an agent's submit_expense_report, through F7's provider and S5's openForDialog — " +
+      "a REAL server-issued sign request and confirm_token, not a fabricated one",
+    // THIS STATE USED TO LIE, AND THE LIE WAS IN ITS OWN `how` STRING.
+    //
+    // It called mountSignDialog() directly with a hand-written signRequest —
+    // request_id 'sg_111…', snapshot_digest 'sha256:aaa…', a fabricated report —
+    // and `confirmToken: ''`. That empty string is LITERALLY the F7 defect I3
+    // found: the exact state a real click could not complete from. So the
+    // checker mounted the dialog in the broken configuration, reported SB-10
+    // and SB-11 as resolving, and described itself as mounting "as F7's
+    // provider mounts it" — which F7's provider does not do and never did.
+    // Found by QA. It is D-105 in my own instrument: a present, well-reasoned
+    // sentence that stops the next reader from checking.
+    //
+    // It now drives the real thing, and it turned out to be eight lines rather
+    // than the H-lane job it looked like. THE ONE TRAP: submit_expense_report
+    // CORRECTLY SUSPENDS until the human decides, so the call must NOT be
+    // awaited — awaiting it hangs forever, which is the tool behaving exactly
+    // as designed. That is why the promise is fired and deliberately floated.
+    //
+    // What this now proves is strictly more than before: not merely that the
+    // selectors exist, but that the REAL pipeline produces the frame — agent
+    // calls the tool, F7's provider opens the record through S5, the server
+    // issues a digest and a session-scoped confirm_token, and F4's dialog
+    // renders them. If any link breaks, this state mounts nothing and SB-10/
+    // SB-11 fail to resolve, which is the correct outcome rather than a green.
     enter: async (page) => {
-      await page.evaluate(`(async () => {
+      const report = await page.evaluate(`(async () => {
         document.querySelector('[data-login="chen"]')?.click();
+        await new Promise(r => setTimeout(r, 600));
+        const t = globalThis.outpocketTools;
+        if (!t) return { ok: false, why: 'no tool surface on the page' };
+        await t.executeTool('create_expense_report',
+          { title: 'Boston client workshop', project: 'FALCON' }, { source: 'agent' });
+        await t.executeTool('add_expense_line', {
+          date: '2026-08-20', merchant: 'Blue Bottle', category: 'meals',
+          amount: 12.00, currency: 'USD', attendees: 1, description: 'Coffee with the client',
+        }, { source: 'agent' });
         await new Promise(r => setTimeout(r, 400));
-        const sd = globalThis.outpocketSignDialog;
-        if (!sd) return;
-        sd.mountSignDialog({
-          doc: document,
-          signRequest: {
-            request_id: 'sg_' + '1'.repeat(16), report_id: 'RP-1018', persona_name: 'Chen Xiao',
-            revision: 1, policy_version: 'x', snapshot_digest: 'sha256:' + 'a'.repeat(64),
-            worst_case: 'your employer pays a claim that is not owed.',
-            snapshot: { report: { id: 'RP-1018', lines: [{ usdCents: 1200 }] } },
-          },
-          confirmToken: '',
-        });
-        await new Promise(r => setTimeout(r, 100));
+        const state = t.state();
+        if (state !== 'S3') return { ok: false, why: 'draft is not clean; state ' + state };
+
+        // FIRED, NOT AWAITED — see above.
+        const pending = t.executeTool('submit_expense_report', {}, { source: 'agent' });
+        pending.catch(() => {});
+        await new Promise(r => setTimeout(r, 1500));
+
+        const token = document.querySelector('[data-confirm-token]')?.value ?? '';
+        return {
+          ok: Boolean(document.querySelector('[data-worst-case]')),
+          state,
+          realToken: /^ct_[0-9a-f]{32}$/.test(token),
+          digest: document.querySelector('[data-snapshot-digest]')?.getAttribute('data-snapshot-digest') ?? null,
+        };
       })()`);
+
+      // Reported, not silently tolerated: a state that half-entered would
+      // otherwise produce a confident resolution of the wrong page.
+      // THE POSITIVE IS PRINTED TOO, NOT ONLY THE FAILURE. A state that only
+      // speaks up when it breaks leaves the green carrying no evidence — which
+      // is exactly how this state's old `how` string went unchallenged. Every
+      // run now says what the real pipeline produced.
+      if (report?.ok && report.realToken) {
+        log(`  sign-open: real pipeline OK — agent submit -> F7 provider -> S5 openForDialog; ` +
+          `server digest ${String(report.digest).slice(0, 20)}…, confirm_token is a real ct_ token`);
+      }
+
+      if (!report?.ok) {
+        warn(`  sign-open: the real signature pipeline did not mount a dialog (${report?.why ?? "unknown"}) — ` +
+          "SB-10 and SB-11 will not resolve, and that is the honest result rather than a fabricated frame");
+      } else if (!report.realToken) {
+        warn("  sign-open: the dialog mounted but its confirm_token is not a real server-issued ct_ token — " +
+          "this is the configuration a real click cannot complete from (the F7 defect), so the frame is not filmable");
+      }
     },
   },
 ];

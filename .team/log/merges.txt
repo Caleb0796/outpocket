@@ -1144,3 +1144,26 @@ FOLLOWUP F5-sweep bdebf08 pits:kb/pits/F5-sweep.md accept:N/A (a sweep, not a no
 #   CHOOSE SOMETHING, AND THE CHOICE IS INVISIBLE FROM INSIDE THE TEST.
 #   The CLEARED cases were measured too -- probe/ and the v3 fixture load no shim, so H2's
 #   gate cannot be fooled. A classification, not a list of suspicions.
+
+MERGED S8  490f421 pits:kb/pits/S8.md accept:PASS
+#   Provenance per field. I3 read the FROZEN schema and found my dispatch undersold it --
+#   the record is value_DIGEST, not value, so the ledger never stores a value twice -- and
+#   built the mislabel refusal from the source<->tool<->actor triangle the schema already
+#   states rather than inventing a parallel rule.
+#   Every real record validated by a real ajv-2020 compile (17/17), not by its own
+#   field-presence assertions.
+#   I VERIFIED THE SABOTAGE MYSELF and my FIRST attempt was worthless -- a crude edit broke
+#   the module LOAD, giving an import error dressed as a failing test. Disabling only the
+#   mislabel guard gives 5 pass / 1 fail, and the one failure is the D-100 test built for
+#   it. Second sabotage-that-proved-nothing I have written today.
+
+FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep, not a node)
+#   ONE instance and it is STRUCTURALLY BOUNDED: new AbortController() appears exactly
+#   ONCE in product code, so the class has exactly one generator and it was already fixed.
+#   Detector validated against the PRE-FIX file before the negative was trusted.
+#   ROUTED: sign-dialog.js discards submitDecision from the human Sign/Decline handlers
+#   with the fetch UNWRAPPED -- THE HUMAN CLICKS SIGN, THE REQUEST FAILS, AND NOTHING
+#   VISIBLY HAPPENS, on the surface the camera films. And fallback-agent's shim NEVER
+#   REJECTS, so it cannot reproduce the class -- a FALSE-NEGATIVE GENERATOR that nearly
+#   convinced I2 there was nothing to find.
+#   IN A CLASSIFICATION THE DANGEROUS CELL IS NOT THE INSTANCE, IT IS THE CLEARED ONE.
