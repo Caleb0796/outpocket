@@ -877,3 +877,14 @@ MERGED H4  55d3485 pits:kb/pits/H4.md accept:PASS
 #   line of the output instead of every line. main briefly carried the module with
 #   nothing loading it. Fixed in the next push; caught by re-running --check-orphans
 #   rather than trusting the echo.
+
+MERGED S6  46fe9d1 pits:kb/pits/S6.md accept:PASS
+#   TOCTOU re-canonicalisation. THE PREDICATE'S OWN SCENARIO IS UNREACHABLE: S12's
+#   lock refuses the "mutate then submit" mutation with 423 before S6 could run.
+#   I3 PROVED THAT FIRST against the real server rather than quietly testing
+#   something adjacent, then exercised the case the lock is NOT there to catch
+#   through a bootstrap documented plainly as outside the lock.
+#   False-positive safety is the half that matters and it is tested: five
+#   canonicalisation attacks prove an honestly-reformatted report is NEVER rejected,
+#   beside two real content changes that ARE caught. A check that rejects everything
+#   is as useless as one that rejects nothing.

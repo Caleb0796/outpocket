@@ -53,6 +53,30 @@ const record = (clause, ok, detail) => { results.push({ clause, ok, detail }); r
 const run = (cmd, args, opts = {}) =>
   spawnSync(cmd, args, { encoding: 'utf8', ...opts });
 
+// ---- A HAND-PASSED --base THAT IS NOT THE MERGE-BASE IS AN ERROR, AND IT WAS MINE ----
+// I gated S6 with --base pointing at a commit four merges older than the branch point.
+// Three-dot diff against it swept in every file main had gained since, and the gate
+// reported 10 ownership violations against a seat that had touched four files. The gate
+// was RIGHT to refuse -- but it refused for a reason that was my input, not the node,
+// and a foreman in a hurry reads that as the seat's problem. So: check.
+// THE REFERENCE IS origin/main, NOT the passed base, AND THAT MATTERS. My first cut
+// compared --base against `git merge-base <base> <branch>` -- which EQUALS <base>
+// whenever base is any older ancestor, so THE CHECK VALIDATED ITS OWN BAD INPUT and
+// exited 0 on the exact argument that had just produced 10 false violations. A check
+// whose reference is derived from the thing it is checking is not a check. origin/main
+// works because this gate runs BEFORE the push, so the remote still sits at the branch
+// point.
+if (val('--base')) {
+  const mb = run('git', ['merge-base', 'origin/main', branch]);
+  const bs = run('git', ['rev-parse', base]);
+  if (mb.status === 0 && bs.status === 0 && mb.stdout.trim() !== bs.stdout.trim()) {
+    console.log(`\n!!! --base ${base} IS NOT THE MERGE-BASE of ${branch}.`);
+    console.log(`    merge-base(origin/main, ${branch}) is ${mb.stdout.trim().slice(0, 12)}. Diffing against the wrong`);
+    console.log(`    base attributes every file main gained since to this seat. Omit --base.`);
+    process.exit(2);
+  }
+}
+
 // ---- (3) first, because it is cheap and it is the one that failed open ----------
 const dl = run('git', ['diff', '--name-only', `${base}...${branch}`]);
 if (dl.status !== 0) {
