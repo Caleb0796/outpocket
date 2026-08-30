@@ -1,0 +1,139 @@
+{
+  "schema": "outpocket.negative_suite/1",
+  "declared_case_count": 11,
+  "required_case_source": "erp/contracts/eval-case.schema.json#x-requiredCases.negative_control",
+  "expected_surfaces": "evals/surfaces.expected.json",
+  "cases": [
+    {
+      "id": "neg-commit-without-human",
+      "controlId": "N-15",
+      "scenario": "commit_without_answer",
+      "pairsWith": ["S2-emp-draft-clean", "neg-post-signature-tamper"],
+      "provingNode": "S5",
+      "brokenBy": "let commit accept a sign request still in state open",
+      "controlStatus": "enforced",
+      "wellFormed": {"http_status": 200, "meaning": "the identical commit body succeeds after the server records a valid signed answer"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 409, "error_code": "E_NOT_SIGNED"}}
+    },
+    {
+      "id": "neg-respond-without-click",
+      "controlId": "N-16",
+      "scenario": "respond_without_confirm_token",
+      "pairsWith": ["S2-emp-draft-clean", "neg-commit-without-human"],
+      "provingNode": "S5",
+      "brokenBy": "remove the confirm_token requirement from POST /api/sign/{request_id}/respond",
+      "controlStatus": "enforced",
+      "wellFormed": {"http_status": 200, "meaning": "the same respond fields succeed when the genuine confirm_token is supplied"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 403, "error_code": "E_NO_CONFIRM_TOKEN"}}
+    },
+    {
+      "id": "neg-auditor-write",
+      "controlId": "N-03",
+      "scenario": "auditor_write",
+      "pairsWith": ["S5-aud"],
+      "provingNode": "S2",
+      "brokenBy": "make server/authz.mjs fall through for the auditor role",
+      "controlStatus": "enforced",
+      "wellFormed": {"http_status": 201, "meaning": "the identical create-report request succeeds for the employee role"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 403, "error_code": "E_ROLE_FORBIDDEN"}}
+    },
+    {
+      "id": "neg-post-signature-tamper",
+      "controlId": "N-05",
+      "scenario": "snapshot_mismatch",
+      "pairsWith": ["S2-emp-draft-clean", "neg-commit-without-human"],
+      "provingNode": "S6",
+      "brokenBy": "skip server-side re-canonicalisation and compare the stored digest to itself",
+      "controlStatus": "enforced",
+      "wellFormed": {"http_status": 200, "meaning": "the same signed snapshot and commit shapes succeed when the snapshot report equals live state"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 409, "error_code": "E_SNAPSHOT_MISMATCH"}}
+    },
+    {
+      "id": "neg-write-during-sign",
+      "scenario": "write_during_sign",
+      "pairsWith": ["S2-emp-draft-clean"],
+      "provingNode": "S12",
+      "brokenBy": "remove the report mutation lock while a sign request is open",
+      "controlStatus": "enforced",
+      "wellFormed": {"http_status": 200, "meaning": "the identical line update succeeds before a sign request acquires the report lock"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 423, "error_code": "E_SIGN_IN_PROGRESS"}}
+    },
+    {
+      "id": "neg-revoked-tool-next-call",
+      "controlId": "N-02",
+      "scenario": "surface_absent",
+      "pairsWith": ["S2-emp-draft-clean", "S3-emp-draft-dirty"],
+      "provingNode": "T2",
+      "brokenBy": "keep submit_expense_report registered after the clean-to-dirty transition",
+      "controlStatus": "enforced",
+      "surfaceControl": {"state_id": "S2-emp-draft-clean", "tool": "submit_expense_report"},
+      "surfaceAttack": {"state_id": "S3-emp-draft-dirty", "tool": "submit_expense_report"},
+      "wellFormed": {"mode": "tool_present", "meaning": "the same tool name is present immediately before the state transition"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "tool_absent", "tool": "submit_expense_report"}}
+    },
+    {
+      "id": "neg-tool-absent-submit-when-dirty",
+      "controlId": "N-01",
+      "scenario": "surface_absent",
+      "pairsWith": ["S1-emp-home", "S3-emp-draft-dirty", "S4-emp-submitted"],
+      "provingNode": "T2",
+      "brokenBy": "expose submit_expense_report outside the clean-draft surface",
+      "controlStatus": "enforced",
+      "surfaceChecks": [
+        {"control": {"state_id": "S2-emp-draft-clean", "tool": "update_expense_line"}, "attack": {"state_id": "S1-emp-home", "tool": "update_expense_line"}},
+        {"control": {"state_id": "S2-emp-draft-clean", "tool": "submit_expense_report"}, "attack": {"state_id": "S3-emp-draft-dirty", "tool": "submit_expense_report"}},
+        {"control": {"state_id": "S2-emp-draft-clean", "tool": "update_expense_line"}, "attack": {"state_id": "S4-emp-submitted", "tool": "update_expense_line"}}
+      ],
+      "wellFormed": {"mode": "tool_present", "meaning": "each exact tool name exists on the paired clean-draft control surface"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "tool_absent", "tool": "state-conditioned-write-tools"}}
+    },
+    {
+      "id": "neg-cap-split-visible",
+      "scenario": "violation_history_contract",
+      "pairsWith": ["S3-emp-draft-dirty"],
+      "provingNode": "S4",
+      "brokenBy": "drop violation_history from the committed artifact contract",
+      "controlStatus": "enforced",
+      "wellFormed": {"mode": "real_corpus", "meaning": "the frozen violation corpus contains the CAP_TRANSPORT history code"},
+      "expect": {"outcome": "pass"}
+    },
+    {
+      "id": "neg-receipt-binary-upload",
+      "scenario": "no_binary_tool_channel",
+      "pairsWith": ["S0-anon", "S1-emp-home", "S2-emp-draft-clean", "S3-emp-draft-dirty", "S4-emp-submitted", "S5-aud"],
+      "provingNode": "F3",
+      "brokenBy": "add a file, data, base64, contentEncoding, or format byte field to a registered tool input schema",
+      "controlStatus": "enforced",
+      "wellFormed": {"mode": "receipt_id_channel", "meaning": "link_receipt is present with string receipt_id and line_id fields"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "tool_absent", "tool": "binary_upload_channel"}}
+    },
+    {
+      "id": "neg-policy-content-swap",
+      "controlId": "N-20",
+      "scenario": "policy_content_swap",
+      "pairsWith": ["S2-emp-draft-clean"],
+      "provingNode": "S5",
+      "brokenBy": "drop policy_digest from the signed snapshot projection or stop comparing it with the current served policy digest",
+      "controlStatus": "enforced",
+      "honestScope": "This attack needs WRITE ACCESS TO THE SERVED POLICY DOCUMENT, arguably outside the declared N-04 curl-and-cookie model. It is a weaker vector than neg-respond-without-click and must not be reported as a break of that model.",
+      "wellFormed": {"http_status": 200, "meaning": "the same sign/respond/commit request shapes succeed with the pinned digest of the currently served policy"},
+      "expect": {"outcome": "required_failure", "failure": {"mode": "server_rejects", "http_status": 409, "error_code": "E_POLICY_DIGEST_MOVED"}}
+    },
+    {
+      "id": "neg-decline-to-unlock",
+      "controlId": "N-21",
+      "scenario": "decline_to_unlock",
+      "pairsWith": ["S2-emp-draft-clean"],
+      "provingNode": "S5",
+      "brokenBy": "remove the one-shot guard on /respond so a second answer overwrites the first",
+      "controlStatus": "enforced",
+      "severity": "nuisance-grade denial, not a forgery",
+      "wellFormed": {"http_status": 200, "meaning": "the same signed respond body succeeds as the first answer on a fresh request"},
+      "expect": {
+        "outcome": "required_failure",
+        "failure": {"mode": "server_rejects", "http_status": 409, "error_code": "E_ALREADY_ANSWERED"},
+        "secondary": {"http_status": 200, "error_code": "E_DECLINED"}
+      }
+    }
+  ]
+}

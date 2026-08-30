@@ -1065,6 +1065,677 @@ async function runCapabilitySuite(url) {
   );
 }
 
+function assertIntegerNumbers(value, label, path = "$") {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertIntegerNumbers(item, label, `${path}[${index}]`));
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      assertIntegerNumbers(child, label, `${path}.${key}`);
+    }
+    return;
+  }
+  if (typeof value === "number") {
+    assert.ok(Number.isInteger(value), `${label} contains a non-integer number at ${path}`);
+  }
+}
+
+function negativeCaseById(suite, id) {
+  const testCase = suite.cases.find((candidate) => candidate.id === id);
+  assert.ok(testCase, `negative suite is missing ${id}`);
+  return testCase;
+}
+
+export function validateNegativeSuite(suite, expectedStates, requiredCaseIds) {
+  assert.equal(suite.schema, "outpocket.negative_suite/1", "negative suite schema mismatch");
+  assert.ok(
+    Number.isInteger(suite.declared_case_count) && suite.declared_case_count > 0,
+    "negative suite declared_case_count must be a non-zero integer",
+  );
+  assert.ok(Array.isArray(suite.cases), "negative suite cases must be an array");
+  assert.ok(suite.cases.length > 0, "negative suite refuses to pass with zero cases");
+  assert.equal(
+    suite.cases.length,
+    suite.declared_case_count,
+    `negative graded ${suite.cases.length} of ${suite.declared_case_count} declared cases; run graded fewer than declared`,
+  );
+  assertUniqueStrings(suite.cases.map((testCase) => testCase.id), "negative case ids");
+  assert.deepEqual(
+    codepointSort(suite.cases.map((testCase) => testCase.id)),
+    codepointSort(requiredCaseIds),
+    "negative suite case ids must equal eval-case.schema.json x-requiredCases.negative_control",
+  );
+  assertIntegerNumbers(suite, "negative suite");
+
+  const caseIds = new Set(suite.cases.map((testCase) => testCase.id));
+  const stateIds = expectedStates.map((state) => state.state_id);
+  assertUniqueStrings(stateIds, "negative pairing state ids");
+  const pairings = new Map(stateIds.map((stateId) => [stateId, []]));
+
+  for (const testCase of suite.cases) {
+    assert.equal(typeof testCase.provingNode, "string", `${testCase.id}: provingNode is required`);
+    assert.ok(testCase.provingNode.length > 0, `${testCase.id}: provingNode must not be empty`);
+    assert.equal(typeof testCase.brokenBy, "string", `${testCase.id}: brokenBy is required`);
+    assert.ok(testCase.brokenBy.length > 0, `${testCase.id}: brokenBy must not be empty`);
+    assert.ok(
+      ["enforced", "known-open", "not-runnable"].includes(testCase.controlStatus),
+      `${testCase.id}: invalid controlStatus ${testCase.controlStatus}`,
+    );
+    assertUniqueStrings(testCase.pairsWith, `${testCase.id} pairsWith`);
+    assert.ok(testCase.expect && typeof testCase.expect === "object", `${testCase.id}: expect is required`);
+    assert.ok(testCase.wellFormed && typeof testCase.wellFormed === "object", `${testCase.id}: wellFormed control is required`);
+    if (testCase.expect.outcome === "required_failure") {
+      assert.ok(testCase.expect.failure, `${testCase.id}: required_failure must name its failure`);
+      assert.ok(testCase.pairsWith.length > 0, `${testCase.id}: enforced case must pair with something`);
+      if (testCase.expect.failure.mode === "server_rejects") {
+        assert.ok(Number.isInteger(testCase.expect.failure.http_status), `${testCase.id}: exact http_status is required`);
+        assert.equal(typeof testCase.expect.failure.error_code, "string", `${testCase.id}: exact error_code is required`);
+        assert.ok(Number.isInteger(testCase.wellFormed.http_status), `${testCase.id}: well-formed control must name its exact status`);
+      }
+    } else {
+      assert.equal(testCase.expect.outcome, "pass", `${testCase.id}: invalid expected outcome`);
+    }
+
+    for (const pair of testCase.pairsWith) {
+      assert.ok(pairings.has(pair) || caseIds.has(pair), `${testCase.id}: unknown pairsWith target ${pair}`);
+      if (pairings.has(pair) && testCase.controlStatus !== "not-runnable") {
+        pairings.get(pair).push(testCase.id);
+      }
+    }
+  }
+
+  const emptyStates = [...pairings]
+    .filter(([, pairedCases]) => pairedCases.length === 0)
+    .map(([stateId]) => stateId);
+  assert.deepEqual(
+    emptyStates,
+    [],
+    `negative pairing map has empty state(s): ${emptyStates.join(", ")}`,
+  );
+
+  const n15 = negativeCaseById(suite, "neg-commit-without-human");
+  assert.equal(n15.controlId, "N-15");
+  assert.deepEqual(
+    n15.expect.failure,
+    { error_code: "E_NOT_SIGNED", http_status: 409, mode: "server_rejects" },
+    "N-15 must require exactly 409 E_NOT_SIGNED",
+  );
+  const n16 = negativeCaseById(suite, "neg-respond-without-click");
+  assert.equal(n16.controlId, "N-16");
+  assert.equal(n16.controlStatus, "enforced", "N-16 must consume the scheduled enforced edit");
+  const n20 = negativeCaseById(suite, "neg-policy-content-swap");
+  assert.equal(n20.controlId, "N-20");
+  assert.equal(n20.controlStatus, "enforced");
+  assert.equal(n20.expect.failure.http_status, 409);
+  assert.equal(n20.expect.failure.error_code, "E_POLICY_DIGEST_MOVED");
+  assert.match(n20.honestScope, /WRITE ACCESS TO THE SERVED POLICY DOCUMENT/);
+  assert.match(n20.honestScope, /outside the declared N-04 curl-and-cookie model/);
+  assert.match(n20.honestScope, /weaker vector than neg-respond-without-click/);
+  const n21 = negativeCaseById(suite, "neg-decline-to-unlock");
+  assert.equal(n21.controlId, "N-21");
+  assert.equal(n21.controlStatus, "enforced");
+  assert.equal(n21.expect.failure.http_status, 409);
+  assert.equal(n21.expect.failure.error_code, "E_ALREADY_ANSWERED");
+  assert.deepEqual(n21.expect.secondary, { error_code: "E_DECLINED", http_status: 200 });
+  assert.match(n21.severity, /nuisance-grade denial, not a forgery/i);
+
+  return pairings;
+}
+
+function responseErrorCode(body) {
+  if (typeof body?.error === "string") return body.error;
+  return body?.error?.code;
+}
+
+function assertHttp(response, expectedStatus, expectedCode, label) {
+  assert.equal(
+    response.status,
+    expectedStatus,
+    `${label}: expected HTTP ${expectedStatus}, got ${response.status}: ${JSON.stringify(response.body)}`,
+  );
+  if (expectedCode !== undefined) {
+    assert.equal(
+      responseErrorCode(response.body),
+      expectedCode,
+      `${label}: expected ${expectedCode}, got ${responseErrorCode(response.body)}: ${JSON.stringify(response.body)}`,
+    );
+  }
+}
+
+async function requestJson(origin, path, { body, cookie, method = "GET" } = {}) {
+  const headers = {};
+  if (cookie) headers.Cookie = cookie;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const response = await fetch(new URL(path, origin), {
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers,
+    method,
+  });
+  return {
+    body: await response.json().catch(() => null),
+    cookie: response.headers.get("set-cookie")?.split(";")[0],
+    status: response.status,
+  };
+}
+
+async function loginNegative(origin, persona) {
+  const response = await requestJson(origin, "/api/login", {
+    body: { persona },
+    method: "POST",
+  });
+  assertHttp(response, 200, undefined, `login ${persona}`);
+  assert.ok(response.cookie, `login ${persona}: no session cookie returned`);
+  return response.cookie;
+}
+
+let negativeReportCounter = 0;
+function nextNegativeReportId(label) {
+  negativeReportCounter += 1;
+  return `RP-E3-${process.pid}-${negativeReportCounter}-${label}`;
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function syntheticOpenBody(signatureContract, reportId, policy) {
+  const example = cloneJson(signatureContract.examples[0]);
+  return {
+    policy_digest: digest("outpocket/policy/1", policy),
+    policy_version: policy.version,
+    report: { ...example.snapshot.report, id: reportId },
+    report_id: reportId,
+    revision: example.revision,
+    verdict: example.snapshot.verdict,
+    violation_history_count: example.violation_history_count,
+    worst_case: example.worst_case,
+  };
+}
+
+function liveOpenBody(report, policy, policyDigest = digest("outpocket/policy/1", policy)) {
+  return {
+    policy_digest: policyDigest,
+    policy_version: policy.version,
+    report,
+    report_id: report.id,
+    revision: 0,
+    verdict: { blocking: 0, violations: [], warning: 0 },
+    violation_history_count: 0,
+    worst_case: "No blocking violations.",
+  };
+}
+
+async function openNegativeSign(origin, cookie, body) {
+  const opened = await requestJson(origin, "/api/sign", { body, cookie, method: "POST" });
+  assertHttp(opened, 200, undefined, "well-formed open sign request");
+  const signRequest = opened.body?.sign_request;
+  assert.equal(signRequest?.schema, "outpocket.sign_request/1", "open sign request returned the wrong schema");
+  assert.match(signRequest?.request_id ?? "", /^sg_[0-9a-f]{16}$/, "open sign request returned no request_id");
+  assert.match(signRequest?.snapshot_digest ?? "", /^sha256:[0-9a-f]{64}$/, "open sign request returned no snapshot digest");
+  assert.ok(Number.isInteger(signRequest?.revision), "open sign request returned no integer revision");
+  return signRequest;
+}
+
+async function confirmToken(origin, cookie, requestId) {
+  const response = await requestJson(origin, `/api/sign/${requestId}/confirm-token`, { cookie });
+  assertHttp(response, 200, undefined, "dialog confirm_token control");
+  assert.equal(typeof response.body?.confirm_token, "string", "dialog channel returned no confirm_token");
+  return response.body.confirm_token;
+}
+
+function signRespondBody(signRequest, token, decision = "signed") {
+  return {
+    acknowledged_digest: signRequest.snapshot_digest,
+    acknowledged_revision: signRequest.revision,
+    confirm_token: token,
+    decision,
+    method: "click",
+    reason: decision === "declined" ? "not my report" : null,
+    request_id: signRequest.request_id,
+    schema: "outpocket.sign_respond_request/1",
+  };
+}
+
+function commitBody(signRequest, reportId) {
+  return {
+    report_id: reportId,
+    request_id: signRequest.request_id,
+    schema: "outpocket.commit_request/1",
+  };
+}
+
+async function answerNegativeSign(origin, cookie, signRequest, decision = "signed") {
+  const token = await confirmToken(origin, cookie, signRequest.request_id);
+  const body = signRespondBody(signRequest, token, decision);
+  const response = await requestJson(origin, `/api/sign/${signRequest.request_id}/respond`, {
+    body,
+    cookie,
+    method: "POST",
+  });
+  assertHttp(response, 200, undefined, "well-formed sign response");
+  return { body, response };
+}
+
+async function commitNegativeSign(origin, cookie, signRequest, reportId) {
+  return requestJson(origin, `/api/reports/${reportId}/commit`, {
+    body: commitBody(signRequest, reportId),
+    cookie,
+    method: "POST",
+  });
+}
+
+async function createNegativeReport(origin, cookie, label) {
+  const requestBody = { project: "FALCON", title: `E3 ${label} ${nextNegativeReportId("title")}` };
+  const response = await requestJson(origin, "/api/reports", {
+    body: requestBody,
+    cookie,
+    method: "POST",
+  });
+  assertHttp(response, 201, undefined, "well-formed create report request");
+  assert.ok(response.body?.report?.id, "create report returned no report");
+  return { report: response.body.report, requestBody };
+}
+
+async function addNegativeLine(origin, cookie, reportId) {
+  const body = { amount_cents: 1200, category: "transport", currency: "USD", merchant: "E3 control" };
+  const response = await requestJson(origin, `/api/reports/${reportId}/lines`, {
+    body,
+    cookie,
+    method: "POST",
+  });
+  assertHttp(response, 201, undefined, "well-formed add line request");
+  return response.body.line;
+}
+
+async function executeCommitWithoutAnswer(context) {
+  const { origin, policy, signatureContract } = context;
+  const cookie = await loginNegative(origin, "chen");
+  const controlId = nextNegativeReportId("commit-control");
+  const controlSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, controlId, policy));
+  await answerNegativeSign(origin, cookie, controlSign);
+  const controlBody = commitBody(controlSign, controlId);
+  const control = await commitNegativeSign(origin, cookie, controlSign, controlId);
+  assertHttp(control, 200, undefined, "N-15 well-formed commit control");
+
+  const attackId = nextNegativeReportId("commit-attack");
+  const attackSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, attackId, policy));
+  const attackBody = commitBody(attackSign, attackId);
+  assert.deepEqual(Object.keys(attackBody), Object.keys(controlBody), "N-15 control and attack commit body shapes differ");
+  const failure = await commitNegativeSign(origin, cookie, attackSign, attackId);
+  return { failure, wellFormed: control };
+}
+
+async function executeRespondWithoutConfirmToken(context) {
+  const { origin, policy, signatureContract } = context;
+  const cookie = await loginNegative(origin, "chen");
+  const controlId = nextNegativeReportId("respond-control");
+  const controlSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, controlId, policy));
+  const control = await answerNegativeSign(origin, cookie, controlSign);
+
+  const attackId = nextNegativeReportId("respond-attack");
+  const attackSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, attackId, policy));
+  const attackBody = signRespondBody(attackSign, "unused");
+  delete attackBody.confirm_token;
+  const controlWithoutToken = { ...control.body };
+  delete controlWithoutToken.confirm_token;
+  assert.deepEqual(
+    Object.keys(attackBody),
+    Object.keys(controlWithoutToken),
+    "N-16 control and attack differ by more than confirm_token",
+  );
+  const failure = await requestJson(origin, `/api/sign/${attackSign.request_id}/respond`, {
+    body: attackBody,
+    cookie,
+    method: "POST",
+  });
+  return { failure, wellFormed: control.response };
+}
+
+async function executeAuditorWrite(context) {
+  const employee = await loginNegative(context.origin, "chen");
+  const auditor = await loginNegative(context.origin, "ruiz");
+  const body = { project: "FALCON", title: `E3 authz ${nextNegativeReportId("authz")}` };
+  const control = await requestJson(context.origin, "/api/reports", { body, cookie: employee, method: "POST" });
+  assertHttp(control, 201, undefined, "N-03 employee control");
+  const failure = await requestJson(context.origin, "/api/reports", { body, cookie: auditor, method: "POST" });
+  return { failure, wellFormed: control };
+}
+
+async function signedLiveReport(context, cookie, report, policyDigest) {
+  const signRequest = await openNegativeSign(
+    context.origin,
+    cookie,
+    liveOpenBody(report, context.policy, policyDigest),
+  );
+  await answerNegativeSign(context.origin, cookie, signRequest);
+  return signRequest;
+}
+
+async function executeSnapshotMismatch(context) {
+  const cookie = await loginNegative(context.origin, "chen");
+  const controlReport = (await createNegativeReport(context.origin, cookie, "snapshot control")).report;
+  const controlSign = await signedLiveReport(context, cookie, controlReport);
+  const control = await commitNegativeSign(context.origin, cookie, controlSign, controlReport.id);
+  assertHttp(control, 200, undefined, "N-05 matching snapshot control");
+
+  const liveReport = (await createNegativeReport(context.origin, cookie, "snapshot attack")).report;
+  const changedSnapshot = { ...liveReport, title: `${liveReport.title} changed` };
+  assert.deepEqual(
+    Object.keys(changedSnapshot),
+    Object.keys(liveReport),
+    "N-05 control and attack report shapes differ",
+  );
+  const attackSign = await signedLiveReport(context, cookie, changedSnapshot);
+  const failure = await commitNegativeSign(context.origin, cookie, attackSign, liveReport.id);
+  return { failure, wellFormed: control };
+}
+
+async function executeWriteDuringSign(context) {
+  const cookie = await loginNegative(context.origin, "chen");
+  const controlReport = (await createNegativeReport(context.origin, cookie, "lock control")).report;
+  const controlLine = await addNegativeLine(context.origin, cookie, controlReport.id);
+  const patchBody = { amount_cents: 1300 };
+  const control = await requestJson(context.origin, `/api/reports/${controlReport.id}/lines/${controlLine.id}`, {
+    body: patchBody,
+    cookie,
+    method: "PATCH",
+  });
+  assertHttp(control, 200, undefined, "N-06 unlocked mutation control");
+
+  const attackReport = (await createNegativeReport(context.origin, cookie, "lock attack")).report;
+  const attackLine = await addNegativeLine(context.origin, cookie, attackReport.id);
+  await openNegativeSign(context.origin, cookie, liveOpenBody(attackReport, context.policy));
+  const failure = await requestJson(context.origin, `/api/reports/${attackReport.id}/lines/${attackLine.id}`, {
+    body: patchBody,
+    cookie,
+    method: "PATCH",
+  });
+  return { failure, wellFormed: control };
+}
+
+function toolInState(expectedStates, stateId, toolName) {
+  const state = expectedStates.find((candidate) => candidate.state_id === stateId);
+  assert.ok(state, `unknown surface state ${stateId}`);
+  return state.tool_names.includes(toolName);
+}
+
+function executeSurfaceAbsent(context, testCase) {
+  const checks = testCase.surfaceChecks ?? [{
+    attack: testCase.surfaceAttack,
+    control: testCase.surfaceControl,
+  }];
+  for (const check of checks) {
+    assert.equal(
+      toolInState(context.expectedStates, check.control.state_id, check.control.tool),
+      true,
+      `${testCase.id}: well-formed ${check.control.state_id} control lacks ${check.control.tool}`,
+    );
+  }
+  const presentAttacks = checks.filter((check) =>
+    toolInState(context.expectedStates, check.attack.state_id, check.attack.tool)
+  );
+  return {
+    failure: {
+      error_code: null,
+      mode: presentAttacks.length === 0 ? "tool_absent" : "tool_present",
+      status: null,
+      tool: testCase.expect.failure.tool,
+    },
+    wellFormed: { mode: "tool_present", status: null },
+  };
+}
+
+function binaryChannelViolations(tools) {
+  const violations = [];
+  const bannedNames = new Set(["base64", "data", "file"]);
+  function visit(value, path, toolName) {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, `${path}[${index}]`, toolName));
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value)) {
+      if (bannedNames.has(key) || key === "contentEncoding" || (key === "format" && child === "byte")) {
+        violations.push(`${toolName}:${path}.${key}`);
+      }
+      visit(child, `${path}.${key}`, toolName);
+    }
+  }
+  for (const tool of tools) visit(tool.inputSchema, "$", tool.name);
+  return violations;
+}
+
+function executeNoBinaryToolChannel(context) {
+  const tools = context.exported.states.flatMap((state) => state.tools);
+  const linkReceipt = tools.find((tool) => tool.name === "link_receipt");
+  assert.ok(linkReceipt, "binary-channel control requires link_receipt on the real corpus");
+  assert.equal(linkReceipt.inputSchema?.properties?.line_id?.type, "string");
+  assert.equal(linkReceipt.inputSchema?.properties?.receipt_id?.type, "string");
+  const violations = binaryChannelViolations(tools);
+  return {
+    failure: {
+      error_code: null,
+      mode: violations.length === 0 ? "tool_absent" : "tool_present",
+      status: null,
+      tool: "binary_upload_channel",
+    },
+    wellFormed: { mode: "receipt_id_channel", status: null },
+  };
+}
+
+function executeViolationHistoryContract(context) {
+  const artifactHistory = context.signatureContract.$defs?.artifact?.properties?.violation_history;
+  assert.equal(artifactHistory?.type, "array", "artifact contract lost violation_history");
+  assert.match(artifactHistory.description, /CAP_TRANSPORT/);
+  const hasCapTransport = context.violationContract.examples?.some((example) => example.code === "CAP_TRANSPORT");
+  assert.equal(hasCapTransport, true, "real violation corpus lost CAP_TRANSPORT");
+  return { pass: true, wellFormed: { mode: "real_corpus", status: null } };
+}
+
+async function executePolicyContentSwap(context) {
+  const cookie = await loginNegative(context.origin, "chen");
+  const controlReport = (await createNegativeReport(context.origin, cookie, "policy control")).report;
+  const controlSign = await signedLiveReport(context, cookie, controlReport);
+  const control = await commitNegativeSign(context.origin, cookie, controlSign, controlReport.id);
+  assertHttp(control, 200, undefined, "N-20 pinned-policy control");
+
+  const attackReport = (await createNegativeReport(context.origin, cookie, "policy attack")).report;
+  const trapDigest = "sha256:17bc4b2d1031b63e07a3983b067c8485316e8c16b53454e481680f65b7962e92";
+  const attackSign = await signedLiveReport(context, cookie, attackReport, trapDigest);
+  const failure = await commitNegativeSign(context.origin, cookie, attackSign, attackReport.id);
+  return { failure, wellFormed: control };
+}
+
+async function executeDeclineToUnlock(context) {
+  const cookie = await loginNegative(context.origin, "chen");
+  const controlId = nextNegativeReportId("decline-control");
+  const controlSign = await openNegativeSign(
+    context.origin,
+    cookie,
+    syntheticOpenBody(context.signatureContract, controlId, context.policy),
+  );
+  const control = await answerNegativeSign(context.origin, cookie, controlSign);
+
+  const attackId = nextNegativeReportId("decline-attack");
+  const attackSign = await openNegativeSign(
+    context.origin,
+    cookie,
+    syntheticOpenBody(context.signatureContract, attackId, context.policy),
+  );
+  const token = await confirmToken(context.origin, cookie, attackSign.request_id);
+  const declinedBody = signRespondBody(attackSign, token, "declined");
+  const declined = await requestJson(context.origin, `/api/sign/${attackSign.request_id}/respond`, {
+    body: declinedBody,
+    cookie,
+    method: "POST",
+  });
+  assertHttp(declined, 200, undefined, "N-21 attacker decline prerequisite");
+  const signedBody = signRespondBody(attackSign, token);
+  assert.deepEqual(Object.keys(signedBody), Object.keys(declinedBody), "N-21 respond body shapes differ");
+  const failure = await requestJson(context.origin, `/api/sign/${attackSign.request_id}/respond`, {
+    body: signedBody,
+    cookie,
+    method: "POST",
+  });
+  const secondary = await commitNegativeSign(context.origin, cookie, attackSign, attackId);
+  return { failure, secondary, wellFormed: control.response };
+}
+
+const NEGATIVE_SCENARIOS = new Map([
+  ["auditor_write", executeAuditorWrite],
+  ["commit_without_answer", executeCommitWithoutAnswer],
+  ["decline_to_unlock", executeDeclineToUnlock],
+  ["no_binary_tool_channel", executeNoBinaryToolChannel],
+  ["policy_content_swap", executePolicyContentSwap],
+  ["respond_without_confirm_token", executeRespondWithoutConfirmToken],
+  ["snapshot_mismatch", executeSnapshotMismatch],
+  ["surface_absent", executeSurfaceAbsent],
+  ["violation_history_contract", executeViolationHistoryContract],
+  ["write_during_sign", executeWriteDuringSign],
+]);
+
+function gradeNegativeCase(testCase, observed) {
+  assert.ok(observed?.wellFormed, `${testCase.id}: well-formed control was not proved`);
+  if (Number.isInteger(testCase.wellFormed.http_status)) {
+    assert.equal(
+      observed.wellFormed.status,
+      testCase.wellFormed.http_status,
+      `${testCase.id}: well-formed control did not return its exact status`,
+    );
+  } else if (testCase.wellFormed.mode) {
+    assert.equal(observed.wellFormed.mode, testCase.wellFormed.mode, `${testCase.id}: positive control failed`);
+  }
+
+  if (testCase.expect.outcome === "pass") {
+    assert.equal(observed.pass, true, `${testCase.id}: positive case did not pass`);
+    return;
+  }
+  const expected = testCase.expect.failure;
+  if (expected.mode === "server_rejects") {
+    assertHttp(observed.failure, expected.http_status, expected.error_code, testCase.id);
+  } else {
+    assert.equal(observed.failure.mode, expected.mode, `${testCase.id}: wrong failure mode`);
+    assert.equal(observed.failure.tool, expected.tool, `${testCase.id}: wrong absent tool`);
+  }
+  if (testCase.expect.secondary) {
+    assertHttp(
+      observed.secondary,
+      testCase.expect.secondary.http_status,
+      testCase.expect.secondary.error_code,
+      `${testCase.id} secondary outcome`,
+    );
+  }
+}
+
+function proveNegativeDetector(suite, expectedStates, requiredCaseIds, exported) {
+  const pairings = validateNegativeSuite(suite, expectedStates, requiredCaseIds);
+
+  const wrongStatus = structuredClone(negativeCaseById(suite, "neg-commit-without-human"));
+  assert.throws(
+    () => gradeNegativeCase(wrongStatus, {
+      failure: { body: { error: "E_BAD_REQUEST" }, status: 400 },
+      wellFormed: { status: 200 },
+    }),
+    /expected HTTP 409, got 400/,
+    "exact-refusal detector must reject a masking validation error",
+  );
+
+  const shortSuite = structuredClone(suite);
+  shortSuite.cases.pop();
+  assert.throws(
+    () => validateNegativeSuite(shortSuite, expectedStates, requiredCaseIds),
+    /graded 10 of 11 declared cases; run graded fewer than declared/,
+    "declared-count detector must reject a shortened run",
+  );
+
+  const emptyPairSuite = structuredClone(suite);
+  for (const testCase of emptyPairSuite.cases) {
+    testCase.pairsWith = testCase.pairsWith.filter((pair) => pair !== "S0-anon");
+  }
+  assert.throws(
+    () => validateNegativeSuite(emptyPairSuite, expectedStates, requiredCaseIds),
+    /empty state\(s\): S0-anon/,
+    "pairing detector must reject an empty state pairing",
+  );
+
+  const realTools = exported.states.flatMap((state) => state.tools);
+  assert.deepEqual(binaryChannelViolations(realTools), [], "binary detector rejected the real corpus");
+  const brokenTools = structuredClone(realTools);
+  brokenTools[0].inputSchema.properties.file = { contentEncoding: "base64", type: "string" };
+  assert.ok(binaryChannelViolations(brokenTools).length > 0, "binary detector accepted a broken corpus");
+
+  return pairings;
+}
+
+async function runNegativeSuite(url) {
+  const locations = [
+    new URL("evals/suites/negative.suite.json", repositoryUrl),
+    new URL("evals/surfaces.expected.json", repositoryUrl),
+    new URL("artifacts/tools.export.json", repositoryUrl),
+    new URL("erp/contracts/eval-case.schema.json", repositoryUrl),
+    new URL("erp/contracts/signature.schema.json", repositoryUrl),
+    new URL("erp/contracts/violation.schema.json", repositoryUrl),
+  ];
+  const [suite, expected, exported, evalContract, signatureContract, violationContract] = await Promise.all(
+    locations.map(async (location) => JSON.parse(await readFile(location, "utf8"))),
+  );
+  const runtimeExpected = expectedSurfacesFromExport(exported);
+  assert.deepEqual(expected, runtimeExpected, "negative detector rejected the real surface corpus");
+  const requiredCaseIds = evalContract["x-requiredCases"]?.negative_control;
+  assert.ok(Array.isArray(requiredCaseIds), "eval case contract has no negative_control declaration");
+  const pairings = proveNegativeDetector(suite, expected.states, requiredCaseIds, exported);
+  process.stdout.write(`negative: declared case count=${suite.declared_case_count}; real corpus accepted by detector controls\n`);
+  for (const [stateId, pairedCases] of pairings) {
+    process.stdout.write(`${stateId}: paired by pairsWith -> ${pairedCases.join(", ")}\n`);
+  }
+  const policyResponse = await requestJson(url, "/api/policy");
+  assertHttp(policyResponse, 200, undefined, "served policy positive control");
+  assert.equal(
+    digest("outpocket/policy/1", policyResponse.body),
+    expected.source.policy_digest,
+    "served policy digest drifted from the real expected-surface corpus",
+  );
+  const context = {
+    expectedStates: expected.states,
+    exported,
+    origin: new URL(url),
+    policy: policyResponse.body,
+    signatureContract,
+    violationContract,
+  };
+  const results = [];
+
+  for (const testCase of suite.cases) {
+    try {
+      const execute = NEGATIVE_SCENARIOS.get(testCase.scenario);
+      assert.ok(execute, `${testCase.id}: unknown negative scenario ${testCase.scenario}`);
+      const observed = await execute(context, testCase);
+      gradeNegativeCase(testCase, observed);
+      results.push({ id: testCase.id, verdict: "pass" });
+      const label = testCase.controlId ? `${testCase.controlId} ${testCase.id}` : testCase.id;
+      process.stdout.write(`${label}: ${testCase.controlStatus}\n`);
+    } catch (error) {
+      results.push({ error: error.message, id: testCase.id, verdict: "fail" });
+      const label = testCase.controlId ? `${testCase.controlId} ${testCase.id}` : testCase.id;
+      process.stderr.write(`${label}: FAIL: ${error.message}\n`);
+    }
+  }
+
+  assert.equal(
+    results.length,
+    suite.declared_case_count,
+    `negative graded ${results.length} of ${suite.declared_case_count} declared cases; run graded fewer than declared`,
+  );
+  process.stdout.write(`negative: graded case count=${results.length} of declared ${suite.declared_case_count}\n`);
+  const failures = results.filter((result) => result.verdict === "fail");
+  assert.deepEqual(failures, [], `${failures.length} negative case(s) failed grading`);
+  process.stdout.write(
+    `negative: ${results.length} of ${suite.declared_case_count} declared cases graded; `
+    + `${results.length} passed; zero cases skipped; detector controls accepted real corpus and rejected broken fixtures\n`,
+  );
+}
+
 async function runDeferredSuite(name) {
   const suiteUrl = new URL(`evals/suites/${name}.suite.json`, repositoryUrl);
   const suite = JSON.parse(await readFile(suiteUrl, "utf8"));
@@ -1080,6 +1751,8 @@ async function runSuites(options) {
       await runAccountingSuite();
     } else if (suite === "capability") {
       await runCapabilitySuite(options.url);
+    } else if (suite === "negative") {
+      await runNegativeSuite(options.url);
     } else {
       await runDeferredSuite(suite);
     }
