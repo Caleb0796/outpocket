@@ -1108,3 +1108,16 @@ FOLLOWUP D1-deploy-observations 5d4c2f6 pits:kb/pits/D1-deploy-observations.md a
 #   Deploy latency recorded as an upper BOUND (<=9m49s), not the unobserved flip.
 #   And it corrected me: version.mjs was never lost -- I inferred that from an absence
 #   on main and I4 checked instead of accepting it.
+
+FOLLOWUP E4-answer-key 60bae7e pits:kb/pits/E4-answer-key.md accept:PASS (all four E4 spans)
+#   The blind eval's operational half now has a key to compare against. Tasks
+#   pre-register mismatchMeans -- what a MISS would tell us -- which bans quietly
+#   RE-INTERPRETING a result, the cheaper cousin of re-rolling it.
+#   Packet asserted BY NAME AND CONTENT, not count: "exactly two files" is satisfied by
+#   THE ANSWER KEY REPLACING ONE OF THEM, the one substitution that flatters us.
+#   L2's EARLIER refines D-108: the positive case is THE ONLY THING THAT NOTICES WHEN THE
+#   AUTHOR CHANGES THE CONTRACT. A SUITE OF NEGATIVES CANNOT DISTINGUISH "STRICTER" FROM
+#   "BROKEN", BECAUSE BOTH LOOK LIKE REJECTION.
+#   AND ONE ROUTED CLAIM WAS WRONG: compile.js's header is NOT label-swapped -- it
+#   describes INTERNAL ids and MEMBERSHIP confirms it. L2 compared against the EXPORT's
+#   ids. The D-99 error, made by the seat that received D-99. Not routed to I2.
