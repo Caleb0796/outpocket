@@ -940,13 +940,26 @@ function checkDispatch() {
 
   const dir = '.team/contracts';
   const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.txt')) : [];
-  let bad = 0, weak = 0, checked = 0;
+  let bad = 0, weak = 0, checked = 0; const adhoc = [];
   for (const f of files) {
     const id = f.replace(/\.txt$/, '');
     if (done.has(id)) continue;
     const node = (G.nodes || []).find((n) => n.id === id);
+    // A contract for a BLOCKED node is not a missed dispatch -- it is a brief written
+    // ahead of time, which is good practice. Only a node whose inputs are all done
+    // COULD have been dispatched, so only those can have been missed. Without this,
+    // the check cries wolf on every brief written early and gets ignored, which is
+    // how a real UNDISPATCHED line would have been lost in the noise.
+    // A contract whose id is not a graph node (an ad-hoc brief, a ruling, a sweep)
+    // has no owner and therefore no predictable branch name -- seat/I3-D89-confirm-token
+    // does not match the id D-89-confirm-token, and inventing a fuzzy match would make
+    // this check guess. It is reported as NOT CHECKABLE rather than counted either way:
+    // an instrument that cannot tell should say so, not pick the answer that looks tidy.
+    if (!node) { adhoc.push(id); continue; }
+    const blockers = (node.inputs || []).filter((i) => !done.has(i));
+    if (blockers.length) continue;
     checked++;
-    const owner = node ? node.owner : null;
+    const owner = node.owner;
     const hasBranch = owner
       ? new RegExp(`seat/${owner}-${id}\\b`).test(branches)
       : new RegExp(`[-/]${id}\\b`).test(branches);
@@ -970,7 +983,8 @@ function checkDispatch() {
       console.log(`                invisible to a seat unless something tells it to read it.`);
     }
   }
-  console.log(`${checked} undone contract(s) checked; ${bad} never dispatched, ${weak} asserted-only`);
+  if (adhoc.length) console.log(`  NOT CHECKABLE  ${adhoc.length} ad-hoc contract(s) with no graph node, so no predictable\n                 branch name to look for: ${adhoc.join(", ")}`);
+  console.log(`${checked} ready undone contract(s) checked; ${bad} never dispatched, ${weak} asserted-only`);
   if (!bad) console.log('  ok    every contract on disk for an undone node has a downstream trace');
   return bad === 0;
 }
