@@ -35,8 +35,18 @@
 // `undefined`, which compares false against every count and reads as "the
 // surface is empty" rather than as a bug. Every read here is awaited.
 
+// THREE SOURCES, NOT TWO, AND THE THIRD IS WHY. A page driving itself through
+// H3's fallback has a document.modelContext — the shim installs one — so a
+// panel that reported "read from document.modelContext" would be literally true
+// and would read to a judge as "the browser's real API". The shim marks itself
+// `__simulated` and env-banner.js already reads that marker; this panel now
+// reads the same one. Found by sweeping for presence-of-modelContext checks
+// that conclude something about the ENVIRONMENT rather than about the surface,
+// after the same class was confirmed in register.js's live()/why(). This file
+// was one of the instances.
 export const SOURCE = Object.freeze({
   BROWSER: "document.modelContext",
+  SIMULATED: "document.modelContext (simulated — the in-page fallback agent, not a real WebMCP)",
   REGISTRY: "page registry (no document.modelContext in this browser)",
 });
 
@@ -48,7 +58,14 @@ export async function readSurface({ doc = globalThis.document, registry = global
   const mc = doc?.modelContext;
   if (mc && typeof mc.getTools === "function") {
     const tools = await mc.getTools(); // AWAITED — see the header
-    return { tools: Array.isArray(tools) ? tools : [], source: SOURCE.BROWSER };
+    // The presence of modelContext says the SURFACE is readable; it does not
+    // say the environment has WebMCP. Those are different facts and conflating
+    // them is what this branch exists to stop.
+    return {
+      tools: Array.isArray(tools) ? tools : [],
+      source: mc.__simulated ? SOURCE.SIMULATED : SOURCE.BROWSER,
+      simulated: Boolean(mc.__simulated),
+    };
   }
   if (registry?.getTools) return { tools: registry.getTools() ?? [], source: SOURCE.REGISTRY };
   return { tools: [], source: SOURCE.REGISTRY };
