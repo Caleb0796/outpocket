@@ -786,3 +786,35 @@ MERGED S12 be34298 pits:PENDING accept:PASS
 #   equal, a no-timeout run averaging with a numeric one, malformed run files.
 
 MERGED V6  b6313e6 pits:kb/pits/V6.md accept:PASS
+
+MERGED H3  8123246 pits:PENDING accept:PASS
+# H3 — the in-page fallback agent, and the honesty defect it caught on the way.
+#   Under --disable-features=WebMCP with the fallback mounted, the first screen
+#   read "Chromium 152 · WebMCP present" ON A BROWSER WHERE WebMCP IS OFF, because
+#   readEnv graded presence off whether document.modelContext EXISTED and the shim
+#   installs exactly there. MOUNTING THE COMPONENT WHOSE PURPOSE IS TO BE HONEST
+#   ABOUT BEING A SIMULATION MADE THE BANNER CLAIM REAL WebMCP WAS WORKING.
+#   No test caught it: every existing test passed a real context, and the flip walk
+#   was 7/7 green throughout because THE WALK CANNOT SEE THE BANNER.
+#   I1's line, and it is today's lesson in a new register: A GREEN NODE IS NOT
+#   EVIDENCE THAT ITS OUTPUT TELLS THE TRUTH.
+#   Fixed STRUCTURALLY rather than cooperatively: the shim marks itself
+#   __simulated and readEnv reads the marker, so the label survives the caller
+#   forgetting to pass simulated:true — which happened immediately, because with
+#   the tag in the earliest slot outpocketShell does not exist yet and
+#   refreshEnvBanner never fires.
+#   I VERIFIED THE REGRESSION TESTS CAN FAIL rather than taking the claim:
+#   reverting the marker read turns EXACTLY tests 15 and 16 red; test 17 (a real
+#   context is never labelled simulated) passes either way, which is what a
+#   control is for.
+#
+# THE TAG, and two seats measuring the same thing on different trees.
+#   UX measured that the tag BEFORE the shell leaves the env banner unlabelled
+#   while #agent-banner still reads correctly — it does not throw, does not log,
+#   and THE PAGE LOOKS CORRECTLY LABELLED. I1 measured both ends of the range and
+#   got EXIT 0 either way. Not a contradiction: I1's marker fix makes the label
+#   structural, so the constraint UX measured against the PRE-FIX module no longer
+#   binds. Both were right about the tree they measured.
+#   UX's rule is the keeper: A MODULE'S OWN STATEMENT OF ITS CONSTRAINTS IS SCOPED
+#   TO THE CONCERNS ITS AUTHOR HAD IN MIND, AND A MOUNT IS WHERE A SECOND CONCERN
+#   CAN APPEAR THAT THE AUTHOR NEVER HAD TO CONSIDER.
