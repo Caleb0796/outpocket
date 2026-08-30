@@ -1282,3 +1282,29 @@ MERGED E8 96ca184 pits:kb/pits/E8.md accept:PASS
 #   This is a one-shot instrument that cannot be re-run (L2: re-firing would be
 #   re-rolling after seeing the number, EVAL.md 8.5). Anyone can now re-derive the
 #   check without asking L1.
+
+MERGED S7 2db6594 pits:PENDING accept:PASS
+#   Landed together with D-118 in one branch: they conflicted in commit() and I3
+#   merged them rather than L1 resolving product code. Ordering: policy identity
+#   (D-118), then S6 recon, then chain.append() (S7) only if both pass. I3 read the
+#   auto-merged body line by line rather than treating a clean merge as a correct one.
+#   NEW PROPERTY NEITHER ORIGINAL SUITE COULD SEE: a refused commit appends NOTHING
+#   to the day book -- proven BYTE-IDENTICAL before/after, on both refusal paths, so
+#   a 409 cannot leave a phantom chain entry. All four sabotages re-run against the
+#   COMBINED code: disabling the policy check now also fails the new phantom-entry
+#   test, a failure mode that DID NOT EXIST TO CATCH when that sabotage was first run.
+
+FOLLOWUP D-118 2db6594 pits:PENDING accept:N/A (a PM ruling, not a graph node)
+#   E_POLICY_DIGEST_MOVED, the refusal the frozen contract names and no node built.
+#   Consumer-specifies-the-producer with a FROZEN CONTRACT as the consumer.
+
+FOLLOWUP UX-F4-sign-dialog b65435f pits:PENDING accept:N/A (a routed defect, not a node)
+#   Only a THROWN fetch was silent: a 4xx/5xx always rendered, because the response
+#   came back and got read. The dialog was invisible in exactly the circumstance that
+#   produces a thrown fetch -- a server that has just died, i.e. tonight's outage.
+#   UX's general form: A COMPONENT'S TESTS CLUSTER AROUND THE OUTPUTS IT PRODUCES,
+#   AND ITS WORST FAILURE IS USUALLY THE ABSENCE OF AN OUTPUT, WHICH HAS NO NATURAL
+#   PLACE IN THAT LIST.
+
+FOLLOWUP PM-rulings-D122-D131 753732b pits:PENDING accept:N/A (rulings)
+FOLLOWUP L2-verdict-review a06806d pits:PENDING accept:N/A (a review and two addenda sections)
