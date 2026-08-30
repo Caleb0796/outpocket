@@ -857,3 +857,23 @@ MERGED S2  e790b38 pits:kb/pits/S2.md accept:PASS
 #   script fail before trusting it green.
 #   And gating /api/sign broke its OWN merged S12 test; it fixed the FIXTURE rather
 #   than weakening the gate to avoid touching prior work.
+
+MERGED H4  55d3485 pits:kb/pits/H4.md accept:PASS
+#   The seeded demo. Predicate was the weak kind -- two runs at the SAME seed compared
+#   with diff, WHICH TWO EMPTY FILES PASS -- so the node was built around the
+#   falsifiability rather than to the accept: seed 7 gives 3 lines/$4395, seed 8 gives
+#   1 line/$1711, differing in title, count, merchants, dates and amounts.
+#   SEEDED RATHER THAN SCRIPTED, deliberately: a hard-coded script is also
+#   deterministic and would have passed forever while proving nothing.
+#   I1's first run exited 0, reported ALL SEVEN STEPS ok, and had created NO REPORT.
+#   toolset.call NEVER THROWS for the two failures that matter, so try/catch reports
+#   success for a demo that did nothing. Caught by an incidental stderr line reading
+#   "reached S1". THE LOG LINE WAS THE ONLY HONEST WITNESS IN THE ROOM.
+#   Exclusion list carried IN the dump with paths and reasons; dates RELATIVISED not
+#   excluded, which also keeps the dump stable across the 17 unattended midnights of
+#   the judging window.
+#   MY OWN ERROR, RECORDED: I pushed H4 without its mount tag because `git merge -F -`
+#   cannot read a message from stdin, the merge errored mid-block, and I read the last
+#   line of the output instead of every line. main briefly carried the module with
+#   nothing loading it. Fixed in the next push; caught by re-running --check-orphans
+#   rather than trusting the echo.

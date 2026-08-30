@@ -39,17 +39,19 @@
     "H3",
     "T5",
     "F4",
-    "S2"
+    "S2",
+    "H4"
   ],
   "in_flight": {
-    "H4": "I1 \u2014 GREEN, awaiting the demo-mode mount tag from UX.",
-    "T3": "I2 \u2014 building (a) behind the D-77 freeze bump; two checks deliberately RED on main until it lands.",
+    "H6": "NOW READY \u2014 H2, H3, H4 all done. Head of the critical path, I1's.",
+    "T3": "I2 \u2014 building (a) behind the D-77 freeze bump; export-surface + validate-contracts deliberately RED on main until it lands.",
     "S6": "I3 \u2014 taken.",
-    "E5": "C4 \u2014 contract written, not yet fired.",
-    "F6/F5": "UX \u2014 ready.",
+    "F6": "UX \u2014 taken.",
+    "SIGN GLUE": "UNOWNED \u2014 setSignatureProvider is never called. Escalated to PM; needs a node.",
+    "E5/E2": "C4 \u2014 contracts ready, HELD until T3 clears the deliberate red.",
     "D1": "I4 \u2014 INPUT-STARVED on a deployed URL only the user can provide.",
     "V4": "I1 \u2014 parked.",
-    "pit debts": "H5 (evidenced unrecoverable), G2, T4, S5, S12, T2."
+    "pit debts": "H5 (evidenced unrecoverable), G2, T4, T2."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
