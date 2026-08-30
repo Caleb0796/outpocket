@@ -1198,3 +1198,87 @@ FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep
 #   THE WHOLE EPISODE IS THE ARGUMENT FOR RECORDING REASONS RATHER THAN FACTS: the tier
 #   changed, the fact silently stopped holding, and the RECORDED REASON is what announced
 #   its own expiry loudly enough for anyone to act on.
+
+FOLLOWUP readme-and-D1-evidence d44313c pits:PENDING accept:N/A (not a node)
+#   THE README TOLD A JUDGE THE PROJECT HAD NOT STARTED -- "Status: planning. No product
+#   code yet", src/ and tests/ "not yet created" -- at 49/62 with a live deploy and a
+#   completed production signature. Now "Status: live."
+#   W found it; category SILENT DESCOPE, not typo: G2's test asserts only the two login
+#   lines and NEVER LOOKED AT THE STATUS LINE, so the node passed and the unchecked claim
+#   went stale. No instrument here could have caught it.
+#   AND THE SEVERITY IS INVERTED FROM EVERY OTHER FINDING: two days of documents claiming
+#   MORE than we measured, and this one claimed dramatically LESS.
+#   I NEARLY DISMISSED IT -- my first check read three lines and I printed a label saying
+#   W had a stale tree, while the grep in the same command contradicted me.
+#   D1's evidence rewritten: one instance now holds by EXPLICIT CONFIGURATION plus a
+#   STRUCTURAL GATE (autoscale needs a Pro plan; workspace is Hobby), replacing the
+#   free-tier property the 21:32 upgrade retired. I4's recorded REASON announced its own
+#   expiry -- a recorded FACT would have gone stale in silence.
+
+FOLLOWUP DEV-017 57ec039 pits:PENDING accept:N/A (a deviation ticket)
+#   SHA CORRECTED: the row first published b95f511, which is the README commit and NOT a
+#   DEV-017 merge. `git merge -F -` failed (git cannot read a message from stdin), I echoed
+#   MERGED unconditionally, and I pushed a record for a merge that had not happened. SECOND
+#   TIME WITH `-F -` -- I documented the identical hazard in the H4 merge commit and then
+#   repeated it. WORSE THAN H4: there the tree was wrong for one push; here THE RECORD WAS
+#   FALSE ON MAIN, which is the artifact everything else is checked against.
+#   W's README time-capsule finding, renumbered after an ID COLLISION THAT IS NOT ITS
+#   ERROR: nothing allocates deviation ids, D-101 lets nodes declare their own tickets,
+#   and W cannot see what another seat committed on a branch. Raised as its own item.
+#   Category SILENT-DESCOPE and that is why nothing caught it: G2's test asserts the two
+#   login lines and NEVER LOOKED AT THE STATUS BANNER.
+#   SEVERITY INVERTED FROM THE WHOLE SPRINT: every other defect was a document claiming
+#   MORE than we measured; this one claimed dramatically LESS.
+
+MERGED E4 d2d0c86 pits:kb/pits/E4.md accept:PASS
+
+MERGED E8 96ca184 pits:kb/pits/E8.md accept:PASS
+#   ACCEPT SKIPPED IN THE GATE AND EXECUTED AT FIRE TIME INSTEAD: E8's span 0 IS the
+#   blind run, so running it inside the merge gate would re-fire a one-shot instrument
+#   and overwrite the artifact being merged. Span 0 exit 0 in L1's presence.
+#   Fourth admissibility clause recorded against PM's branch (ii) -- existence + effect.
+#   Branch (i) was checked FIRST and is ABSENT: the JSONL's distinct top-level keys
+#   across all 11 events are item, thread_id, type, usage; zero mentions of the model
+#   and no effort key on any event.
+#   RESULT: R1..R6 = 1,1,2,2,1,2 (9/12); gate.passed FALSE; 5 of 8 tasks completable.
+#   D-121 BINDS: any citation of this total travels with the disclosure that the packet
+#   was NOT identifier-free and that blindness rested on an after-the-fact transcript
+#   check. Without the disclosure the number is inadmissible. The MEANING of 9/12 is
+#   L2's to rule -- not L1's and not PM's.
+
+#   CORRECTION to the E8 row above, add-only, NOT a rewrite (D-103). L2 ruled the
+#   "5 of 8 tasks completable" figure INADMISSIBLE AS WRITTEN under RUBRIC-ADDENDA
+#   §2.4 -- a figure from our own instrument carries its achievable maximum.
+#   evals/blind/tasks.md, frozen and dated BEFORE the run, declares T4/T7/T8 as
+#   deliberately possibly-unfulfillable, and T4 and T8 are genuinely unfulfillable:
+#   no registered tool takes a file-shaped argument, and an auditor session
+#   registers no write tool at all. THE ACHIEVABLE CEILING IS 6 AGAINST A PASS MARK
+#   OF >=6 -- zero slack, a perfection test on the completable subset wearing the
+#   label of a three-quarters test. C1's 5 accounts for exactly T4, T8 and T3, so
+#   THERE IS ONE GENUINE SHORTFALL, T3, NOT THREE.
+#   ADMISSIBLE FORM, ceiling in the same sentence, never a bare "5 of 8" and never
+#   a bare "gate: FAILED":
+#     "gate not passed: 5 of a possible 6, the other two tasks being deliberately
+#      unfulfillable by design"
+#   THIRD DISCLOSURE ITEM, joining D-121's two rather than replacing them: L2 ruled
+#   the reasoning-effort axis UNEVALUABLE for this run under RUBRIC-ADDENDA
+#   §3.6(a) -- a control is armed only if the artifact it inspects is produced by
+#   the run it grades. No event in the transcript names a model or an effort, so
+#   the existence+effect pair recorded above measures a SIBLING run. "The run
+#   executed at reasoning effort low" is OUR-ESTIMATE and must carry those words.
+#   DO NOT RE-RUN TO CURE THIS: EVAL.md 8.5 forbids re-rolling after seeing the
+#   number, and re-firing now would be exactly that whatever the motive.
+#   Do NOT cite reasoning_output_tokens as evidence of the setting -- it is
+#   consumption, not configuration.
+#   PRE-REGISTERED AND BANKABLE: C1 picked list_receipts, not link_receipt. The key
+#   said before the run that link_receipt would be the most important result in the
+#   whole run. Seven of eight inside the frozen accepted set.
+#   E8 ARTIFACT HASHES, recorded because I verified byte-identity through the merge
+#   round trip and then did not write the hashes down -- the artifact was verified
+#   and the VERIFICATION was not repeatable by anyone else. QA re-derived both from
+#   a fresh clone of origin/main and they match exactly:
+#     2b4749ea28fbca1821f83c85bb24f1fa835336b633f257e774bbfe41b81b72f0  evals/blind/C1-verdict.json
+#     cf0271e686fbabac74ecd931e412e445a314441944581675a17b2441e09bcb27  evals/blind/C1-transcript.jsonl
+#   This is a one-shot instrument that cannot be re-run (L2: re-firing would be
+#   re-rolling after seeing the number, EVAL.md 8.5). Anyone can now re-derive the
+#   check without asking L1.

@@ -52,6 +52,19 @@ never `T0`–`T4`, which collide with live tool-surface node ids. Every
 `UNVERIFIED` row must name an existing node id from `erp/graph.json` as its
 fallback; a row with no named fallback is malformed and the node does not pass.
 
+## When you park something — D-122
+
+**NAME THE CONDITION THAT UNPARKS IT, NEVER A TIME.** I parked D-118 *"after
+D4 is shot"* and stated the reason as a failure mode — *"refusing a legitimate
+commit ON CAMERA."* **That is why L1 could re-open it correctly: the condition
+was CHECKABLE, it verified the camera was off, and it came back with the
+premise change rather than waiting for me to remember.** A deferral dated
+*"tomorrow"* or *"after the sprint"* cannot be checked by anyone, so it expires
+only when someone happens to think of it — **which is the same absence-that-
+produces-no-error this sprint has spent two days finding, aimed at my own
+rulings.** Park with a predicate, and the seat holding the work can tell you
+when it fires.
+
 ## Before you rule a follow-up — D-101
 
 **A RULING THAT COMMISSIONS WORK BUT CREATES NO NODE COMMISSIONS WORK THAT

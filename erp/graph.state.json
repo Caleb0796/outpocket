@@ -1,6 +1,6 @@
 {
   "_authority": "erp/graph.json is the authority for node identity; this file records only WHAT HAS LANDED. It is L1's, it is written on merge, and nothing else may edit it. `node tools/ready.mjs` reads it to compute the ready set.",
-  "_grade": "MEASURED \u2014 every id under `done` corresponds to a line in .team/log/merges.txt whose sha was pushed to origin/main and verified equal to local HEAD.",
+  "_grade": "MEASURED — every id under `done` corresponds to a line in .team/log/merges.txt whose sha was pushed to origin/main and verified equal to local HEAD.",
   "updated": "2026-08-29",
   "day": 2,
   "done": [
@@ -52,18 +52,19 @@
     "E4",
     "E2",
     "F6",
-    "S8"
+    "S8",
+    "E8"
   ],
   "in_flight": {
-    "D4": "THE SHOOT GATE IS CLOSED \u2014 a human completed a signature on production at 2026-08-30T04:14:49Z, live sha f28f37c, witnessed by the live report reading status:submitted / method:signature-click. evidence/L1-shoot-gate.md. D4's inputs H6, F0, F7, D1 are all done and F6 is green at 13/13 through the REAL pipeline.",
-    "F2": "UX \u2014 dispatching now, the largest block available.",
-    "E3": "C4 \u2014 RED and UNMERGED, correctly. Its suite is honest against the frozen contract; it is blocked on D-118, a producer node that was never funded. E3 is cut rank 2: if D-118 does not land before submission, E3 does not land, and PM ruled that acceptable. NOT a reason to weaken the clause.",
-    "E8": "C1 \u2014 HELD pending L2's admissibility ruling under RUBRIC \u00a75 (PM routed it there; it is not PM's scale).",
-    "known defects, routed, not blocking": "sign-dialog.js discards submitDecision with its fetch UNWRAPPED \u2014 a failed POST renders NOTHING (UX). fallback-agent's shim never rejects, so it cannot reproduce the abort class (I1).",
+    "D4": "THE SHOOT GATE IS CLOSED — a human completed a signature on production at 2026-08-30T04:14:49Z, live sha f28f37c, witnessed by the live report reading status:submitted / method:signature-click. evidence/L1-shoot-gate.md. D4's inputs H6, F0, F7, D1 are all done and F6 is green at 13/13 through the REAL pipeline.",
+    "F2": "UX — dispatching now, the largest block available.",
+    "E3": "C4 — RED and UNMERGED, correctly. Its suite is honest against the frozen contract; it is blocked on D-118, a producer node that was never funded. E3 is cut rank 2: if D-118 does not land before submission, E3 does not land, and PM ruled that acceptable. NOT a reason to weaken the clause.",
+    "E8": "C1 — HELD pending L2's admissibility ruling under RUBRIC §5 (PM routed it there; it is not PM's scale).",
+    "known defects, routed, not blocking": "sign-dialog.js discards submitDecision with its fetch UNWRAPPED — a failed POST renders NOTHING (UX). fallback-agent's shim never rejects, so it cannot reproduce the abort class (I1).",
     "pit debts": "H5 and T2 evidenced-unrecoverable; G2 collectable from I4.",
-    "parked": "D2/D3 until the shoot wraps \u2014 every push redeploys the artifact being filmed. S7/G1 day-gated.",
-    "D-118": "I3 \u2014 the policy-digest refusal the frozen contract names and no node builds. AFTER the shoot: commit() is the demo's central beat and a FALSE refusal reaches the camera.",
-    "D1 clause 4": "RE-SUPPORTED 2026-08-30, by a STRONGER reason than the one it replaces. Dashboard read post-upgrade (Starter 0.5c/512mb, Live): AUTOSCALING OFF \u2014 toggle greyed and non-interactive, gated on 'Autoscaling requires a Pro plan or higher', and the workspace is on Hobby. So autoscale is DOUBLY LOCKED: switched off AND structurally unavailable without a deliberate workspace-plan purchase. MANUAL SCALING: slider and numeric input both read 1, Save greyed. So one instance is now an EXPLICIT CONFIGURATION whose change requires a deliberate edit plus Save \u2014 which is exactly the remedy evidence/D1-url.txt named for itself. I4 owns the file rewrite; the clause is supported again."
+    "parked": "D2/D3 until the shoot wraps — every push redeploys the artifact being filmed. S7/G1 day-gated.",
+    "D-118": "I3 — the policy-digest refusal the frozen contract names and no node builds. AFTER the shoot: commit() is the demo's central beat and a FALSE refusal reaches the camera.",
+    "D1": "DONE, all four clauses, and its evidence now records one-instance as EXPLICIT CONFIG + STRUCTURAL GATE after tonight's upgrade retired the free-tier reason."
   },
   "human_gated_in_flight": {
     "V1": "the user is running it; graph.json.human_gated is the authority for which nodes are theirs"
@@ -71,10 +72,10 @@
   "not_dispatched_today": {
     "G1": "R-42/D-30: DAY 6. It flips both repositories public. Fifteen stale restatements placing it on Day 1 were cleared today across two disjoint registers (tables by --check-tables, prose by hand); erp/charters/I4.md now states DAY 6, NOT DAY 1 for the seat that owns it.",
     "H5": "ready on hard edges, scheduled Day 2",
-    "H1": "I1's, queued behind V0 \u2014 one seat, one node at a time",
+    "H1": "I1's, queued behind V0 — one seat, one node at a time",
     "G6": "cut 1, inputs L0+S10+S11+V5 all now merged; QA is free. Ready for dispatch."
   },
   "deviation_queue": "TEN tickets, ALL ADJUDICATED: 6 adopt, 2 debt (DEV-004 G0, DEV-008 F0), 1 send-back (DEV-005 G5), plus the Day-0 ticket. 67% adopt. Verdicts transcribed by L1 under clause 6b.",
-  "note": "Day 2. 121 edges after D-50 added H2->F1 \u2014 the same three totals as pre-D-30 by coincidence, not reversion (D-30 deleted G1->G3, D-50 added H2->F1). Ten deviation tickets all adjudicated: 6 adopt, 2 debt, 1 send-back.",
-  "closed_today": "DEV-005 (the only send-back) closed ahead of its 09:00 deadline. S1 static route merged \u2014 T2 unblocked on the critical path."
+  "note": "Day 2. 121 edges after D-50 added H2->F1 — the same three totals as pre-D-30 by coincidence, not reversion (D-30 deleted G1->G3, D-50 added H2->F1). Ten deviation tickets all adjudicated: 6 adopt, 2 debt, 1 send-back.",
+  "closed_today": "DEV-005 (the only send-back) closed ahead of its 09:00 deadline. S1 static route merged — T2 unblocked on the critical path."
 }

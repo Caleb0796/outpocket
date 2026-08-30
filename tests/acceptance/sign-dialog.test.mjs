@@ -419,3 +419,85 @@ test("CONTROL — a click DOES post when the dialog discloses, so the no-post te
   assert.equal(fetchImpl.calls.length, 1,
     "a disclosed dialog did not post on click — so 'it did not post' proves nothing elsewhere in this file");
 });
+
+// ── the invariant: a click never leaves the dialog silent ───────────────────
+//
+// THE DEFECT THESE COVER RENDERED NOTHING AT ALL. submitDecision's fetch was
+// unwrapped and the click handler discarded the promise, so a POST that THREW —
+// server down, network gone, request aborted — became an unhandled rejection
+// and the dialog just sat there. Mid-take, with the camera rolling, and no way
+// for the person signing to know why.
+//
+// Note WHICH case was silent, because it is the counter-intuitive one: a 4xx or
+// 5xx always rendered a line, since the response came back and was read. ONLY A
+// THROWN FETCH WAS SILENT — and a thrown fetch is precisely what a server that
+// has just died produces. The failure mode was invisible in exactly the
+// circumstance that produces it.
+
+const statusOf = (root) => root.querySelector("[data-sign-status]")?.textContent ?? "";
+
+test("a POST that THROWS leaves a readable status and offers a retry", async () => {
+  const thrown = [];
+  const fetchImpl = async () => { thrown.push(1); throw new TypeError("Failed to fetch"); };
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+
+  const r = await submitDecision(root, { signRequest: REPORT_A, decision: "signed", fetchImpl, doc: fakeDoc });
+
+  assert.equal(r.posted, false);
+  assert.equal(r.refused, "unreachable");
+  assert.ok(statusOf(root).length > 0, "the dialog rendered NOTHING after a failed POST");
+  assert.match(statusOf(root), /nothing was signed/i,
+    "the status must say plainly that nothing was signed");
+  assert.match(statusOf(root), /still open|try again/i,
+    "the status must tell the human what to do next");
+
+  // a retry is offered ONLY here, because this is the one case where we know
+  // nothing reached the server and the record is untouched
+  assert.ok(root.querySelector("[data-sign-retry]"), "no retry offered after an unreachable server");
+});
+
+test("a REAL CLICK that throws is caught — the promise is not discarded", async () => {
+  // This is the path the shoot actually exercises. The old handler called
+  // submitDecision(...) with no catch, so this test would have left the status
+  // empty and produced an unhandled rejection instead.
+  const fetchImpl = async () => { throw new Error("connection refused"); };
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+
+  root.querySelector("[data-sign-confirm]").click();
+  await new Promise((r) => setTimeout(r, 10));
+
+  assert.ok(statusOf(root).length > 0,
+    "a click whose POST threw left the dialog silent — this is the shoot-stopping case");
+  assert.match(statusOf(root), /nothing was signed/i);
+});
+
+test("a server refusal shows the SERVER'S OWN message, not our paraphrase of its code", async () => {
+  // New refusal conditions land on this path faster than this file can learn
+  // their names — E_POLICY_DIGEST_MOVED is arriving now. A bare code tells the
+  // person at the camera nothing; the server already sends a sentence.
+  const fetchImpl = spyFetch([{
+    status: 409,
+    payload: { error: "E_POLICY_DIGEST_MOVED", message: "the policy moved under this signature; re-open the report" },
+  }]);
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+
+  await submitDecision(root, { signRequest: REPORT_A, decision: "signed", fetchImpl, doc: fakeDoc });
+
+  const text = statusOf(root);
+  assert.match(text, /E_POLICY_DIGEST_MOVED/, "the code must be visible for a bug report");
+  assert.match(text, /the policy moved under this signature/,
+    "the server's own explanation must be shown, not swallowed");
+  assert.match(text, /nothing was signed/i);
+  // and NO retry here — we do not know the record is untouched
+  assert.equal(root.querySelector("[data-sign-retry]"), null,
+    "a retry must not be offered for a refusal we cannot prove left the record open");
+});
+
+test("CONTROL — the success path still renders, so the checks above are not just 'any text'", async () => {
+  const fetchImpl = spyFetch([{ status: 200, payload: { state: "answered", decision: "signed" } }]);
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+  await submitDecision(root, { signRequest: REPORT_A, decision: "signed", fetchImpl, doc: fakeDoc });
+  assert.match(statusOf(root), /signed/i);
+  assert.ok(!/nothing was signed/i.test(statusOf(root)),
+    "the success path must not read like a failure");
+});

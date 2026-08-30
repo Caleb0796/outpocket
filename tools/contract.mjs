@@ -59,5 +59,14 @@ process.stdout.write(
   `           D-31 that survived a reset of mine and misled three seats, all of which\n` +
   `           correctly followed the ruling over the template and told me.)\n` +
   `BRANCH:    seat/${node.owner}-${node.id}\n` +
+  `PUSH:      PUSH YOUR SEAT BRANCH AT EVERY STOPPING POINT — \`git push origin HEAD:seat/${node.owner}-${node.id}\`.\n` +
+  `           A SEAT-BRANCH PUSH NEVER DEPLOYS. Render builds from \`main\` only, which L1 alone\n` +
+  `           pushes, so this is free even during a push freeze on main. "Never push" in your\n` +
+  `           charter means NEVER PUSH TO main — it was never a rule about your own branch.\n` +
+  `           MEASURED 2026-08-29, and this line exists because of it: a full night of product\n` +
+  `           work sat as LOCAL-ONLY REFS on one machine. L1 could see, verify and test it;\n` +
+  `           nothing outside that filesystem could — not the monitoring sweep, not W, not a\n` +
+  `           clone. It read as three seats idle with nothing delivered, and one lost worktree\n` +
+  `           would have destroyed it. Work L1 has not fetched is work nobody can prove exists.\n` +
   `DEADLINE:  ${val('--deadline')}\n`
 );

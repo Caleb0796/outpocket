@@ -282,6 +282,148 @@ function reportExportIdentifiers(exportPath) {
   err("  rather than preventing one. E4's accept greps the brief, not the export, and that is why.");
 }
 
+// ── the structured-output schema linter ─────────────────────────────────────
+//
+// WRITTEN AFTER THE SCHEMA I SHIPPED WAS REJECTED AT REQUEST TIME, and it is the
+// check that would have caught it. The first C1 run died with HTTP 400,
+// invalid_json_schema, "$ref cannot have keywords {'description'}" at
+// properties.rubric.properties.R1 — four transcript events, no tool calls, no
+// grading. The one shot survived only because the transcript was armed.
+//
+// THE GAP THAT LET IT THROUGH IS WORTH NAMING: ajv accepts a $ref carrying
+// sibling keywords without complaint, so the schema passed every check this
+// project owned and still could not be used. A CONFORMANCE GAP BETWEEN THE
+// VALIDATOR WE TEST WITH AND THE VALIDATOR THAT RUNS IS INVISIBLE TO BOTH.
+//
+// `minItems`/`maxItems` are ALLOWED, and that is now CONFIRMED rather than
+// inferred. It began as an inference — the rejection named
+// properties.rubric.properties.R1, and `tasks`, which carries both keywords, is
+// validated before `rubric`, so the validator had got past them. Strong, and not
+// the same as being told. L1's pre-flight probe on 2026-08-29 (one throwaway
+// `codex exec --output-schema`, one-word prompt, no packet) was accepted with
+// both keywords present: MEASURED. The distinction is kept in writing because
+// the inference could have been wrong and the cost of finding out that way would
+// have been another firing of a one-shot instrument.
+const REJECTED_KEYWORDS = Object.freeze([
+  "allOf", "oneOf", "not", "if", "then", "else", "dependentRequired",
+  "dependentSchemas", "patternProperties", "propertyNames", "contains",
+  "minLength", "maxLength", "pattern", "format",
+  "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+  "uniqueItems", "default",
+]);
+const INFERRED_SAFE = Object.freeze(["minItems", "maxItems"]);
+
+/** lintStructuredOutputSchema(schema) -> {problems, inferred} */
+export function lintStructuredOutputSchema(schema) {
+  const problems = [];
+  const inferred = [];
+
+  const walk = (node, path) => {
+    if (!node || typeof node !== "object" || Array.isArray(node)) return;
+    const at = path || "(root)";
+
+    // (1) THE EXACT DEFECT THAT KILLED THE FIRST RUN.
+    if ("$ref" in node) {
+      const siblings = Object.keys(node).filter((k) => k !== "$ref");
+      if (siblings.length) {
+        problems.push(`${at}: $ref carries sibling keyword(s) {${siblings.join(", ")}} — ` +
+          "the structured-output validator rejects the whole request at 400 before the model runs. " +
+          "Inline the shape instead; do not wrap in allOf, which is also refused.");
+      }
+    }
+    for (const k of REJECTED_KEYWORDS) {
+      if (k in node) problems.push(`${at}: "${k}" is not accepted by the structured-output validator`);
+    }
+    for (const k of INFERRED_SAFE) {
+      if (k in node) inferred.push(`${at}: "${k}"`);
+    }
+
+    if (node.type === "object") {
+      if (node.additionalProperties !== false) {
+        problems.push(`${at}: an object must set "additionalProperties": false`);
+      }
+      const props = Object.keys(node.properties ?? {});
+      const req = node.required ?? [];
+      const missing = props.filter((p) => !req.includes(p));
+      if (missing.length) {
+        problems.push(`${at}: every property must be listed in "required"; missing [${missing.join(", ")}]`);
+      }
+    }
+
+    for (const [k, v] of Object.entries(node.properties ?? {})) walk(v, `${at}.properties.${k}`);
+    if (node.items) walk(node.items, `${at}.items`);
+    for (const key of ["definitions", "$defs"]) {
+      for (const [k, v] of Object.entries(node[key] ?? {})) walk(v, `${at}.${key}.${k}`);
+    }
+  };
+
+  if (schema?.type !== "object") problems.push("(root): the top level must be an object schema");
+  walk(schema, "");
+  return { problems, inferred };
+}
+
+// ── verdict constraints that could not stay in the schema ───────────────────
+//
+// maxLength and minimum/maximum were removed from rubric.schema.json because the
+// structured-output validator refuses them. THEY DID NOT STOP MATTERING; they
+// moved. They are stated in each field's description, where the model reads
+// them, and enforced here, where a returned verdict is checked. The gate
+// consistency check is one no JSON Schema could have expressed at all.
+export function verifyVerdict(v) {
+  const problems = [];
+  const ids = (v?.tasks ?? []).map((t) => t.task);
+  const want = Array.from({ length: 8 }, (_, i) => `T${i + 1}`);
+  if (ids.join(",") !== want.join(",")) problems.push(`tasks must be exactly ${want.join(", ")}; got [${ids.join(", ")}]`);
+  for (const [k, d] of Object.entries(v?.rubric ?? {})) {
+    if (typeof d?.why === "string" && d.why.length > 300) problems.push(`rubric.${k}.why is ${d.why.length} chars, over 300`);
+    if (![0, 1, 2].includes(d?.score)) problems.push(`rubric.${k}.score is ${JSON.stringify(d?.score)}, not 0/1/2`);
+  }
+  if (typeof v?.worstProblem === "string" && v.worstProblem.length > 300) {
+    problems.push(`worstProblem is ${v.worstProblem.length} chars, over 300`);
+  }
+  const n = v?.gate?.tasksCompletable;
+  if (!Number.isInteger(n) || n < 0 || n > 8) problems.push(`gate.tasksCompletable is ${JSON.stringify(n)}, not an integer 0..8`);
+  else if (v?.gate?.passed !== (n >= 6)) {
+    problems.push(`gate.passed is ${v?.gate?.passed} but tasksCompletable is ${n} — the verdict contradicts itself. ` +
+      "No JSON Schema could have caught this, which is why it is checked here.");
+  }
+  return problems;
+}
+
+/**
+ * compareVerdictToKey(verdict, key) -> rows
+ *
+ * The comparison EVAL.md §8.3 describes, done mechanically so a reader can
+ * re-run it instead of taking a summary on trust. PURELY MECHANICAL ON PURPOSE:
+ * it reads the key exactly as frozen and adds no judgement of its own. In
+ * particular it does NOT carry a "was this task fulfillable" flag — that flag
+ * does not exist in the key, and adding one AFTER seeing a verdict is the quiet
+ * re-interpretation the key's own mismatchMeans field exists to prevent.
+ *
+ * MATCH     = C1's firstTool is the key's primary expectation
+ * ACCEPTED  = it is one of the alternates the key pre-registered as defensible
+ * MISMATCH  = neither, and per §8.3 that is A FINDING ABOUT OUR DESCRIPTIONS,
+ *             never a mark against C1.
+ */
+export function compareVerdictToKey(verdict, key) {
+  const byTask = new Map((verdict.tasks ?? []).map((t) => [t.task, t]));
+  return (key.tasks ?? []).map((k) => {
+    const got = byTask.get(k.task);
+    const actual = got ? got.firstTool : null;
+    const alts = k.alsoAcceptable ?? [];
+    let outcome = "MISMATCH";
+    if (actual === null) outcome = "ABSENT";
+    else if (actual === k.expect) outcome = "MATCH";
+    else if (alts.includes(actual)) outcome = "ACCEPTED";
+    return {
+      task: k.task, expect: k.expect, alts, actual, outcome,
+      canConstructArgs: got?.canConstructArgs ?? null,
+      missingInfo: got?.missingInfo ?? [],
+      mismatchMeans: outcome === "MISMATCH" ? k.mismatchMeans : null,
+    };
+  });
+}
+
 // ── build ───────────────────────────────────────────────────────────────────
 
 export function buildPacket({ intoDir = null } = {}) {
@@ -454,6 +596,68 @@ function selfTest() {
   } finally { rmSync(planted, { recursive: true, force: true }); }
 
   err("");
+  err("(7) THE SCHEMA LINTER MUST PASS THE REAL SCHEMA AND FIRE ON THE DEFECT THAT KILLED RUN 1");
+  const realSchema = JSON.parse(readFileSync(SCHEMA_SRC, "utf8"));
+  const realLint = lintStructuredOutputSchema(realSchema);
+  if (realLint.problems.length === 0) ok("the shipped rubric.schema.json lints clean");
+  else { bad("the shipped schema does NOT lint clean:"); for (const p of realLint.problems) err(`          ${p}`); }
+  err(`        inferred-safe (not confirmed): ${realLint.inferred.join(", ") || "none"}`);
+
+  const lintCases = [
+    ["THE HISTORICAL DEFECT: $ref with a sibling description", {
+      type: "object", additionalProperties: false, required: ["R1"],
+      properties: { R1: { $ref: "#/definitions/dimension", description: "NAMEABILITY. 0 = names collide." } },
+    }],
+    ["allOf (the 'usual fix', also refused)", {
+      type: "object", additionalProperties: false, required: ["R1"],
+      properties: { R1: { allOf: [{ $ref: "#/definitions/d" }], description: "x" } },
+    }],
+    ["maxLength", {
+      type: "object", additionalProperties: false, required: ["a"],
+      properties: { a: { type: "string", maxLength: 300 } },
+    }],
+    ["an object without additionalProperties:false", {
+      type: "object", additionalProperties: false, required: ["a"],
+      properties: { a: { type: "object", required: [], properties: {} } },
+    }],
+    ["an object whose required omits a property", {
+      type: "object", additionalProperties: false, required: [],
+      properties: { a: { type: "string" } },
+    }],
+  ];
+  for (const [label, s] of lintCases) {
+    if (lintStructuredOutputSchema(s).problems.length) ok(`linter FIRES on ${label}`);
+    else bad(`linter did NOT fire on ${label} — it would have shipped again`);
+  }
+
+  err("");
+  err("(8) THE VERDICT CHECKS MUST FIRE — they hold the constraints the schema had to give up");
+  const goodVerdict = {
+    tasks: Array.from({ length: 8 }, (_, i) => ({
+      task: `T${i + 1}`, state: "S1-emp-home", firstTool: "get_session_scope",
+      canConstructArgs: true, missingInfo: [], ambiguousWith: [], wouldAskHuman: false, notes: "ok",
+    })),
+    rubric: Object.fromEntries(["R1", "R2", "R3", "R4", "R5", "R6"].map((k) => [k, { score: 2, confidence: "high", why: "fine" }])),
+    gate: { tasksCompletable: 8, passed: true },
+    worstProblem: "none",
+  };
+  if (verifyVerdict(goodVerdict).length === 0) ok("a well-formed verdict passes");
+  else bad("a well-formed verdict was rejected");
+  const vCases = [
+    ["a self-contradicting gate (5 completable, passed true)", (v) => { v.gate = { tasksCompletable: 5, passed: true }; }],
+    ["an over-length why", (v) => { v.rubric.R1.why = "x".repeat(301); }],
+    ["an over-length worstProblem", (v) => { v.worstProblem = "x".repeat(301); }],
+    ["a missing task", (v) => { v.tasks.pop(); }],
+    ["an out-of-range tasksCompletable", (v) => { v.gate = { tasksCompletable: 9, passed: true }; }],
+  ];
+  for (const [label, mut] of vCases) {
+    const v = JSON.parse(JSON.stringify(goodVerdict));
+    mut(v);
+    if (verifyVerdict(v).length) ok(`verdict check FIRES on ${label}`);
+    else bad(`verdict check missed ${label}`);
+  }
+
+  err("");
   if (fail) { err(`SELF-TEST FAILED: ${fail} of ${pass + fail} case(s)`); return 1; }
   err(`SELF-TEST OK: ${pass}/${pass} — every clause was shown to fire, and the real files still pass.`);
   return 0;
@@ -468,6 +672,67 @@ if (argv.includes("--help")) {
 }
 if (argv.includes("--self-test")) {
   process.exit(selfTest());
+}
+if (argv.includes("--lint-schema")) {
+  const { problems, inferred } = lintStructuredOutputSchema(JSON.parse(readFileSync(SCHEMA_SRC, "utf8")));
+  if (problems.length) {
+    err("rubric.schema.json WOULD BE REJECTED by the structured-output validator:");
+    for (const p of problems) err(`  ${p}`);
+    process.exit(1);
+  }
+  err("rubric.schema.json: lints clean against the structured-output subset.");
+  err(`  CONFIRMED ACCEPTED, 2026-08-29: ${inferred.join(", ") || "none"}`);
+  err("  (began as an inference from run 1's error path; settled by a throwaway pre-flight probe");
+  err("   that the real validator accepted with both keywords present. MEASURED, not reasoned.)");
+  process.exit(0);
+}
+if (argv.includes("--compare-verdict")) {
+  const path = argv[argv.indexOf("--compare-verdict") + 1] || join(REPO, "evals", "blind", "C1-verdict.json");
+  const verdict = JSON.parse(readFileSync(path, "utf8"));
+  const key = JSON.parse(readFileSync(KEY_SRC, "utf8"));
+  const rows = compareVerdictToKey(verdict, key);
+  err(`comparing ${path} against the key frozen ${key.frozen_at} for export ${key.export_app_commit.slice(0, 12)}`);
+  err("");
+  err("TASK  OUTCOME   EXPECTED                  ACTUAL                    ARGS");
+  for (const r of rows) {
+    err(`${r.task}    ${r.outcome.padEnd(9)} ${String(r.expect || "(none)").padEnd(25)} ` +
+      `${(r.actual === null ? "(absent)" : (r.actual || "(none)")).padEnd(25)} ${r.canConstructArgs === false ? "NO" : "yes"}`);
+  }
+  const tally = rows.reduce((m, r) => ({ ...m, [r.outcome]: (m[r.outcome] ?? 0) + 1 }), {});
+  err("");
+  err(`tally: ${Object.entries(tally).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  for (const r of rows) {
+    if (r.outcome === "MISMATCH") {
+      err("");
+      err(`${r.task} MISMATCH — the pre-registered reading, quoted from the key and not composed now:`);
+      err(`  ${r.mismatchMeans}`);
+    }
+  }
+  for (const r of rows) {
+    if (r.canConstructArgs === false) {
+      err("");
+      err(`${r.task} could not construct arguments. EVAL.md §8.3 calls this the single most`);
+      err(`  actionable output of the whole eval: it names a required field the surface never`);
+      err(`  explains how to obtain. Missing: ${JSON.stringify(r.missingInfo)}`);
+    }
+  }
+  err("");
+  err("The gate is reported as-is and is NOT recomputed here. evals/blind/tasks.md, frozen");
+  err("before the run, states that T4, T7 and T8 were deliberately written as things the");
+  err("surface may not be able to do — read the gate against that, and see L2's ruling.");
+  process.exit(0);
+}
+if (argv.includes("--verify-verdict")) {
+  const path = argv[argv.indexOf("--verify-verdict") + 1];
+  if (!path) { err("usage: --verify-verdict <path-to-C1-verdict.json>"); process.exit(2); }
+  const problems = verifyVerdict(JSON.parse(readFileSync(path, "utf8")));
+  if (problems.length) {
+    err("VERDICT DID NOT VERIFY:");
+    for (const p of problems) err(`  ${p}`);
+    process.exit(1);
+  }
+  err(`verdict ${path}: eight tasks, scores in range, lengths within budget, gate self-consistent.`);
+  process.exit(0);
 }
 if (argv.includes("--verify-key")) {
   const problems = verifyAnswerKey(
