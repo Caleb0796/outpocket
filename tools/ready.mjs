@@ -4,7 +4,10 @@
 // graph that cites a checker is OUR-ESTIMATE and not MEASURED — including the cut invariant,
 // whose own grade block says so in as many words.
 //
-//   node tools/ready.mjs                        the ready set, from erp/graph.state.json
+//   node tools/ready.mjs                        the ready set, RANKED: critical path, then cut,
+//                                               then day. Ranking exists because its absence
+//                                               cost two dispatch errors in one session.
+//   node tools/ready.mjs --owner <SEAT>         the same, filtered to one seat
 //   node tools/ready.mjs --check-cuts           key(u) >= key(v) on every qualifying hard edge
 //   node tools/ready.mjs --path                 longest hard-edge horizon-A path and its total
 //   node tools/ready.mjs --check-accept-paths   every path named in any accept resolves
@@ -38,24 +41,40 @@ function readState() {
   return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
 }
 
-function readySet() {
+function readySet(ownerFilter = null) {
   const st = readState();
   const done = new Set(st.done || []);
   const inFlight = st.in_flight || {};
   const sched = dayOf();
+  // THE RANK, and it exists because its absence cost two real errors in one
+  // session. This mode printed cut and day and NEVER SORTED BY EITHER against
+  // the critical path — so PM's own cut-0 node V6 sat READY AND UNSTARTED all
+  // day while every other seat had work, and L1 dispatched I1 to V4 (cut 3, off
+  // the path) while H3 (cut 0, ON it) queued behind it on the same seat. Neither
+  // of us ever asked this tool to rank, because it never offered to.
+  // Order: on the critical path first, then cut rank (0 is never cut), then day,
+  // then id. --owner <SEAT> filters, because the tool also never knew who was
+  // reading it.
+  const onPath = new Set(G.capacity.graph_depth_path.split(' -> '));
   const rows = [];
   for (const n of G.nodes) {
     if (n.horizon !== 'A' || done.has(n.id)) continue;
     const blockers = HARD.filter((e) => e.to === n.id && !done.has(e.from)).map((e) => e.from);
     if (blockers.length) continue;
-    rows.push({ id: n.id, owner: n.owner, hours: n.hours, cut: n.cut, day: sched.get(n.id), flight: inFlight[n.id] || '' });
+    if (ownerFilter && n.owner !== ownerFilter) continue;
+    rows.push({ id: n.id, owner: n.owner, hours: n.hours, cut: n.cut, day: sched.get(n.id),
+                path: onPath.has(n.id), flight: inFlight[n.id] || '' });
   }
-  rows.sort((a, b) => (a.day - b.day) || a.id.localeCompare(b.id));
+  rows.sort((a, b) =>
+    (Number(b.path) - Number(a.path)) ||
+    ((a.cut === 0 ? -1 : a.cut) - (b.cut === 0 ? -1 : b.cut)) ||
+    (a.day - b.day) || a.id.localeCompare(b.id));
   console.log(`state: ${STATE_PATH} — done ${[...done].join(',') || '(none)'}`);
   console.log('READY (hard edges satisfied, horizon A, not done):');
   for (const r of rows) {
     const tag = r.flight ? `  <- ${r.flight}` : '';
-    console.log(`  ${r.id.padEnd(4)} ${String(r.owner).padEnd(4)} ${String(r.hours).padStart(4)}h cut ${r.cut}  day ${r.day}${tag}`);
+    const p = r.path ? ' **PATH**' : '        ';
+    console.log(`  ${r.id.padEnd(4)} ${String(r.owner).padEnd(4)} ${String(r.hours).padStart(4)}h cut ${r.cut}  day ${r.day}${p}${tag}`);
   }
   const today = rows.filter((r) => !r.flight);
   console.log(`\n${rows.length} ready, ${rows.length - today.length} already dispatched, ${today.length} undispatched.`);
@@ -787,6 +806,10 @@ const MODES = [
 
 const argv = process.argv.slice(2);
 if (!argv.length) { readySet(); process.exit(0); }
+if (argv[0] === '--owner') {
+  if (!argv[1]) { console.error('usage: ready.mjs --owner <SEAT>'); process.exit(2); }
+  readySet(argv[1]); process.exit(0);
+}
 
 if (argv[0] === '--all') {
   let allOk = true;

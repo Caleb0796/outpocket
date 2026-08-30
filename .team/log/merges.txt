@@ -673,7 +673,7 @@ MERGED E1  90dc51f pits:kb/pits/E1.md accept:PASS
 #   WHAT I DID NOT DO: revert the mount, which would reopen the D6 failure; or
 #   edit src/page/index.html myself, which is UX's declared F1 output.
 
-MERGED V3  dd6d662 pits:PENDING accept:PASS
+MERGED V3  dd6d662 pits:kb/pits/V3.md accept:PASS
 
 MERGED T4  da68e78 pits:PENDING accept:PASS
 # --check-modes CAUGHT THE NEXT INSTANCE AT THE MOMENT THE PRODUCER LANDED, which
@@ -746,3 +746,43 @@ MERGED T2  0483c20 pits:PENDING accept:PASS
 MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
 
 MERGED S12 be34298 pits:PENDING accept:PASS
+
+# kb/pits/H5.md IS UNRECOVERABLE AND THE ROW STAYS PENDING. I1 did not assert
+#   that — it evidenced it. Commit 2d2854b carries a DIFFERENT session id of the
+#   same seat; its body ends "No pit file committed, per D-31; the five fields are
+#   reported to L1", so that session DID report and the report did not arrive.
+#   I1 then swept every transcript under the project directory for an assistant
+#   message containing both TRIED and GRADE together with H5/env-banner/banner.test:
+#   ZERO HITS. Two transcripts reference that session id; neither carries the
+#   report. So the fields exist nowhere reachable.
+#   It declined to reconstruct from the diff and the commit body, which is what I
+#   asked and what it had already refused once. PENDING is the honest state and
+#   --check-record enforces that PENDING cannot silently become a filename.
+#   FOURTH report today made and lost in transit — after QA's V1 verdict, I3's S9
+#   and I4's. Reports are not a channel we can rely on; the branch sweep is.
+#   RECOVERABLE AND NOT A PIT: 2d2854b's own body carries real technical content
+#   (presence graded off document.modelContext never navigator.modelContext; the
+#   warn node is a SIBLING of the banner text node because nesting puts its prose
+#   into textContent and breaks the accept regex; --headless=new reports
+#   HeadlessChrome/152.0.0.0 which matches only because it contains "Chrome/152").
+#   That is the seat's own words and it stays where it is. IT MUST NOT BE
+#   RELABELLED A PIT, and I1 was right to say so unprompted.
+#
+# V4 IS PARKED AT c98016f, NOT ABANDONED, and it is blocked on a HUMAN not on
+#   time. Delivered and committed: harness/compare-runs.mjs (--selftest 11/11) and
+#   evidence/V4-run1.json, run 1 TRANSCRIBED from evidence/V4.json rather than
+#   re-measured, on the D-48 precedent.
+#   NOT delivered: run 2. Run 1's raw error is a 22.267 s timeout that is THE
+#   CHATGPT CLIENT'S OWN CDP-WRAPPER TIMEOUT — a property of that client. On plain
+#   Chrome the harness IS the client, so its timeout is a parameter we choose:
+#   measuring it would be CIRCULAR, would discover nothing, and would then agree
+#   with itself. The only faithful run 2 is a second BUILT-IN-BROWSER run on the
+#   remote origin.
+#   compare-runs.mjs therefore carries a CLIENT-IDENTITY GUARD: two runs naming
+#   different clients are REFUSED with a distinct message rather than folded into
+#   "they disagreed by more than 20 percent", which would report a measurement
+#   dispute where there is none. Its selftest also pins the three other ways the
+#   gate could pass while discovering nothing — missing observations comparing
+#   equal, a no-timeout run averaging with a numeric one, malformed run files.
+
+MERGED V6  b6313e6 pits:kb/pits/V6.md accept:PASS
