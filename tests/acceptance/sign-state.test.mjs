@@ -549,3 +549,144 @@ test("a malformed POST /api/sign returns 400 with a named code, the server survi
     assert.equal(nullPolicy.status, 200, `null policy fields must still be accepted: ${JSON.stringify(nullPolicy)}`);
   });
 });
+
+// ── D-118: x-policyBinding.theFix(a) — E_POLICY_DIGEST_MOVED / E_POLICY_VERSION_MOVED ──
+// PM's binding half (D-108): prove a LEGITIMATE commit still succeeds, not
+// only that the new refusal fires — here the false-positive direction
+// breaks the product. Every test below shares one committed-flow helper so
+// the only thing that varies between "moved" and "not moved" is the
+// served-policy value the gate is asked to compare against — never the
+// shape of the request.
+import { POLICY_DOCUMENT } from "../../src/policy.js";
+import { digest as ocfDigest } from "../../src/canonical.js";
+
+const REAL_POLICY_VERSION = POLICY_DOCUMENT.version;
+const REAL_POLICY_DIGEST = ocfDigest("outpocket/policy/1", POLICY_DOCUMENT);
+const MOVED_POLICY_DIGEST = `sha256:${"1".repeat(64)}`;
+
+/** Drives open -> respond(signed) -> commit, with an injectable getServedPolicy. Returns the commit's {status, body}. */
+async function signAndCommit(base, gate, { openOverrides = {}, servedAtCommit } = {}) {
+  const reportId = freshReportId();
+  const cookie = await login(base, "chen");
+  const sid = cookieToSid(cookie);
+
+  const opened = await postJson(base, "/api/sign", cookie, openBody(reportId, openOverrides));
+  assert.equal(opened.status, 200, `open must succeed: ${JSON.stringify(opened.body)}`);
+  const sr = opened.body.sign_request;
+  const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
+
+  const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, respondBody(sr, { decision: "signed", confirmToken }));
+  assert.equal(responded.status, 200, `respond must succeed: ${JSON.stringify(responded.body)}`);
+
+  if (servedAtCommit !== undefined) gate.__setServedPolicyForTest(servedAtCommit);
+
+  return postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+    schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
+  });
+}
+
+function makeGateWithMutableServedPolicy(initial) {
+  let served = initial;
+  const gate = createSignGate({ getServedPolicy: () => served });
+  gate.__setServedPolicyForTest = (v) => { served = v; };
+  return gate;
+}
+
+test("D-118 / D-108 binding half: a LEGITIMATE commit still succeeds when the served policy is unchanged", async () => {
+  const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
+  await withApp(gate, async (base) => {
+    const committed = await signAndCommit(base, gate, {
+      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
+    });
+    assert.equal(committed.status, 200, `a legitimate, policy-unmoved commit must still succeed: ${JSON.stringify(committed.body)}`);
+    assert.equal(committed.body.status, "committed");
+  });
+});
+
+test("D-118: a same-version CONTENT swap between sign and commit is refused 409 E_POLICY_DIGEST_MOVED", async () => {
+  const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
+  await withApp(gate, async (base) => {
+    const committed = await signAndCommit(base, gate, {
+      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
+      // the swap: same version, different digest, discovered only at commit.
+      servedAtCommit: { version: REAL_POLICY_VERSION, digest: MOVED_POLICY_DIGEST },
+    });
+    assert.equal(committed.status, 409, `expected 409, the exact attack x-policyBinding.theAttack describes: ${JSON.stringify(committed.body)}`);
+    assert.equal(committed.body.error.code, "E_POLICY_DIGEST_MOVED");
+    assert.equal(committed.body.error.signed_policy_digest, REAL_POLICY_DIGEST);
+    assert.equal(committed.body.error.served_policy_digest, MOVED_POLICY_DIGEST);
+    assert.equal(committed.body.status, "rejected");
+  });
+});
+
+test("D-118: a policy VERSION change between sign and commit is refused 409 E_POLICY_VERSION_MOVED (checked before DIGEST_MOVED)", async () => {
+  const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
+  await withApp(gate, async (base) => {
+    const committed = await signAndCommit(base, gate, {
+      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
+      servedAtCommit: { version: "2026-09.1", digest: MOVED_POLICY_DIGEST },
+    });
+    assert.equal(committed.status, 409, JSON.stringify(committed.body));
+    assert.equal(committed.body.error.code, "E_POLICY_VERSION_MOVED", "version-name changes get their own code, not DIGEST_MOVED, even though the digest also differs");
+    assert.equal(committed.body.error.signed_policy_version, REAL_POLICY_VERSION);
+    assert.equal(committed.body.error.served_policy_version, "2026-09.1");
+  });
+});
+
+test("D-118: null policy_version/policy_digest at sign time (no claim made — src/page/sign-install.js's real shape) is NOT treated as 'moved'", async () => {
+  // The exact false-positive trap: a caller that never claimed a policy
+  // identity (sign-install.js's buildOpenBody sends null with no live
+  // policy object) must not be refused for a policy identity it never
+  // asserted, even though the server DOES have a real, different-looking
+  // served policy at commit time.
+  const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
+  await withApp(gate, async (base) => {
+    const committed = await signAndCommit(base, gate, {
+      openOverrides: { policy_version: null, policy_digest: null },
+    });
+    assert.equal(committed.status, 200, `null policy claims must not be refused as 'moved': ${JSON.stringify(committed.body)}`);
+    assert.equal(committed.body.status, "committed");
+  });
+});
+
+test("D-118: with getServedPolicy unset (default), an arbitrary policy_digest unrelated to any real policy still commits — no regression for every pre-existing test", async () => {
+  const gate = createSignGate(); // no getServedPolicy — the default, same as every OTHER test in this file
+  await withApp(gate, async (base) => {
+    const committed = await signAndCommit(base, gate, {}); // openBody()'s own schema-example policy_digest, never checked against anything real
+    assert.equal(committed.status, 200, JSON.stringify(committed.body));
+  });
+});
+
+// ── QA's unmeasured adversarial case: is validation-vs-authorization decidable from the outside? ──
+// L1's ask: nobody without write authorization could send a well-formed-
+// SHAPED body with garbage CONTENT to find out. This node is in exactly
+// the right place to answer it directly: authorizeWrite() runs BEFORE
+// readJsonBody() on POST /api/sign (server/index.mjs), so the two failure
+// classes never share a status code — an unauthorized caller ALWAYS gets
+// 403 regardless of body content, and an authorized caller's body content
+// is what determines 400/409/200. The boundary is decidable from the
+// outside: 403 means role, never content; 400/409 means content, never role.
+test("YES, decidable from the outside: an unauthorized session gets 403 regardless of body content, and body content never surfaces as 403", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const ruizCookie = await login(base, "ruiz");
+    const chenCookie = await login(base, "chen");
+
+    // Garbage-shaped-but-well-formed-JSON body, from a session with NO
+    // write access: must be 403, and the code must be the authz code, not
+    // anything content-related.
+    const unauthorized = await postJson(base, "/api/sign", ruizCookie, { this_is: "garbage", report: 12345, verdict: "not an object" });
+    assert.equal(unauthorized.status, 403);
+    assert.equal(unauthorized.body.error, "E_ROLE_FORBIDDEN");
+
+    // The SAME garbage body, from a session WITH write access: must NOT be
+    // 403 — it reaches content validation instead (E_BAD_SIGN_REQUEST,
+    // since report/verdict here are the wrong type but not undefined —
+    // this module validates presence, not deep shape, and that is a
+    // separate, honestly-scoped gap noted rather than silently patched
+    // here, since D-118 is about policy identity, not payload schema
+    // validation).
+    const authorized = await postJson(base, "/api/sign", chenCookie, { report_id: freshReportId(), this_is: "garbage", report: 12345, verdict: "not an object", policy_version: "x", policy_digest: "y" });
+    assert.notEqual(authorized.status, 403, `an authorized session's body content must never surface as 403: ${JSON.stringify(authorized.body)}`);
+  });
+});

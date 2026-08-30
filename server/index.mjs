@@ -13,7 +13,7 @@ import { readFile, stat } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { policyHandler } from "./routes/policy.mjs";
+import { policyHandler, SERVED_POLICY } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
 import { createVersionHandler } from "./routes/version.mjs";
@@ -173,7 +173,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
   // no S2 store behind them) gets that instance's own getLiveReport instead
   // — createSignGate()'s own default (`() => null`) if it didn't set one,
   // which is exactly the pre-S6 behaviour those tests were written against.
-  const signGate = providedSignGate ?? createSignGate({ getLiveReport: findReport });
+  const signGate = providedSignGate ?? createSignGate({ getLiveReport: findReport, getServedPolicy: () => SERVED_POLICY });
 
   function sessionFromRequest(req) {
     const sid = parseCookies(req.headers.cookie).sid;
