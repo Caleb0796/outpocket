@@ -1198,3 +1198,19 @@ FOLLOWUP promise-sweep 2d850b2 pits:kb/pits/promise-sweep.md accept:N/A (a sweep
 #   THE WHOLE EPISODE IS THE ARGUMENT FOR RECORDING REASONS RATHER THAN FACTS: the tier
 #   changed, the fact silently stopped holding, and the RECORDED REASON is what announced
 #   its own expiry loudly enough for anyone to act on.
+
+FOLLOWUP readme-and-D1-evidence d44313c pits:PENDING accept:N/A (not a node)
+#   THE README TOLD A JUDGE THE PROJECT HAD NOT STARTED -- "Status: planning. No product
+#   code yet", src/ and tests/ "not yet created" -- at 49/62 with a live deploy and a
+#   completed production signature. Now "Status: live."
+#   W found it; category SILENT DESCOPE, not typo: G2's test asserts only the two login
+#   lines and NEVER LOOKED AT THE STATUS LINE, so the node passed and the unchecked claim
+#   went stale. No instrument here could have caught it.
+#   AND THE SEVERITY IS INVERTED FROM EVERY OTHER FINDING: two days of documents claiming
+#   MORE than we measured, and this one claimed dramatically LESS.
+#   I NEARLY DISMISSED IT -- my first check read three lines and I printed a label saying
+#   W had a stale tree, while the grep in the same command contradicted me.
+#   D1's evidence rewritten: one instance now holds by EXPLICIT CONFIGURATION plus a
+#   STRUCTURAL GATE (autoscale needs a Pro plan; workspace is Hobby), replacing the
+#   free-tier property the 21:32 upgrade retired. I4's recorded REASON announced its own
+#   expiry -- a recorded FACT would have gone stale in silence.
