@@ -1346,10 +1346,18 @@ MERGED D3 adb1c80 pits:kb/pits/D3.md accept:PASS
 #   Verified independently: ZERO pushes to main landed inside 22:09:45-22:39:45.
 #   The 280.5ms is the Starter upgrade as a MEASURED FACT, not a pricing-page promise.
 
-FOLLOWUP G2-pit adb1c80 pits:kb/pits/G2.md accept:N/A (pit debt cleared, node long merged)
+FOLLOWUP G2 adb1c80 pits:kb/pits/G2.md accept:N/A (pit debt cleared; the node itself merged at ab4831b)
 #   G2's pit REFUSES to write TRIED and HAPPENED: the original work belongs to a different
 #   session, and reconstructing a report from the diff is the artifact D-31 exists to
 #   prevent. EVIDENCED-UNRECOVERABLE, same class as H5. Its EARLIER is measured and real:
 #   readme-credentials.test.mjs asserts exactly the two things it was written for and
 #   nothing else, so the stale status line sat ONE SCREEN ABOVE the text the test does
 #   check, false for two days. THE GATE'S SILENCE MEANS "NOT CHECKED," NEVER "TRUE".
+#   CORRECTION, add-only: the row above was first written as `FOLLOWUP G2-pit` and
+#   --check-record REFUSED it -- "names kb/pits/G2.md, ANOTHER NODE'S PIT" -- because the
+#   row id must match the pit basename. THAT OBJECTION PRINTED AND I COMMITTED AND PUSHED
+#   ANYWAY, because the check and the commit were sequential statements with no guard
+#   between them. That is DEV-014's pattern, in the ONE artifact that is itself the
+#   instrument every other check validates against. The basename-identity check is one I
+#   added to ready.mjs myself, and it did exactly its job; the defect was that nothing
+#   stopped me walking past it.
