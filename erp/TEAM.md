@@ -173,6 +173,16 @@ because `FORCE_COLOR` outranks it. The same invocation differs only by the child
 | inherited (`FORCE_COLOR=3`) | `ESC[1mreasoning effort:ESC[0m low` | **NO MATCH** |
 | `FORCE_COLOR` removed | `reasoning effort: low` | **MATCH** |
 
+**A SECOND FAILURE MODE, D-110, and it bit the seat that quotes this section
+into every dispatch brief.** `node -e 'console.log(x)'` **INSPECTS** its argument,
+and under `FORCE_COLOR=3` it colours the result — so scraping a value out of JSON
+into a shell variable yields `\e[33m1\e[39m` rather than `1`, and the request
+built from it is malformed for a reason nothing in the error mentions. **The safe
+form is `process.stdout.write(String(x))`, which does not inspect and does not
+colour.** The first failure mode is a predicate that greps a banner; this one is a
+VALUE CROSSING FROM NODE INTO A SHELL VARIABLE, and it produces a 400 from a
+server that is working correctly.
+
 **Binding, on every seat:**
 
 1. **Any acceptance predicate that greps a CLI's human-readable output must be run with
