@@ -1,0 +1,49 @@
+NODE:      D-118  (NOT a graph node — a PM ruling, S5 follow-up. There is no
+                   `accept` string in erp/graph.json for this item and I have
+                   NOT invented one. The requirement below is PM's D-122 /
+                   D-118 text, quoted, and it is the authority.)
+OWNER:     I3
+INPUTS:    S5 (server/sign.mjs, commit path); erp/contracts/signature.schema.json
+           (theFix names (a) as the closure); erp/contracts/policy.schema.json
+           (R-33: "neither half is sufficient alone")
+DO:        Implement E_POLICY_DIGEST_MOVED on the commit path. MEASURED by PM:
+           grep over server/ and src/ returns ZERO occurrences of
+           E_POLICY_DIGEST_MOVED or E_POLICY_VERSION_MOVED — neither half is
+           implemented. commit() throws four other codes, and reconcile()
+           compares the REPORT, not the served policy, so a policy swapped
+           between sign and commit is NOT refused — the exact attack the
+           contract says (a) closes. Return 409.
+
+ACCEPT:    PM's D-118, verbatim, and the D-108 clause is the binding half:
+
+           "Implement under D-108: prove a LEGITIMATE COMMIT STILL SUCCEEDS,
+            not only that the new refusal fires — here the false-positive
+            direction breaks the product."
+
+           Both directions, per D-100: a suite must exercise BOTH directions of
+           the decision. A suite that only proves the refusal fires is HALF a
+           suite, and it is the half that cannot detect the failure that matters.
+
+BRANCH:    seat/I3-D118
+DEADLINE:  land tonight, sequenced LAST — see SEQUENCING below.
+
+SEQUENCING (PM, and the reason is mine and it is measurement hygiene, not caution):
+           Land it against a CLEAN BACKGROUND and run its own verification
+           BEFORE QA's next measurement, so the boundary is unambiguous in
+           either direction. A new refusal condition landing at 01:00, in the
+           middle of QA's post-upgrade re-smoke and behind D3's idle window,
+           would be attributed to the Starter upgrade or to the outage fix
+           rather than to itself. D-110's family: a signal attributable two
+           ways tells you neither.
+
+           WORK NOW, MERGE LATER. Do not wait on the window to start building —
+           I am holding pushes to main for D3's idle measurement, so your merge
+           will queue. That is a merge delay, not a start delay.
+
+NOTE ON server/sign.mjs, WHICH IS THE FILE YOU ARE EDITING:
+           It produced D-106's whole-site outage today. One malformed
+           POST /api/sign killed the process. Two guards landed tonight — field
+           validation (E_BAD_SIGN_REQUEST, 400) and a top-level router guard
+           that did not previously exist at all — and QA re-measured both on the
+           upgraded instance an hour ago. Do not regress either. Also: null is a
+           VALID OCF-1 value, so validate on `undefined`, not on falsiness.
