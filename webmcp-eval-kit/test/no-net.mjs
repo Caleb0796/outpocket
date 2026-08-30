@@ -3,11 +3,17 @@ import net from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+export const denialMechanism =
+  "prototype patch on net.Socket.prototype.connect and dns.lookup, in-process, via --import ./webmcp-eval-kit/test/no-net.mjs";
 export const denialMechanisms = ["dns.lookup", "net.Socket.prototype.connect"];
 
 function denyNetwork() {
-  throw new Error("E_NETWORK_DISABLED: eval kit network access is forbidden");
+  const error = new Error("E_NETWORK_DISABLED: eval kit network access is forbidden");
+  error.code = "E_NETWORK_DISABLED";
+  throw error;
 }
+
+Object.defineProperty(denyNetwork, "denialMechanism", { value: denialMechanism });
 
 dns.lookup = denyNetwork;
 net.Socket.prototype.connect = denyNetwork;
