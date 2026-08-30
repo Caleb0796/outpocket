@@ -1,27 +1,68 @@
 https://outpocket.onrender.com
 
-ONE INSTANCE — TRUE TODAY, AND WHY, NOT JUST THAT:
+ONE INSTANCE — TRUE AS OF 2026-08-29 21:32 PDT (the Starter upgrade), AND WHY,
+NOT JUST THAT. THIS IS THE SECOND VERSION OF THIS FILE: the first said one
+instance held as a property of the free tier; the upgrade made that claim
+false the moment the user clicked Save, and the file's own stated expiry
+condition is what caught it within twenty minutes rather than never. See
+the tail of this file for what the FIRST reason was and why it stopped
+holding — read that before assuming this one is permanent either.
 
-This deploy is on Render's FREE tier as of 2026-08-30. The free tier is
-single-instance by nature (no autoscale, no multi-replica option), so "exactly
-one instance" holds today as a PROPERTY OF THE TIER, not because anyone
-configured a replica count of 1 that could be changed later without anyone
-noticing.
+CURRENT REASON, read from the Render dashboard post-upgrade, service Live,
+plan Starter (Hobby workspace):
 
-This is deliberate and temporary, not an oversight: no card is on file for
-this Render account, and the user intends to upgrade to D-08's paid 0.5 CPU /
-512 MB tier before Day-6 go-live so the 2026-09-04 -> 2026-09-21 unattended
-judging window does not hit the free tier's cold-start / 15-minute-sleep
-behavior. On that upgrade, "one instance" stops being incidental and must be
-explicitly configured and re-verified in the Render dashboard (autoscale off,
-replica count 1) — this file's claim is scoped to the free-tier deploy as it
-stands on 2026-08-30, not to whatever configuration follows the upgrade.
+  AUTOSCALING: OFF, toggle greyed and non-interactive, gated under it —
+  "Autoscaling requires a Pro plan or higher" — and the workspace is on
+  Hobby. Autoscale is therefore DOUBLY LOCKED: switched off, AND structurally
+  unavailable without a deliberate workspace-plan purchase nobody has made.
+  It cannot drift on silently the way an unset toggle on a capable plan
+  could.
+  MANUAL SCALING: 1, slider and numeric input both read 1 on a 1-100 range,
+  Save Changes greyed with no pending change.
 
-Why it matters at all, restated for whoever reads this after the upgrade:
-S9's state digest lives in one process's in-memory Map, and S6's TOCTOU
-closure is true by construction of a single process. A second instance
-(intentional or accidental, e.g. Render's own zero-downtime rolling deploy
-briefly running two) would silently reintroduce both — the digest would
-diverge between instances and the lock race S6 closes would reopen. Re-check
-this file, not just the dashboard's instance count, after the paid-tier
-upgrade lands.
+So single-instance now holds by EXPLICIT CONFIGURATION (replica count 1,
+requiring a deliberate edit plus Save to change) PLUS A STRUCTURAL GATE
+(autoscale requires a workspace-plan upgrade nobody has bought) — a stronger
+basis than the free tier's incidental single-instance-by-nature, which this
+reason replaces.
+
+WHY IT MATTERS AT ALL, kept from the first version because it is the
+load-bearing part and does not change with the tier: S9's state digest lives
+in one process's in-memory Map, and S6's TOCTOU closure and S12's sign lock
+are all true by construction of a single process. A second instance
+(intentional, or accidental via Render's own zero-downtime rolling deploy
+briefly running two) would silently reintroduce all three — the digest would
+diverge between instances and the lock races S6/S12 close would reopen.
+
+WHAT WOULD MAKE THIS REASON STOP BEING TRUE — write the expiry down again,
+the same discipline applied forward: a workspace-plan upgrade from Hobby to
+one that supports autoscaling would un-gate the toggle. At that point
+"cannot drift on silently" stops holding for the structural half of this
+reason, and manual-scaling-at-1 alone (still an explicit, deliberately-set
+value) would be what one-instance rests on until re-verified. Re-check this
+file against the dashboard, not just the deploy's uptime, if the workspace
+plan ever changes.
+
+BILLING, for context, not for the instance-count claim itself: $50
+"Hackathon Participant" credit valid to 2027-07-31, August's projected charge
+$0.41 prorated and covered by the credit, a Visa now on file. D-08's
+free-tier/paid-tier divergence closes with this upgrade — the 2026-09-04 ->
+2026-09-21 unattended judging window's cold-start / 15-minute-sleep risk
+(the open question in docs/D1-deploy-observations-2026-08-30.txt) is
+eliminated by the tier itself, not by having measured a number. PM's recorded
+deviation for the temporary free-tier state can be retired — by PM, not by
+this file.
+
+---
+
+FIRST VERSION'S REASON, PRESERVED RATHER THAN DELETED, because the fact that
+it stopped being true is itself the evidence for why reasons get recorded
+instead of facts: as of 2026-08-30, this deploy was on Render's FREE tier.
+The free tier is single-instance by nature (no autoscale, no multi-replica
+option), so "exactly one instance" held as a PROPERTY OF THE TIER, not
+because anyone had configured a replica count of 1. That was deliberate and
+temporary, not an oversight — no card was on file, and the user intended to
+upgrade before Day-6 go-live. This file said, at the time: "On that upgrade,
+'one instance' stops being incidental and must be explicitly configured and
+re-verified in the Render dashboard." It did, they did, and this file's
+current section above is that re-verification.
