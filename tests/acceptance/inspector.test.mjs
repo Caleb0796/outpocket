@@ -1,0 +1,251 @@
+// tests/acceptance/inspector.test.mjs — node F5 (lane F, owner UX).
+//
+// THE PREDICATE IS AN EQUALITY BETWEEN TWO INDEPENDENTLY COMPUTED THINGS, which
+// is what makes it hard to satisfy dishonestly: a panel that rendered NOTHING
+// fails it, and so does one that rendered EVERYTHING. The one way it still goes
+// hollow is if both sides come from the same place — so the row count is read
+// by walking the RENDERED DOM and the tool count is read from
+// `document.modelContext.getTools()`, and neither is derived from the other.
+//
+// THAT IS WHY THIS TEST DRIVES A REAL BROWSER. `document.modelContext` does not
+// exist in Node. A fake one would mean I supply both sides of the equality and
+// the assertion becomes a statement about my own fixture. Chrome is launched
+// headless through tools/chrome.mjs, so the launch carries its scenario label,
+// and the page under test is the SERVED page.
+//
+// AND getTools() RETURNS A PROMISE (erp/FACTS.md IR-18). Un-awaited, `.length`
+// is `undefined`, which equals no count and reads as "the surface is empty"
+// rather than as a bug. Both sides are awaited and the raw values are printed
+// on failure so a zero-vs-undefined mixup is visible rather than inferred.
+//
+// A NOTE ON THE STATE LABELS IN THE PREDICATE. F5.accept names the four
+// employee states "S1-emp-home, S2-emp-draft-clean, S3-emp-draft-dirty,
+// S4-emp-submitted". src/page/register.js and the frozen tool-surface contract
+// have S2 as the DIRTY draft and S3 as the CLEAN one — the two middle labels
+// are transposed relative to the canonical ids. The ids are what
+// surfaceState() returns and what the contract freezes, so this file drives and
+// asserts on S1/S2/S3/S4 as compile.js defines them, and reports the state id
+// it observed. Reported to L1 rather than silently reconciled.
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import { spawn } from "node:child_process";
+import { existsSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// ── the served page ─────────────────────────────────────────────────────────
+
+async function serveApp() {
+  const { createHttpServer } = await import(resolve(REPO, "server", "index.mjs"));
+  const server = createHttpServer();
+  await new Promise((res, rej) => { server.once("error", rej); server.listen(0, "127.0.0.1", res); });
+  return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) };
+}
+
+function chromeBinary() {
+  if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
+  const candidates = process.platform === "darwin"
+    ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
+    : ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
+  for (const c of candidates) if (existsSync(c)) return c;
+  throw new Error(`no Chrome found; set CHROME_BIN. Tried: ${candidates.join(", ")}`);
+}
+
+async function launchChrome() {
+  const { flagsFor } = await import(resolve(REPO, "tools", "chrome.mjs"));
+  const profile = join(tmpdir(), `outpocket-inspector-${process.pid}-${Date.now()}`);
+  const flags = flagsFor("cdp", { headless: true, port: 0, userDataDir: profile });
+  const proc = spawn(chromeBinary(), flags, { stdio: ["ignore", "ignore", "pipe"] });
+
+  const wsUrl = await new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error("Chrome did not announce a DevTools endpoint")), 20000);
+    let buf = "";
+    proc.stderr.on("data", (d) => {
+      buf += d.toString();
+      const m = /ws:\/\/[^\s]+/.exec(buf);
+      if (m) { clearTimeout(t); res(m[0]); }
+    });
+    proc.once("exit", (c) => { clearTimeout(t); rej(new Error(`Chrome exited early (${c})`)); });
+  });
+
+  const ws = new WebSocket(wsUrl);
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error("CDP socket failed")); });
+  let id = 0;
+  const pending = new Map();
+  ws.onmessage = (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+  };
+  const send = (method, params = {}, sessionId) => new Promise((res) => {
+    const n = ++id; pending.set(n, res);
+    ws.send(JSON.stringify({ id: n, method, params, ...(sessionId ? { sessionId } : {}) }));
+  });
+
+  const { result: { targetId } } = await send("Target.createTarget", { url: "about:blank" });
+  const { result: { sessionId } } = await send("Target.attachToTarget", { targetId, flatten: true });
+  await send("Page.enable", {}, sessionId);
+  await send("Runtime.enable", {}, sessionId);
+
+  const evaluate = async (expression) => {
+    const r = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId);
+    const ex = r.result?.exceptionDetails;
+    if (ex) throw new Error(ex.exception?.description ?? ex.text ?? "evaluate failed");
+    return r.result?.result?.value;
+  };
+  const goto = async (url) => {
+    await send("Page.navigate", { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      if (await evaluate("document.readyState === 'complete'").catch(() => false)) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await evaluate("new Promise(r => setTimeout(r, 300))");
+  };
+  return {
+    evaluate, goto,
+    close: async () => { try { ws.close(); } catch {} proc.kill("SIGKILL"); try { rmSync(profile, { recursive: true, force: true }); } catch {} },
+  };
+}
+
+// ── driving the four employee states ────────────────────────────────────────
+//
+// Each step goes through the page's own affordances or the page's own ERP, and
+// then waits for the inspector to repaint. The state id is READ BACK from
+// surfaceState() rather than assumed, so a step that failed to move the machine
+// is caught here instead of producing a confident comparison of the wrong state.
+
+const DRIVE = {
+  S1: `(async () => {
+    document.querySelector('[data-login="chen"]').click();
+    await new Promise(r => setTimeout(r, 500));
+  })()`,
+  S2: `(async () => {
+    const t = globalThis.outpocketTools;
+    await t.executeTool('create_expense_report',
+      { title: 'Boston client workshop', project: 'FALCON' }, { source: 'agent' });
+    await new Promise(r => setTimeout(r, 350));
+  })()`,
+  S3: `(async () => {
+    const t = globalThis.outpocketTools;
+    await t.executeTool('add_expense_line', {
+      date: '2026-08-20', merchant: 'Blue Bottle', category: 'meals',
+      amount: 12.00, currency: 'USD', attendees: 1, description: 'Coffee with the client',
+    }, { source: 'agent' });
+    await new Promise(r => setTimeout(r, 350));
+  })()`,
+  S4: `(async () => {
+    // Reaching "submitted" needs a signature, and the signature path is S5's
+    // gate plus F7's provider — neither is what THIS node asserts. So the state
+    // is set through the page's own ERP rather than driven through the sign
+    // flow: this is fixture setup for a surface comparison, and dressing it up
+    // as a signing test would prove neither thing well.
+    const erp = globalThis.outpocketTools.erp;
+    erp.submitOpenReport({ signedBy: 'Chen Xiao', method: 'signature-click' }, 'human');
+    globalThis.outpocketTools.refresh('test: forced to submitted');
+    await new Promise(r => setTimeout(r, 350));
+  })()`,
+};
+
+/** Read both sides, INDEPENDENTLY. Rows from the DOM, tools from the browser API. */
+const READ_BOTH = `(async () => {
+  const rows = document.querySelectorAll('#surface-inspector [data-tool-row]');
+  const mc = document.modelContext;
+  const tools = mc && typeof mc.getTools === 'function' ? await mc.getTools() : null;
+  return {
+    rowCount: rows.length,
+    rowNames: [...rows].map(r => r.getAttribute('data-tool-row')),
+    toolCount: tools === null ? null : tools.length,
+    toolNames: tools === null ? null : tools.map(t => t.name),
+    modelContextPresent: typeof mc,
+    state: globalThis.outpocketTools?.state?.() ?? null,
+    chip: document.querySelector('[data-policy-version]')?.getAttribute('data-policy-version') ?? null,
+    chipText: document.querySelector('[data-policy-version]')?.textContent ?? null,
+    source: document.querySelector('[data-surface-source]')?.getAttribute('data-surface-source') ?? null,
+  };
+})()`;
+
+let app, page;
+test.before(async () => { app = await serveApp(); page = await launchChrome(); });
+test.after(async () => { await page?.close(); await app?.close(); });
+
+test("the rendered row count equals document.modelContext.getTools().length in all four employee states", async () => {
+  await page.goto(app.origin + "/");
+
+  const seen = [];
+  for (const id of ["S1", "S2", "S3", "S4"]) {
+    await page.evaluate(DRIVE[id]);
+    const r = await page.evaluate(READ_BOTH);
+    seen.push({ want: id, ...r });
+
+    // The surface must actually be visible to the browser at all. Without this
+    // a null toolCount would compare against a zero rowCount somewhere below and
+    // "both empty" would read as agreement.
+    assert.equal(r.modelContextPresent, "object",
+      `document.modelContext is ${r.modelContextPresent} — the browser exposes no surface, so there is nothing to compare against`);
+    assert.notEqual(r.toolCount, null, "getTools() returned null");
+    assert.ok(Number.isInteger(r.toolCount),
+      `getTools().length is ${r.toolCount} — an un-awaited Promise yields undefined here (IR-18)`);
+
+    // The state actually moved. A step that silently failed would otherwise
+    // produce a perfectly true comparison of the wrong state, four times.
+    assert.equal(r.state, id, `expected surface state ${id}, got ${r.state}`);
+
+    // THE EQUALITY. Two independent reads: DOM walk vs browser API.
+    assert.equal(r.rowCount, r.toolCount,
+      `${id}: ${r.rowCount} rendered row(s) vs ${r.toolCount} tool(s) on the surface\n` +
+      `  rows:  ${JSON.stringify(r.rowNames)}\n  tools: ${JSON.stringify(r.toolNames)}`);
+
+    // and it is not vacuously true of an empty surface
+    assert.ok(r.toolCount > 0, `${id}: the surface is empty, so the equality proves nothing`);
+
+    // the rows are the SAME tools, not merely the same number of them
+    assert.deepEqual([...r.rowNames].sort(), [...r.toolNames].sort(),
+      `${id}: the row count matches but the names do not`);
+  }
+
+  // The four states must not all be the same surface, or one comparison has
+  // been made four times and reported as four.
+  const counts = seen.map((s) => s.toolCount);
+  assert.ok(new Set(counts).size > 1,
+    `all four states reported the same tool count (${counts.join(", ")}) — the machine did not move`);
+  process.stdout.write(`# surface sizes S1..S4: ${counts.join(", ")}\n`);
+});
+
+test("the version chip text equals the value from GET /api/policy, and neither is empty", async () => {
+  await page.goto(app.origin + "/");
+  await page.evaluate(DRIVE.S1);
+
+  // The server's own answer, fetched independently of the page.
+  const res = await fetch(`${app.origin}/api/policy`);
+  assert.equal(res.status, 200);
+  const served = (await res.json()).version;
+
+  // THE NON-EMPTY GUARD, AND IT IS NOT CEREMONY. Without it, a silent endpoint
+  // and a blank chip compare equal and the test passes having proved that both
+  // are silent — D-90 applied to this node, and the failure would look exactly
+  // like a pass.
+  assert.ok(typeof served === "string" && served.length > 0,
+    `GET /api/policy returned no version (${JSON.stringify(served)})`);
+
+  const r = await page.evaluate(READ_BOTH);
+  assert.ok(r.chip && r.chip.length > 0,
+    "the page rendered no policy version chip — [data-policy-version] is absent or empty");
+  assert.equal(r.chip, served, `chip "${r.chip}" != served "${served}"`);
+  assert.ok(r.chipText.includes(served), `the chip's visible text does not contain ${served}`);
+});
+
+test("the inspector reads the BROWSER's surface, not our own registry", async () => {
+  // The panel's claim is "this is what the agent can see". Reading our registry
+  // would make that true by construction; reading document.modelContext makes
+  // it an observation. The rendered source is asserted so a silent fallback
+  // cannot pass as the real thing.
+  await page.goto(app.origin + "/");
+  await page.evaluate(DRIVE.S1);
+  const r = await page.evaluate(READ_BOTH);
+  assert.equal(r.source, "document.modelContext",
+    `the inspector fell back to ${JSON.stringify(r.source)} — it is not showing what the browser holds`);
+});

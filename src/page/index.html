@@ -130,6 +130,29 @@
   [data-sign-status] { font-size: 13px; margin: 0; }
   [data-sign-status]:empty { display: none; }
   [data-sign-already-answered] { color: #8a1c1c; font-weight: 600; }
+  /* Surface inspector (node F5). Baseline only — F6's skin.css refines it, but
+     this panel is SB-01/SB-02/SB-03 and has to read in a still frame on its
+     own, because F6 is a separate node and may not land first. Unstyled, the
+     row text ran together ("get_session_scoperead-only"), which is legible to a
+     DOM query and not to a judge. */
+  #surface-inspector .inspector-head { display: flex; flex-wrap: wrap; gap: 8px;
+         align-items: baseline; margin-bottom: 10px; }
+  #surface-inspector .inspector-title { font-weight: 600; font-size: 14px; }
+  [data-policy-version], [data-surface-state] { display: inline-block; padding: 2px 9px;
+         border-radius: 999px; border: 1px solid #d9dae0; background: #fff;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  [data-policy-version] { font-weight: 600; }
+  [data-policy-version-missing] { color: #8a1c1c; font-size: 12px; }
+  #surface-inspector .inspector-rows { list-style: none; padding: 0; margin: 0; }
+  #surface-inspector [data-tool-row] { display: flex; justify-content: space-between;
+         align-items: baseline; gap: 12px; padding: 5px 0; font-size: 13px;
+         border-top: 1px solid #eceef3; }
+  #surface-inspector [data-tool-row]:first-child { border-top: 0; }
+  #surface-inspector .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #surface-inspector .tool-kind { font-size: 11px; text-transform: uppercase;
+         letter-spacing: 0.06em; color: #8b8fa0; }
+  #surface-inspector .inspector-source { margin: 10px 0 0; font-size: 12px; color: #55596a;
+         border-top: 1px solid #eceef3; padding-top: 8px; }
   [data-login-error]:empty { display: none; }
   [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
 </style>
@@ -281,6 +304,15 @@
   }
 "></script>
 <script type="module" src="./ui/receipts.js"></script>
+
+<!--
+  F5's surface inspector and policy-version chip. AFTER ./register.js, and that
+  is a dependency: it reads document.modelContext, which H3's shim backs with
+  T2's registry, and it subscribes to registry.onFlip so the rows and the chip
+  move together when a policy edit changes the surface. Mounted late enough that
+  both exist, and it repaints on every flip rather than only at load.
+-->
+<script type="module" src="./ui/inspector.js"></script>
 
 <!--
   F4's signature dialog. Loaded here so the module is reachable FROM THE PAGE
