@@ -225,6 +225,30 @@ export function createSignGate({
     worstCase,
     violationHistoryCount,
   }) {
+    // Validate BEFORE anything reaches digest() — src/canonical.js correctly
+    // refuses to serialize `undefined` (E_CANON_TYPE) rather than silently
+    // coercing it, and a malformed body used to leave report/verdict
+    // undefined here, throw from inside digest(), and escape uncaught: the
+    // whole process died on one bad POST /api/sign, taking every in-memory
+    // session with it. This checks EXACTLY the fields that end up inside
+    // the digested snapshot ({policy_digest, policy_version, report,
+    // verdict} — see below) for the ONE thing canon() cannot serialize.
+    // Deliberately not a stricter shape check: `null` is a valid OCF-1
+    // value and several real callers (e.g. src/page/sign-install.js's
+    // buildOpenBody with no live policy object) legitimately send
+    // policy_version/policy_digest as null — narrowing to `undefined` only
+    // is what matches canon()'s actual failure mode, no more. See
+    // server/index.mjs's top-level handler guard for the general backstop.
+    const problems = [];
+    if (reportId === undefined) problems.push("report_id");
+    if (policyVersion === undefined) problems.push("policy_version");
+    if (policyDigest === undefined) problems.push("policy_digest");
+    if (report === undefined) problems.push("report");
+    if (verdict === undefined) problems.push("verdict");
+    if (problems.length > 0) {
+      throw new SignError("E_BAD_SIGN_REQUEST", 400, `missing field(s): ${problems.join(", ")}`);
+    }
+
     const existingId = openByReport.get(reportId);
     if (existingId) {
       const existing = lookup(existingId);

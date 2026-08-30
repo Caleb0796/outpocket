@@ -477,3 +477,75 @@ test("losing or omitting the ticket cannot mutate or answer the record", async (
     assert.equal(answered.status, 200, "the record is still answerable — omitting the ticket was a pure no-op");
   });
 });
+
+// ── a malformed POST /api/sign used to take the whole process down ─────────
+// L1's find, verified locally before this fix: {"report_id":"RP-1017"} alone
+// left `report`/`verdict` undefined; server/sign.mjs's open() built a
+// snapshot around them and called digest() (src/canonical.js), which
+// correctly refuses to serialize `undefined` (E_CANON_TYPE) — and NOTHING
+// caught the throw, so it escaped the request handler as an unhandled
+// rejection and Node terminated the whole process. On a live host that is a
+// 502 and every in-memory session wiped (S1: sessions are a plain Map), not
+// a cosmetic 500.
+//
+// Per D-90: a test that only checks the malformed call's own status code
+// passes against a server that answered 400 and then died on the very next
+// request — so this asserts the SERVER IS STILL ALIVE after, over the SAME
+// connection pool, not just that one response looked right. Per D-100: also
+// prove the validator isn't stuck shut by immediately sending a genuinely
+// well-formed body afterward and requiring it to succeed.
+test("a malformed POST /api/sign returns 400 with a named code, the server survives, and a well-formed request still works right after", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const reportId = freshReportId();
+
+    // L1's exact repro: only report_id, everything else undefined.
+    const malformed = await postJson(base, "/api/sign", cookie, { report_id: reportId });
+    assert.equal(malformed.status, 400, `expected 400, the server must not crash on this: ${JSON.stringify(malformed)}`);
+    assert.equal(malformed.body.error, "E_BAD_SIGN_REQUEST");
+    assert.match(malformed.body.message, /policy_version/);
+    assert.match(malformed.body.message, /policy_digest/);
+    assert.match(malformed.body.message, /report\b/);
+    assert.match(malformed.body.message, /verdict/);
+
+    // D-90: prove the server is ALIVE, not merely that one response looked
+    // right — a real request, over a real connection, must still resolve.
+    const alive = await postJson(base, "/api/me", cookie, {});
+    // /api/me is GET-only in this server, so a POST here answers with
+    // whatever that route emits for a wrong method (its own concern) — the
+    // only thing THIS assertion needs is a real HTTP response at all,
+    // proving the process did not exit. A dead process gives fetch() a
+    // connection-refused rejection, not any status code.
+    assert.ok(typeof alive.status === "number", "the server must still be answering requests at all");
+
+    // Same check with a plain GET too, the ordinary way anything alive
+    // would be probed.
+    const meRes = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
+    assert.equal(meRes.status, 200, "GET /api/me must still succeed — the process is alive, not merely accepting TCP connections");
+
+    // Various other ways to leave the snapshot fields undefined — each one
+    // must 400, none may crash the process.
+    for (const missing of ["policy_version", "policy_digest", "report", "verdict"]) {
+      const body = openBody(freshReportId());
+      delete body[missing];
+      const res = await postJson(base, "/api/sign", cookie, body);
+      assert.equal(res.status, 400, `missing ${missing} must 400, not crash: ${JSON.stringify(res)}`);
+      assert.equal(res.body.error, "E_BAD_SIGN_REQUEST");
+    }
+
+    // D-100: the validator is not stuck shut — a genuinely well-formed body
+    // sent immediately after all of the above still opens a real record.
+    const wellFormed = await postJson(base, "/api/sign", cookie, openBody(freshReportId()));
+    assert.equal(wellFormed.status, 200, `a well-formed request must still succeed: ${JSON.stringify(wellFormed)}`);
+    assert.match(wellFormed.body.sign_request.request_id, REQUEST_ID_RE);
+
+    // AND null is explicitly NOT rejected — canon() serializes null fine,
+    // and src/page/sign-install.js's buildOpenBody legitimately sends
+    // policy_version/policy_digest as null when no live policy object is
+    // available. A validator that rejected null here would break that real
+    // caller while fixing nothing the crash needed fixed.
+    const nullPolicy = await postJson(base, "/api/sign", cookie, openBody(freshReportId(), { policy_version: null, policy_digest: null }));
+    assert.equal(nullPolicy.status, 200, `null policy fields must still be accepted: ${JSON.stringify(nullPolicy)}`);
+  });
+});

@@ -218,7 +218,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     return report?.lines.find((l) => l.id === lineId) ?? null;
   }
 
-  return async function handle(req, res) {
+  async function routeRequest(req, res) {
     let url;
     try {
       url = new URL(req.url, "http://localhost");
@@ -512,6 +512,29 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     if (await serveStatic(req, res, url)) return;
 
     sendJson(res, 404, { error: "E_NOT_FOUND" });
+  }
+
+  // Top-level guard. routeRequest() is an async function handed straight to
+  // node:http as the request listener; if IT throws (or its returned
+  // promise rejects) with nothing awaiting it, that is an unhandled
+  // rejection, and Node 15+ terminates the WHOLE PROCESS by default — not a
+  // 500 to one client, an outage for every client, every in-memory session
+  // (S1: sessions live in a plain Map) and every open sign request. That is
+  // exactly what one malformed POST /api/sign did before this existed (see
+  // server/sign.mjs's own input validation in open() for the specific
+  // fix). This is the general one: whatever the NEXT unvalidated route
+  // turns out to be, it gets a 500 here instead of killing the server.
+  return async function handle(req, res) {
+    try {
+      await routeRequest(req, res);
+    } catch (err) {
+      console.error("outpocket: unhandled error in request handler", err);
+      if (res.headersSent) {
+        res.end();
+      } else {
+        sendJson(res, 500, { error: "E_INTERNAL", message: "unexpected server error" });
+      }
+    }
   };
 }
 
