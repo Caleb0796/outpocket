@@ -686,7 +686,7 @@ MERGED T4  da68e78 pits:PENDING accept:PASS
 #   and the first one caught at merge time rather than when a downstream seat was
 #   dispatched into it.
 
-MERGED S5  75861f9 pits:PENDING accept:PASS
+MERGED S5  75861f9 pits:kb/pits/S5.md accept:PASS
 # S5 — the human sign gate. Its accept MANDATES a scheduled frozen-file edit, and
 #   both target paths resolve to L1: eval-case.schema.json by the erp/contracts/**
 #   glob, FREEZE.md as a declared S10 output. I3 hit the ownership hook, DID NOT
@@ -745,7 +745,7 @@ MERGED T2  0483c20 pits:PENDING accept:PASS
 
 MERGED F3  e177cb5 pits:kb/pits/F3.md accept:PASS
 
-MERGED S12 be34298 pits:PENDING accept:PASS
+MERGED S12 be34298 pits:kb/pits/S12.md accept:PASS
 
 # kb/pits/H5.md IS UNRECOVERABLE AND THE ROW STAYS PENDING. I1 did not assert
 #   that — it evidenced it. Commit 2d2854b carries a DIFFERENT session id of the
