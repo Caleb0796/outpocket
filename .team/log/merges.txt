@@ -1323,3 +1323,13 @@ MERGED E3 5077b30 pits:kb/pits/E3.md accept:PASS
 #   clause 6 asks for. The gate is right to run accept pre-merge for nodes whose
 #   predicate does not depend on their own new files; E3 is the first node where it
 #   cannot be.
+
+MERGED E10 1331808 pits:kb/pits/E10.md accept:PASS
+#   10 of 10 must-fail controls FLIPPED from refused to permitted under their declared
+#   brokenBy mutation; 11 report rows. E3's eleven passes are now DETECTIONS rather than
+#   absences of trouble -- D-108 applied to a whole suite.
+#   FIRST NODE GATED WITH --accept-merged. E10's accept invokes a subcommand that exists
+#   only on its own branch; in the base tree the gate would have reported a RED predicate
+#   for a GREEN node.
+#   C4's "five unrelated inspector failures" VERIFIED rather than taken: 221/0 here, zero
+#   not-ok lines. Chrome was unavailable in its sandbox; the characterisation was right.
