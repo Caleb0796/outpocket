@@ -249,3 +249,56 @@ test("the inspector reads the BROWSER's surface, not our own registry", async ()
   assert.equal(r.source, "document.modelContext",
     `the inspector fell back to ${JSON.stringify(r.source)} — it is not showing what the browser holds`);
 });
+
+// ── the simulated branch ────────────────────────────────────────────────────
+//
+// THE BROWSER TESTS ABOVE CANNOT REACH THIS BRANCH, AND THAT IS WHY IT NEEDS
+// ITS OWN TEST. They launch with --enable-features=WebMCP, so the real API is
+// present, H3's shim correctly declines to shadow it, and __simulated is
+// undefined — the source is genuinely "document.modelContext". But the DEMO
+// runs on a browser without the flag, where the shim installs and every row in
+// this panel comes from a simulation. That is the configuration a judge sees,
+// and until now it was the configuration nothing tested.
+//
+// Same shape as F7's browserDialogPort: the environment that makes the test
+// convenient is not the environment that ships.
+
+import { readSurface, renderInspector, SOURCE } from "../../src/page/ui/inspector.js";
+
+test("readSurface reports a SIMULATED surface as simulated, not as the browser's own", async () => {
+  const tools = [{ name: "get_session_scope", annotations: { readOnlyHint: true } }];
+
+  const real = await readSurface({ doc: { modelContext: { getTools: async () => tools } } });
+  assert.equal(real.source, SOURCE.BROWSER);
+  assert.equal(real.simulated, false);
+
+  const shim = await readSurface({
+    doc: { modelContext: { __simulated: true, getTools: async () => tools } },
+  });
+  assert.equal(shim.simulated, true);
+  assert.equal(shim.source, SOURCE.SIMULATED);
+  assert.match(shim.source, /simulated/i,
+    "a page driving its own tools must not report them as the browser's");
+  assert.notEqual(shim.source, SOURCE.BROWSER);
+
+  // and the rows are the same either way — the marker changes the PROVENANCE
+  // claim, not the surface. Reporting fewer tools under the shim would be a
+  // different bug wearing this fix as a disguise.
+  assert.deepEqual(real.tools, shim.tools);
+});
+
+test("the rendered panel carries the simulated provenance where a judge can read it", () => {
+  const doc = {
+    createElement: (tag) => ({
+      tagName: tag, attributes: new Map(), children: [], _text: "",
+      setAttribute(k, v) { this.attributes.set(k, String(v)); },
+      getAttribute(k) { return this.attributes.get(k) ?? null; },
+      appendChild(c) { this.children.push(c); return c; },
+      set textContent(v) { this._text = String(v); },
+      get textContent() { return this.children.length ? this.children.map((c) => c.textContent).join("") : this._text; },
+    }),
+  };
+  const root = renderInspector(doc, { tools: [], source: SOURCE.SIMULATED, policyVersion: "2026-08.1" });
+  assert.match(root.textContent, /simulated/i,
+    "the provenance line must be visible text, not only an attribute — a judge reads the page, not the DOM");
+});
