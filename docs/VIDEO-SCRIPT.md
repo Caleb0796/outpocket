@@ -58,16 +58,27 @@ Chip and inspector are in the same frame.
 
 ## Cue 4 — `SB-04` — IN 00:34, OUT 00:48
 
-**ON SCREEN.** The same agent, re-prompted with the same sentence. Its refusal
-appears in the transcript and names the policy version.
+**ON SCREEN.** The agent's own client window. Re-prompted with the same
+sentence, the agent finds that the tool it used a moment ago is no longer on the
+surface. It asks the surface why, and the answer names the policy version that
+removed it and the rule the draft now breaks.
+<!-- PROVENANCE: L2 supplied this shot's ON SCREEN text as the STORYBOARD cell
+     and supplied the CAPTION and NARRATION below for this cue. It did not
+     separately supply a cue ON SCREEN line. This is L2's storyboard sentence
+     reused verbatim for the same field of the same shot, NOT composed here —
+     because leaving the old line would have left this cue asserting a refusal
+     that its own narration now denies. Flagged to L1 for L2 to correct if a
+     different sentence was intended. -->
 
-**CAPTION.** Re-prompted. Refused on its next turn.
+**CAPTION.** Re-prompted. The tool is gone — and the surface says which version took it.
 
 **NARRATION.**
 > Same agent, same sentence. On its next turn it sees the new surface, with no
-> page reload, and it is refused — and the refusal names the version that
-> refused it. A tool that has been revoked is refused on the next call; a call
-> already in flight is not stopped, and we are not claiming it is.
+> page reload — and the tool it needs is simply not there any more. So it asks
+> why, and the page tells it: this policy version removed it, and here is the
+> rule the draft now breaks. A tool that has been revoked is gone on the agent's
+> next call; a call already in flight is not stopped, and we are not claiming it
+> is.
 
 ---
 
