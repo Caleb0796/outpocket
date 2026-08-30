@@ -37,14 +37,21 @@
   Tools are registered by src/page/register.js (node I2) at the top level of
   this document, never from inside a region and never from an iframe.
 
-  ./skin.css is node F6's output and does not exist yet; the link is here so
-  that F6 is a pure addition rather than an edit to this file.
+  ./skin.css is node F6's demo skin, and its <link> is BELOW the <style> block
+  on purpose — see the note above that block.
 -->
 
-<link rel="stylesheet" href="./skin.css">
 <style>
-  /* Shell-only styling. Enough that the page is legible and screenshot-safe
-     before F6's skin exists; F6's skin.css loads after this block and wins. */
+  /* Shell-only styling: the shell's own baseline, so the page stays legible and
+     screenshot-safe even if the skin fails to load.
+
+     THE <link> FOR ./skin.css IS AFTER THIS BLOCK, AND THAT IS A FIX, NOT A
+     PREFERENCE. This comment used to read "F6's skin.css loads after this block
+     and wins" while the <link> sat ABOVE the <style> — so on equal specificity
+     the INLINE block won and the skin would have been inert. I wrote that line
+     during F1 and it was untrue when I wrote it; nothing failed, because the
+     file it described did not exist yet. Later stylesheet wins on equal
+     specificity, so the order below is what makes the claim true. */
   :root { color-scheme: light; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
          background: #f4f4f2; color: #16181d; }
@@ -133,6 +140,9 @@
   [data-login-error]:empty { display: none; }
   [data-login-error] { color: #8a1c1c; margin: 0 0 14px; font-size: 13px; }
 </style>
+
+<!-- Last, so it wins on equal specificity. See the note in the block above. -->
+<link rel="stylesheet" href="./skin.css">
 </head>
 <body>
 

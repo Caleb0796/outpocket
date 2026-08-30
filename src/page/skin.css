@@ -1,0 +1,139 @@
+/* src/page/skin.css — node F6 (lane F, owner UX): the demo skin.
+ *
+ * WHAT THIS FILE IS FOR. docs/STORYBOARD.md names one CSS selector per shot,
+ * and tools/check-storyboard.mjs proves each one resolves on the served page.
+ * This file makes those same anchors READ — on camera and, more importantly, in
+ * a still frame, because judges may score from images alone and a mechanism
+ * that only reads in motion has not been shown.
+ *
+ * WHAT IT IS NOT FOR. It does not move, rename or add any anchor. Every
+ * selector the storyboard names is created by the module that owns the panel;
+ * a skin that invented an element to satisfy a shot would make the checker
+ * green by giving it something new to find, which is the shape of every failure
+ * this project has spent the week removing.
+ *
+ * LOAD ORDER IS LOAD-BEARING AND WAS WRONG UNTIL THIS NODE. index.html's own
+ * comment claimed "skin.css loads after this block and wins" while the <link>
+ * sat BEFORE the <style> — so on equal specificity the inline block won and
+ * this file would have been inert. I wrote that comment during F1 and it was
+ * the second untrue integration comment of mine this sprint. The tag is moved;
+ * this file relies on being last, and on nothing else.
+ *
+ * The inline block in index.html stays as the shell's own baseline, so the page
+ * is legible and screenshot-safe if this file ever fails to load. This is
+ * dressing over a page that already works, not the page's only styling.
+ */
+
+:root {
+  --ink: #16181d;
+  --ink-soft: #55596a;
+  --ink-faint: #8b8fa0;
+  --rule: #d9dae0;
+  --rule-faint: #eceef3;
+  --ground: #f4f4f2;
+  --panel: #ffffff;
+  --alarm: #8a1c1c;
+  --alarm-wash: #fdf6f6;
+  --gap: 14px;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── the two banners: SB-07 and SB-13 ──────────────────────────────────────
+ * Both are honesty surfaces and both are on camera for the whole run. The
+ * environment banner reports a Chromium major below 153 for this entire demo,
+ * which is a real platform gap made visible rather than mysterious — so it is
+ * styled to be read, not to be dismissed as chrome. */
+#env-banner,
+#agent-banner {
+  background: #eceef3;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+#env-banner [data-warn="chrome-lt-153"] {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--alarm-wash);
+  color: var(--alarm);
+  border: 1px solid #e6c9c9;
+  font-weight: 600;
+}
+#agent-banner:not(:empty) {
+  background: #fff8e6;
+  border-bottom-color: #e8d9a8;
+  font-weight: 500;
+}
+
+/* ── SB-05 / SB-06: the two personas, and only two ─────────────────────── */
+[data-persona] { transition: border-color 90ms ease; }
+[data-persona]:hover,
+[data-persona]:focus-within { border-color: var(--ink); }
+[data-persona] .role { background: var(--panel); }
+
+/* ── SB-01 / SB-03: the surface inspector ──────────────────────────────────
+ * Rows are F5's; this only gives them a rhythm that survives a screenshot.
+ * Styling a selector whose element does not exist yet is deliberate and safe —
+ * CSS for an absent element is inert, and F6's soft inputs mean the skin
+ * dresses whichever panels exist. */
+#surface-inspector [data-tool-row] {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--rule-faint);
+  font-size: 13px;
+}
+#surface-inspector [data-tool-row]:first-of-type { border-top: 0; }
+[data-policy-version] {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── SB-09: the receipt channel, whose whole point is the asymmetry ──────── */
+[data-receipt-channel] .channels { align-items: stretch; }
+[data-channel] { background: var(--panel); }
+[data-channel="agent"] { background: #fbfbfc; }
+[data-channel] .channel-can { font-size: 15px; }
+
+/* ── SB-10 / SB-11: the consequence, then the line ─────────────────────────
+ * The charter forbids cutting the worst-case line for layout, and this is the
+ * file where that pressure would be applied. It is the largest text in the
+ * dialog on purpose: in a still frame it must out-weigh the button. */
+[data-worst-case] {
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 500;
+  background: var(--alarm-wash);
+  border-left: 3px solid var(--alarm);
+  padding: 14px 16px;
+}
+[data-signature-line] { border-top: 1px solid var(--ink); }
+[data-snapshot-digest] code { font-size: 11px; color: var(--ink-soft); }
+[data-sign-claim] { color: var(--ink-soft); font-size: 12px; }
+[data-sign-already-answered] { color: var(--alarm); font-weight: 600; }
+
+/* ── regions ─────────────────────────────────────────────────────────────── */
+[data-region] {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+[data-region] > .slot-label { color: var(--ink-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
