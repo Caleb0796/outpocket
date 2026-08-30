@@ -989,3 +989,14 @@ MERGED V4  48fa7b8 pits:kb/pits/V4.md accept:PASS
 #   too. A SUITE THAT ONLY TESTS ONE DIRECTION OF A DECISION CANNOT TELL A WORKING GUARD
 #   FROM A STUCK ONE, AND WHICH DIRECTION IT TESTS IS DECIDED BY WHICH FAILURE YOU WERE
 #   AFRAID OF THAT DAY.
+
+MERGED F5  f7e4259 pits:kb/pits/F5.md accept:PASS
+#   The inspector. Closes TWO of F6's five reds; only the three miscategorised shots
+#   remain, with L2.
+#   THE PREDICATE'S ONE HOLLOW PATH is both sides coming from the same place. Rows are
+#   walked from the RENDERED DOM, tools from document.modelContext.getTools(). And the
+#   panel reads modelContext rather than our registry ON PURPOSE: the registry is what
+#   we TRIED to register, modelContext is what the browser HOLDS, and they differ
+#   exactly when something is wrong.
+#   FOUR IDENTICAL COMPARISONS ARE ONE COMPARISON -- the four counts are asserted NOT
+#   ALL EQUAL, a guard UX added after noticing they happened to differ.
