@@ -344,7 +344,7 @@ MERGED F1  fbae697 pits:kb/pits/F1.md accept:PASS
 # THE CRITICAL PATH IS UNBLOCKED AND DISPATCHED: T2's last missing input was F1.
 #   14.0 / 29.5 h burned; T2 -> H3 -> H6 -> D4 -> D5 -> D6 remains.
 
-MERGED H5  b446bc2 pits:PENDING accept:PASS
+MERGED H5  b446bc2 pits:kb/pits/H3.md accept:PASS
 
 # CORRECTION TO THAT MERGE COMMIT, MADE HERE BECAUSE IT IS ALREADY PUSHED.
 #   The message says spans 1 and 2 are "backticked FRAGMENTS, not commands".
