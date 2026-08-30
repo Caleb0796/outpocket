@@ -784,3 +784,5 @@ MERGED S12 be34298 pits:PENDING accept:PASS
 #   dispute where there is none. Its selftest also pins the three other ways the
 #   gate could pass while discovering nothing — missing observations comparing
 #   equal, a no-timeout run averaging with a numeric one, malformed run files.
+
+MERGED V6  b6313e6 pits:kb/pits/V6.md accept:PASS
