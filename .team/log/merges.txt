@@ -1022,3 +1022,18 @@ MERGED F5  f7e4259 pits:kb/pits/F5.md accept:PASS
 #   exits 0. Re-run now: spans 0-2 green, span 3 RED because main moved under the deploy --
 #   which is D-92(b) working, not a regression. D1's done status rests on the explicit
 #   manual observation, and is re-verified in the final pass with D6.
+
+MERGED D-89 47a724e pits:kb/pits/D-89.md accept:PASS (D-96 three clauses)
+#   An S5 follow-up, not a node. THE PAGE CAN NOW COMPLETE A SIGNATURE.
+#   The invariant is held BY CONSTRUCTION, not by filtering: a session-scoped route that
+#   is NOT a registered tool (0 in defs.js, absent from the export surface), a page-only
+#   openForDialog() companion, and beginSign()/continueSign() BYTE-FOR-BYTE UNCHANGED.
+#   THE AGENT CANNOT READ THE TOKEN BECAUSE THERE IS NO CALL THAT RETURNS IT.
+#   Clause 3 is why clause 2 means anything: "no tool leaks the token" is satisfied by
+#   THERE BEING NO TOKEN, so the same run proves one EXISTS and is PAGE-READABLE.
+#   AND THE F7 DEFECT IT REPAIRS: sign-install.js read three fields off a beginSign()
+#   that never carries them, so a real click posted to /api/sign/null/respond. Root
+#   cause: browserDialogPort HAD NO TEST, because every F7 test stubs the port -- EVERY
+#   INJECTION POINT SPLITS THE CODE INTO A TESTED HALF AND A SHIPPED HALF, AND THE
+#   SHIPPED HALF IS INVISIBLE TO EXACTLY THE TESTS THE INJECTION MADE POSSIBLE.
+#   And: DEFENSIVE DEFAULTS ON A REQUIRED VALUE CONVERT A LOUD FAILURE INTO A WRONG ONE.

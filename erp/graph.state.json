@@ -51,9 +51,8 @@
     "F5"
   ],
   "in_flight": {
-    "D4": "head of the critical path; hard inputs H6*, F0*, F7 (blocked), D1 (in flight).",
+    "D4": "ALL THREE TRIGGER CONDITIONS NOW HOLD: F7 merged, D1 green, D-89 merged. Ready for the user's 1-day window notice.",
     "pit debts": "H5 (evidenced unrecoverable), G2, T2.",
-    "D-89": "I3 \u2014 confirm_token DOM channel. BLOCKS THE SHOOT. Accept predicate owed by PM.",
     "E2/E3": "C4 \u2014 E5 done; both ready to fire.",
     "D1 re-verify": "D-98 corrected D1's predicate to one that CAN fail (test \"$(...)\" = 200, and a real comparison against git rev-parse HEAD). Re-run under it: spans 0-2 green, SPAN 3 RED because main moved to 35a77d0 while the deploy serves 8173b46 \u2014 exactly D-92(b)'s expected mid-sprint state. D1 stays done: the green was recorded from an EXPLICIT manual check of the real conditions (200 asserted, sha equality asserted), not from the four exit-0s the old predicate produced. RE-VERIFIED IN THE FINAL PASS WITH D6."
   },
