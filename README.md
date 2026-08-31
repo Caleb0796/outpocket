@@ -55,6 +55,30 @@ and agent can now work on the same live report: the agent handles transcription,
 policy lookup, and repair loops; the employee attaches the receipt files,
 reviews the exact snapshot, and decides whether to sign.
 
+It also takes a position on who should run the model. An ERP that wants an
+assistant today usually ships one: it hosts or buys inference, maintains
+prompts and skills, pins a model, and chases that model's drift — and its users
+get whichever copilot the vendor chose. This site ships no model and runs no
+agent: `package.json` has an empty dependency list, and there is no inference
+call or API key anywhere in the repository. The page publishes a typed tool
+surface, the employee brings their own WebMCP-capable client (today, the
+ChatGPT desktop browser, or Chrome 149+ behind a flag), and when that client's
+model improves the workflow improves with nothing redeployed here. Model choice
+and model churn move out of every site and into the one client the user picked;
+the site's contract with the agent is the tool schema and the server's
+per-request checks, not a prompt tuned to one vendor's model.
+
+The same reasoning bounds what we would expose as a backend MCP server for a
+flow like this one. A backend server needs its own standing credential to the
+ERP and does its work wherever the agent runs, away from the page the employee
+is looking at. For a claim a person signs and remains responsible for, we
+wanted the opposite defaults: authorization that starts at the employee's own
+login, work that happens on the page the employee can see, and the
+responsibility-bearing acts — receipt, review, signature — never leaving the
+human. That is a fit statement, not a security ranking: the server here still
+treats every caller as untrusted, and the forgery vector this design does have
+is documented below and in `RISK.md`.
+
 Expense reimbursement is personal: the employee is out of pocket and remains
 responsible for the claim. That is why this project does not aim for unattended
 submission.

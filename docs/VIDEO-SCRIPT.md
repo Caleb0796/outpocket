@@ -27,8 +27,9 @@ environment banner sits at the top of the page and stays there.
 **CAPTION.** `document.modelContext` — the page publishes what the agent may do.
 
 **NARRATION.**
-> Everything this agent can do here is published by the page itself, through
-> document.modelContext — and the list is computed, not configured. Watch it.
+> Everything the agent can do here is published by the page — computed, not
+> configured. The site ships no model; the agent is the employee's own. Watch
+> the list.
 
 ---
 

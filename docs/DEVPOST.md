@@ -24,6 +24,18 @@ not that reimbursement is otherwise impossible; it is that the agent, employee,
 and website share one live session and one state-dependent action menu. As the
 report changes, the page revises the tools the agent receives on its next turn.
 
+Two consequences follow from that division. The site ships no model and runs no
+agent — `package.json` has an empty dependency list — so the operator carries
+no inference hosting, no prompt maintenance, and no exposure to one pinned
+model's drift; the employee brings their own WebMCP-capable client, and the
+site's contract with it is the tool schema plus the server's per-request
+checks. And relative to a backend MCP server, no new standing credential is
+minted: a backend server would hold its own key to the ERP and work away from
+the page, while here authorization starts at the employee's login and the work
+stays on the page the employee is watching. That is a fit statement for a
+personally-signed flow, not a security ranking — the server still treats every
+caller as untrusted.
+
 ## 2. How it improves the user experience
 
 The employee starts from a one-click persona and never pastes a password or API
