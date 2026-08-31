@@ -9,6 +9,8 @@
 //
 // This module answers that question. It is the working group's open issues #199
 // and #262. Say what ours does; make no claim about what anything else does.
+// Its result can echo the caller-supplied tool name into agent-visible text, so
+// the read-only definition carries untrustedContentHint as well as readOnlyHint.
 //
 // ── it is REGISTERED, and it is in the export ─────────────────────────────────
 //
@@ -320,7 +322,7 @@ export function buildAbsenceTool(erp, table) {
       },
       required: ["name"],
     },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: (args = {}) =>
       ok(JSON.stringify(explainMissing({
         name: args.name,
