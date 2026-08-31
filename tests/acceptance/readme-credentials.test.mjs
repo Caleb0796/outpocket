@@ -1,9 +1,11 @@
 // tests/acceptance/readme-credentials.test.mjs — node G2, owner I4.
 //
-// README.md is the only place a judge reads the demo logins from. This test
-// parses every `login:` line out of README.md and proves each one actually
-// works against a live server — a README claim is not evidence that the
-// claim is true, running it is.
+// README.md is the first path a judge uses for both credentials and browser
+// setup. This test parses every `login:` line and proves each one against a
+// live server, then locks the launch spelling and deterministic demo URL that
+// make the page reachable. The flag-page slug contains "testing" while the
+// documented CLI feature is WebMCP; checking whole strings keeps those two
+// similar-looking interfaces from drifting back together.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -51,11 +53,20 @@ test("every `login:` line in README.md logs in against the live /api/login, cove
   });
 });
 
-test("README.md documents both the ChatGPT-built-in-browser path and the Chrome-flag path", () => {
+test("README.md documents the no-flag ChatGPT path and the canonical Chrome WebMCP setup", () => {
   const readme = readFileSync(README_PATH, "utf8");
-  assert.match(readme, /ChatGPT desktop built-in browser/);
-  assert.ok(
-    readme.includes("--enable-features=WebMCPTesting"),
-    "README.md must contain the literal string --enable-features=WebMCPTesting",
-  );
+  assert.match(readme, /ChatGPT\s+desktop built-in browser/);
+  assert.match(readme, /Chrome 149\+/);
+  assert.ok(readme.includes("Linux:   google-chrome --enable-features=WebMCP"));
+  assert.ok(readme.includes('macOS:   open -a "Google Chrome" --args --enable-features=WebMCP'));
+  assert.ok(readme.includes("Windows: chrome.exe --enable-features=WebMCP"));
+  assert.ok(readme.includes("chrome://flags/#enable-webmcp-testing"));
+  assert.ok(readme.includes("'modelContext' in document"));
+  assert.doesNotMatch(readme, /--enable-features=WebMCPTesting/);
+});
+
+test("README.md puts the deterministic moving demo on the judge path", () => {
+  const readme = readFileSync(README_PATH, "utf8");
+  assert.ok(readme.includes("https://outpocket.onrender.com/?demo=1&seed=7"));
+  assert.match(readme, /17 distinct tools across 6 registration states/);
 });
