@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { createApp } from "../../server/index.mjs";
 import { createSignGate } from "../../server/sign.mjs";
-import { verifyChain, CHAIN_DIGEST_PREFIX } from "../../server/chain.mjs";
+import { createChain, verifyChain, CHAIN_DIGEST_PREFIX, GENESIS_DIGEST } from "../../server/chain.mjs";
 import { digest } from "../../src/canonical.js";
 
 const schemaPath = fileURLToPath(new URL("../../erp/contracts/signature.schema.json", import.meta.url));
@@ -120,6 +120,8 @@ test("the real day book (GET /api/daybook, built from real commits) recomputes a
     const daybook = await getJson(base, "/api/daybook", cookie);
     assert.equal(daybook.status, 200);
     const entries = daybook.body.entries;
+    assert.equal(daybook.body.head, entries.at(-1).entry_digest);
+    assert.deepEqual(daybook.body.verification, { ok: true, brokenAtIndex: null, reason: null });
     console.log(`day book: ${entries.length} entr${entries.length === 1 ? "y" : "ies"}`);
     assert.ok(Array.isArray(entries) && entries.length > 0, "the entry count must be non-zero — a for-loop over nothing exits 0 and proves nothing");
     assert.equal(entries.length, 3, "the entry count must match what actually happened, not merely be non-zero");
@@ -257,7 +259,7 @@ test("S7 x D-118: a commit refused by E_POLICY_DIGEST_MOVED appends NOTHING to t
       schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
     });
     assert.equal(refused.status, 409);
-    assert.equal(refused.body.error.code, "E_POLICY_DIGEST_MOVED");
+    assert.equal(refused.body.error, "E_POLICY_DIGEST_MOVED");
 
     const after = (await getJson(base, "/api/daybook", cookie)).body.entries;
     assert.equal(after.length, before.length, "a REFUSED commit must not append a chain entry — the day book must not record a commit that did not happen");
@@ -294,10 +296,59 @@ test("S7 x D-118: a commit refused by E_SNAPSHOT_MISMATCH also appends NOTHING t
       schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
     });
     assert.equal(refused.status, 409);
-    assert.equal(refused.body.error.code, "E_SNAPSHOT_MISMATCH");
+    assert.equal(refused.body.error, "E_SNAPSHOT_MISMATCH");
 
     const after = (await getJson(base, "/api/daybook", cookie)).body.entries;
     assert.equal(after.length, before.length, "E_SNAPSHOT_MISMATCH must not append a chain entry either");
     assert.deepEqual(after, before);
+  });
+});
+
+test("a digest failure in chain preparation leaves seq, head and entries untouched", () => {
+  const chain = createChain({ now: () => new Date("2026-08-30T12:00:00.000Z") });
+  assert.throws(
+    () => chain.append({ kind: "commit", detail: undefined }),
+    /E_CANON_TYPE/,
+  );
+  assert.deepEqual(chain.list(), []);
+  assert.equal(chain.currentHead(), GENESIS_DIGEST);
+
+  const first = chain.append({ kind: "commit", detail: "CH-0001" });
+  assert.equal(first.seq, 1, "the failed preparation must not consume sequence 1");
+  assert.equal(first.prev, GENESIS_DIGEST);
+});
+
+test("a report that becomes blocking before commit returns 422 E_NOT_CLEAN and appends nothing", async () => {
+  let liveReport = null;
+  const gate = createSignGate({ getLiveReport: () => liveReport });
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const sid = cookie.split("=")[1];
+    const reportId = freshReportId();
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
+    assert.equal(opened.status, 200);
+    const sr = opened.body.sign_request;
+    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
+    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, {
+      schema: "outpocket.sign_respond_request/1", request_id: sr.request_id, decision: "signed", reason: null,
+      method: "click", acknowledged_digest: sr.snapshot_digest, acknowledged_revision: sr.revision, confirm_token: confirmToken,
+    });
+    assert.equal(responded.status, 200);
+
+    liveReport = clone(sr.snapshot.report);
+    liveReport.lines[0].amount_cents = 5_000_000;
+    liveReport.lines[0].usd_cents = 1;
+    liveReport.total_usd_cents = 1 + liveReport.lines[1].usd_cents;
+
+    const refused = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
+    });
+    assert.equal(refused.status, 422);
+    assert.deepEqual(refused.body, {
+      error: "E_NOT_CLEAN",
+      message: `report ${reportId} has 1 blocking policy violation(s)`,
+    });
+    assert.deepEqual(gate.chain.list(), []);
+    assert.equal(gate.chain.currentHead(), GENESIS_DIGEST);
   });
 });

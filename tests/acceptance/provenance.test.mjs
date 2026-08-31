@@ -22,8 +22,10 @@
 // stuck open.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { createReportStore, LINE_FIELDS, REPORT_FIELDS } from "../../server/store.mjs";
 import { createProvenanceLedger, ProvenanceError, valueDigest, UNSET_VALUE_DIGEST } from "../../server/provenance.mjs";
+import { createApp } from "../../server/index.mjs";
 
 function makeStore() {
   let t = new Date(2026, 7, 28, 10, 0, 0);
@@ -212,4 +214,86 @@ test("every ledger record matches the frozen provenance.schema.json's required s
     assert.match(rec.value_digest, /^sha256:[0-9a-f]{64}$/);
     if (rec.source === "unset") assert.equal(rec.value_digest, UNSET_VALUE_DIGEST);
   }
+});
+
+async function withHttpApp(fn) {
+  const server = createServer(createApp());
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const login = await fetch(`${base}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona: "chen" }),
+    });
+    const cookie = login.headers.get("set-cookie").split(";")[0];
+    await fn(base, cookie);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+async function requestJson(base, path, cookie, { method = "GET", body } = {}) {
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+test("the HTTP report routes populate provenance and GET /api/reports/:id returns it", async () => {
+  await withHttpApp(async (base, cookie) => {
+    const created = await requestJson(base, "/api/reports", cookie, {
+      method: "POST",
+      body: { title: "Boston workshop", project: "FALCON" },
+    });
+    assert.equal(created.status, 201);
+    const reportId = created.body.report_id;
+
+    const added = await requestJson(base, `/api/reports/${reportId}/lines`, cookie, {
+      method: "POST",
+      body: { date: "2026-08-20", merchant: "Acme Co", category: "meals", amount_cents: 1500, currency: "USD" },
+    });
+    assert.equal(added.status, 201);
+    const lineId = added.body.line.id;
+
+    const updated = await requestJson(base, `/api/reports/${reportId}/lines/${lineId}`, cookie, {
+      method: "PATCH",
+      body: { merchant: "Acme Corporation" },
+    });
+    assert.equal(updated.status, 200);
+    const linked = await requestJson(base, `/api/reports/${reportId}/lines/${lineId}/receipt`, cookie, {
+      method: "POST",
+      body: { receipt_id: "rc_1" },
+    });
+    assert.equal(linked.status, 200);
+
+    const fetched = await requestJson(base, `/api/reports/${reportId}`, cookie);
+    assert.equal(fetched.status, 200);
+    assert.equal(fetched.body.report.id, reportId);
+    assert.equal(fetched.body.report.lines[0].merchant, "Acme Corporation");
+    assert.equal(fetched.body.report.lines[0].provenance.merchant, "agent");
+    assert.equal(fetched.body.report.lines[0].provenance.receipt_id, "agent");
+    assert.equal(fetched.body.provenance.report.title.source, "agent");
+    const merchantWrites = fetched.body.provenance.ledger.filter(
+      (entry) => entry.entity_id === lineId && entry.field === "merchant" && entry.source !== "unset",
+    );
+    assert.equal(merchantWrites.length, 2);
+    assert.equal(merchantWrites[1].supersedes, merchantWrites[0].id);
+  });
+});
+
+test("the server seed exposes RP-1017, its two lines, receipt rc_1 and seed provenance", async () => {
+  await withHttpApp(async (base, cookie) => {
+    const fetched = await requestJson(base, "/api/reports/RP-1017", cookie);
+    assert.equal(fetched.status, 200);
+    assert.equal(fetched.body.report.title, "July site visit — Heron");
+    assert.equal(fetched.body.report.lines.length, 2);
+    assert.equal(fetched.body.report.lines[0].receipt_id, "rc_1");
+    assert.equal(fetched.body.report.lines[0].receipt_sha256, "9d1e7a5c0b8f42a6e3d94417c25a80fe6b1c9d0347f8ab52ce61904d7e3b21aa");
+    assert.equal(fetched.body.provenance.report.title.source, "seed");
+    assert.equal(fetched.body.provenance.lines[0].fields.merchant.source, "seed");
+    assert.ok(fetched.body.provenance.ledger.length > 0);
+  });
 });

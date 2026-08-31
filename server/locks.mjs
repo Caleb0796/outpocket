@@ -15,11 +15,11 @@
 // line, via assertUnlocked(reportId), before touching report content.
 //
 // Report content mutation and the sign-request state machine share one
-// report_id namespace, so revision-ownership lives here too: getRevision()
-// is the server's own count, seeded (not trusted) from whatever value a
-// caller first supplies for a report_id it has never seen, then owned
-// server-side from there on — bumpRevision() is what an accepted mutation
-// calls, never a client-supplied number written straight through.
+// report_id namespace, so revision ownership lives here too:
+// currentRevision() reads the server count without consulting a request,
+// and bumpRevision() is what an accepted mutation calls. getRevision() is
+// retained for direct module compatibility, but the HTTP/sign path never
+// seeds it from client input.
 import { randomBytes } from "node:crypto";
 
 export const LOCK_CODE = "E_SIGN_IN_PROGRESS";
@@ -36,7 +36,8 @@ export class LockError extends Error {
 
 /**
  * createReportLocks({now}) -> {
- *   acquire, release, assertUnlocked, isLocked, getRevision, bumpRevision,
+ *   acquire, release, assertUnlocked, isLocked, currentRevision,
+ *   getRevision, bumpRevision,
  * }
  *
  * opts.now: () -> Date, injectable clock (default real time) so tests can
@@ -62,11 +63,10 @@ export function createReportLocks({ now = () => new Date() } = {}) {
 
   /**
    * acquire(reportId, holder, expiresAt) — MUST be called in the same
-   * synchronous step (no await between them) as whatever snapshot
-   * computation the caller is protecting; JS's single-thread execution then
-   * makes "no window between them" true by construction, not merely
-   * asserted — there is no point at which another handler's code can run
-   * between the two statements in the caller's function body.
+   * synchronous step (no await between them) as publishing the snapshot the
+   * caller already computed; JS's single-thread execution then leaves no
+   * point at which another handler can run between lock and publication.
+   * Computing first also means a digest failure cannot leave an orphan lock.
    *
    * Throws LockError if a DIFFERENT, still-live holder already has the
    * report locked. Re-acquiring with the same holder (e.g. a retried open())
@@ -102,6 +102,11 @@ export function createReportLocks({ now = () => new Date() } = {}) {
     return currentEntry(reportId) !== null;
   }
 
+  /** currentRevision(reportId) -> the server count, or zero without seeding state. */
+  function currentRevision(reportId) {
+    return revisions.get(reportId) ?? 0;
+  }
+
   /**
    * getRevision(reportId, fallback) -> integer
    * First call for a report_id seeds the server's counter from `fallback`
@@ -123,7 +128,7 @@ export function createReportLocks({ now = () => new Date() } = {}) {
     return next;
   }
 
-  return { acquire, release, assertUnlocked, isLocked, getRevision, bumpRevision };
+  return { acquire, release, assertUnlocked, isLocked, currentRevision, getRevision, bumpRevision };
 }
 
 /** newLockToken() — for callers (tests, future write routes) that want an opaque holder id distinct from a request_id. */
