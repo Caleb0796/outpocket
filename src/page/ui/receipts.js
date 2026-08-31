@@ -24,9 +24,10 @@
 // and no copy in this module may say that it is.
 //
 // WHAT IS RECORDED, STATED CONCRETELY RATHER THAN CHARACTERISED.
-// src/erp.js's attachReceipt keeps the filename, the byte length and a SHA-256
-// of the bytes, and uses that digest to flag byte-identical duplicates. Tools
-// read that record; `list_receipts` returns exactly those fields. Describe the
+// This page computes SHA-256 from the selected bytes, then sends only filename,
+// byte length and digest to the page-only server route. The server keeps that
+// metadata and uses the digest to flag byte-identical duplicates. Tools read
+// that record; `list_receipts` returns exactly those fields. Describe the
 // record by naming its fields. Do not characterise it instead: the phrasings
 // BW-09 and BW-10 ban (kb/webmcp/BANNED.txt) assert that the material is not
 // held at all, and that is not this module's claim to make in either
@@ -122,8 +123,8 @@ const CHANNEL_COPY = Object.freeze({
     label: "Human channel",
     can: "Attach a file",
     detail:
-      "You pick the file. The page records its name, its size and a SHA-256 of " +
-      "its bytes, and uses that digest to spot a receipt claimed twice.",
+      "You pick the file. The page computes SHA-256 and sends only its name, size " +
+      "and digest to the server to spot duplicates; the server never receives or independently verifies the bytes.",
   },
   agent: {
     label: "Agent channel",
@@ -140,11 +141,19 @@ const ENFORCEMENT_NOTE =
   "whose input schema could carry a file. The complete tool list is checked in " +
   "every supported workflow state.";
 
+const UPLOAD_HELP_ID = "receipt-upload-help";
+const UPLOAD_ERROR_ID = "receipt-upload-error";
+
 function el(doc, tag, attrs = {}, text = null) {
   const node = doc.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   if (text !== null) node.textContent = text;
   return node;
+}
+
+async function sha256Hex(bytes) {
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 function channelBlock(doc, which) {
@@ -172,7 +181,13 @@ function receiptRow(doc, r) {
  * Build the panel. Pure: takes a document and a list of receipts, returns an
  * element, touches nothing. The caller attaches it.
  */
-export function renderReceiptChannel(doc, { receipts = [], storeAttached = true } = {}) {
+export function renderReceiptChannel(doc, {
+  receipts = [],
+  storeAttached = true,
+  canAttach = storeAttached,
+  disabledReason = null,
+  uploadError = null,
+} = {}) {
   const root = el(doc, "div", { "data-receipt-channel": "" });
 
   root.appendChild(el(doc, "h2", { class: "channel-heading" }, "Receipts — two channels, not symmetrical"));
@@ -191,12 +206,29 @@ export function renderReceiptChannel(doc, { receipts = [], storeAttached = true 
   // reads as working. The store is src/page/register.js's ERP — the
   // same one list_receipts reads — and until that module is on the page there is
   // nowhere to put a file that an agent could then name by id.
-  if (!storeAttached) {
+  const help = disabledReason || (!storeAttached
+    ? "The receipt store is not on the page yet, so attaching is switched off. It is provided by src/page/register.js, which is also what list_receipts reads."
+    : null);
+  const describedBy = [];
+  if (!canAttach || !storeAttached) {
     input.setAttribute("disabled", "");
-    control.appendChild(el(doc, "p", { "data-receipt-store": "detached" },
-      "The receipt store is not on the page yet, so attaching is switched off. " +
-      "It is provided by src/page/register.js, which is also what list_receipts reads."));
+    if (help) {
+      describedBy.push(UPLOAD_HELP_ID);
+      control.appendChild(el(doc, "p", {
+        id: UPLOAD_HELP_ID,
+        "data-receipt-store": storeAttached ? "read-only" : "detached",
+      }, help));
+    }
   }
+  if (uploadError) {
+    describedBy.push(UPLOAD_ERROR_ID);
+    control.appendChild(el(doc, "p", {
+      id: UPLOAD_ERROR_ID,
+      "data-receipt-error": "",
+      role: "alert",
+    }, uploadError));
+  }
+  if (describedBy.length) input.setAttribute("aria-describedby", describedBy.join(" "));
   root.appendChild(control);
 
   const list = el(doc, "ul", { "data-receipt-list": "" });
@@ -226,25 +258,53 @@ export function mountReceipts({ doc = globalThis.document, shell, tools } = {}) 
   if (!region) return null;
 
   const erp = tools?.erp ?? null;
+  const api = tools?.api ?? null;
+  let uploadError = null;
 
   function paint() {
     const receipts = (erp?.state?.receipts ?? []).filter((r) => !r.archived);
+    const session = shell?.getSession?.() ?? null;
+    const storeAttached = Boolean(erp && api);
+    const canAttach = storeAttached && session?.role === "employee";
+    const disabledReason = session?.role === "auditor"
+      ? "Auditors can review receipt metadata, but cannot attach receipts."
+      : session
+        ? null
+        : "Sign in as an employee to attach receipts.";
     region.textContent = "";
-    region.appendChild(renderReceiptChannel(doc, { receipts, storeAttached: Boolean(erp) }));
+    region.appendChild(renderReceiptChannel(doc, {
+      receipts,
+      storeAttached,
+      canAttach,
+      disabledReason,
+      uploadError,
+    }));
     const input = region.querySelector("[data-receipt-input]");
     if (input) input.addEventListener("change", onPick);
   }
 
   async function onPick(event) {
     const files = Array.from(event.target.files ?? []);
-    if (!erp) return;
+    if (!erp || !api) return;
+    uploadError = null;
+    if (shell?.getSession?.()?.role !== "employee") {
+      uploadError = "This signed-in role cannot attach receipts; no file was uploaded.";
+      paint();
+      return;
+    }
     for (const file of files) {
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        // source 'human' is not cosmetic: it is what the day book records, and
-        // it is the field S8's provenance and S7's chain digest read.
-        await erp.attachReceipt({ filename: file.name, bytes }, "human");
+        const sha256 = await sha256Hex(bytes);
+        const payload = await api.attachReceiptMetadata({
+          filename: file.name,
+          size: bytes.byteLength,
+          sha256,
+        });
+        erp.adoptServerReceipts(payload.receipts);
+        uploadError = null;
       } catch (err) {
+        uploadError = `Could not attach ${file?.name ?? "the selected file"}: ${err?.message ?? err}`;
         console.error("receipts: could not attach", file?.name, err);
       }
     }
@@ -254,7 +314,10 @@ export function mountReceipts({ doc = globalThis.document, shell, tools } = {}) 
   erp?.onChange?.(({ type }) => {
     if (type === "receipts" || type === "lines") paint();
   });
-  shell?.onSession?.(() => paint());
+  shell?.onSession?.(() => {
+    uploadError = null;
+    paint();
+  });
 
   paint();
   return { paint };

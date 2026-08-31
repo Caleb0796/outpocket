@@ -45,10 +45,8 @@ export class RecanonMismatchError extends Error {
  *   (server/sign.mjs's `rec.snapshot` — {kind, ocf, policy_digest,
  *   policy_version, request_id, report, verdict}).
  * liveReport: the CURRENT report for this report_id, fetched fresh from
- *   live server state (S2's store) at commit time. The standalone helper
- *   retains its null/undefined `skipped: true` result for callers that have
- *   no projection, while sign.mjs now supplies the signed report as a
- *   compatibility fallback and therefore always re-derives a real snapshot.
+ *   live server state (S2's store) at commit time. A missing projection is
+ *   a mismatch; reconciliation never treats absent live state as success.
  * liveVerdict: the verdict freshly evaluated from `liveReport` with the
  *   policy the server is serving. It travels with the report because both
  *   fields are inside the signed projection; recomputing only one would let
@@ -64,7 +62,7 @@ export class RecanonMismatchError extends Error {
 export function reconcile(signedSnapshot, liveReport, liveVerdict) {
   const signedDigest = digest(SNAPSHOT_DIGEST_PREFIX, signedSnapshot);
   if (liveReport == null) {
-    return { ok: true, skipped: true, recomputedDigest: null, signedDigest };
+    return { ok: false, skipped: false, recomputedDigest: null, signedDigest };
   }
   const recomputedSnapshot = { ...signedSnapshot, report: liveReport, verdict: liveVerdict };
   const recomputedDigest = digest(SNAPSHOT_DIGEST_PREFIX, recomputedSnapshot);

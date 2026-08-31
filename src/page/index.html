@@ -119,12 +119,20 @@
   [data-receipt-enforcement] { font-size: 12px; color: #55596a; margin: 0;
          border-top: 1px solid #eceef3; padding-top: 10px; }
   [data-receipt-store] { font-size: 12px; color: #8a1c1c; margin: 6px 0 0; }
+  [data-receipt-error] { font-size: 12px; color: #8a1c1c; margin: 6px 0 0; font-weight: 600; }
   /* Signature dialog. The charter puts the worst-case consequence
      immediately above the signature line and forbids cutting it for layout, so
      it is the visually dominant element here — not a footnote under a heading.
      SB-10 and SB-11 are both stills; if the consequence does not out-weigh the
      button in a screenshot, the shot has not shown what it claims to show. */
-  [data-sign-dialog] { display: block; }
+  [data-region="sign"][data-sign-active] { border: 0; padding: 0; margin: 0;
+         background: transparent; }
+  [data-sign-dialog] { width: min(680px, calc(100vw - 32px));
+         max-width: none; max-height: calc(100dvh - 32px); overflow: auto;
+         box-sizing: border-box; border: 1px solid #d9dae0; border-radius: 10px;
+         padding: 20px; background: #fff; color: #16181d; box-shadow: 0 18px 60px #16181d33; }
+  [data-sign-dialog]:not([open]) { display: none; }
+  [data-sign-dialog]::backdrop { background: #16181d73; }
   [data-sign-dialog] .sign-heading { font-size: 15px; margin: 0 0 12px; }
   [data-snapshot-digest] { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
          font-size: 12px; color: #55596a; background: #f7f8fa; border: 1px solid #eceef3;
@@ -147,6 +155,14 @@
   [data-sign-status] { font-size: 13px; margin: 0; }
   [data-sign-status]:empty { display: none; }
   [data-sign-already-answered] { color: #8a1c1c; font-weight: 600; }
+  [data-sign-result] { margin: 0; font-size: 13px; font-weight: 600; }
+  @media (max-width: 430px) {
+    [data-sign-dialog] { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 14px; }
+    [data-snapshot-digest] { display: block; }
+    [data-snapshot-digest] > * { display: block; margin-bottom: 4px; }
+    .sign-controls { align-items: stretch; flex-direction: column; }
+    .sign-controls button { width: 100%; }
+  }
   /* Surface inspector. Baseline only — skin.css refines it, but
      this panel is SB-01/SB-02/SB-03 and has to read in a still frame on its
      own, because F6 is a separate node and may not land first. Unstyled, the
@@ -246,14 +262,14 @@
       <li data-persona="chen" data-role="employee">
         <span class="role">employee</span>
         <div><span class="name">Chen Xiao</span> · <span class="id">chen</span></div>
-        <div style="color:#55596a;font-size:13px">Field engineer</div>
+        <div class="title" style="color:#55596a;font-size:13px">Field engineer</div>
         <p>Files expense reports. Owns the session an agent works inside.</p>
         <button type="button" data-login="chen">Sign in as chen</button>
       </li>
       <li data-persona="ruiz" data-role="auditor">
         <span class="role">auditor</span>
         <div><span class="name">Elena Ruiz</span> · <span class="id">ruiz</span></div>
-        <div style="color:#55596a;font-size:13px">Internal audit</div>
+        <div class="title" style="color:#55596a;font-size:13px">Internal audit</div>
         <p>Reviews submitted reports. Cannot file or submit one.</p>
         <button type="button" data-login="ruiz">Sign in as ruiz</button>
       </li>
@@ -353,13 +369,10 @@
 <script type="module" src="./ui/inspector.js"></script>
 
 <!--
-  F2's report editor — S8's per-field provenance made visible. It does not
-  self-render: like the signature dialog, an editor with no report is
-  meaningless, and unlike the inspector there is no live source for it yet.
-  server/store.mjs (S8) is deliberately NOT wired into the HTTP write routes —
-  its own header says so and calls the integration a follow-up for whichever
-  node does it. So the tag publishes globalThis.outpocketEditor and the panel
-  renders once something hands it a report and a ledger.
+  F2's report editor — S8's per-field provenance made visible. It reads the
+  server projection cached by register.js and repaints after report opens and
+  accepted writes. With no open report it stays empty; it never invents report
+  content or authorship locally.
 -->
 <script type="module" src="./ui/editor.js"></script>
 
@@ -384,8 +397,9 @@
 <!--
   F7's glue (src/page/sign-install.js): the only module allowed to know about
   all three of register.js's setSignatureProvider seam, F4's DOM-only dialog and
-  S5's DOM-free bridge. It installs the provider EXACTLY ONCE, so an agent's
-  submit_expense_report raises the dialog and waits for a human decision.
+  S5's DOM-free bridge. It installs the provider EXACTLY ONCE. The first
+  submit_expense_report call raises the dialog and returns an awaiting ticket;
+  a later call reads the server-owned decision and finishes the workflow.
 
   AFTER ./register.js, and that is a dependency and not a preference: this
   module reads globalThis.outpocketTools at evaluation to find the seam, and

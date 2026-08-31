@@ -190,12 +190,16 @@ test("report-level fields (title, project) also carry full provenance and the sa
   assert.equal(report.fields.project.source, "agent");
 
   tick();
-  // Nothing in this store's public API currently updates a report's own
-  // fields after creation (S8's scope is the line/report field discipline,
-  // not a report-title-edit route) — assert that absence honestly rather
-  // than fabricating a call the store does not offer.
-  assert.equal(typeof store.updateLine, "function");
-  assert.equal(store.updateReport, undefined, "no updateReport exists — this store does not claim a capability it does not have");
+  store.updateReport(report.id, { title: "Boston workshop — corrected" }, {
+    source: "human",
+    actor: "Chen Xiao",
+    tool: null,
+  });
+  const updated = store.getReport(report.id);
+  assert.equal(updated.fields.title.value, "Boston workshop — corrected");
+  assert.equal(updated.fields.title.source, "human");
+  assert.equal(updated.fields.project.source, "agent", "the untouched report field keeps its agent source");
+  assert.notEqual(updated.fields.title.ts, report.fields.title.ts);
 });
 
 // ── frozen schema conformance, spot-checked without a second schema copy ──
@@ -263,19 +267,37 @@ test("the HTTP report routes populate provenance and GET /api/reports/:id return
       body: { merchant: "Acme Corporation" },
     });
     assert.equal(updated.status, 200);
+    const humanReportEdit = await requestJson(base, `/api/ui/reports/${reportId}`, cookie, {
+      method: "PATCH",
+      body: { title: "Boston workshop — corrected" },
+    });
+    assert.equal(humanReportEdit.status, 200);
+    const humanLineEdit = await requestJson(base, `/api/ui/reports/${reportId}/lines/${lineId}`, cookie, {
+      method: "PATCH",
+      body: { attendees: 2 },
+    });
+    assert.equal(humanLineEdit.status, 200);
+    const attached = await requestJson(base, "/api/ui/receipts", cookie, {
+      method: "POST",
+      body: { filename: "receipt.svg", size: 123, sha256: "a".repeat(64) },
+    });
+    assert.equal(attached.status, 201);
     const linked = await requestJson(base, `/api/reports/${reportId}/lines/${lineId}/receipt`, cookie, {
       method: "POST",
-      body: { receipt_id: "rc_1" },
+      body: { receipt_id: attached.body.receipt.id },
     });
     assert.equal(linked.status, 200);
 
     const fetched = await requestJson(base, `/api/reports/${reportId}`, cookie);
     assert.equal(fetched.status, 200);
     assert.equal(fetched.body.report.id, reportId);
+    assert.equal(fetched.body.report.title, "Boston workshop — corrected");
     assert.equal(fetched.body.report.lines[0].merchant, "Acme Corporation");
+    assert.equal(fetched.body.report.lines[0].attendees, 2);
     assert.equal(fetched.body.report.lines[0].provenance.merchant, "agent");
+    assert.equal(fetched.body.report.lines[0].provenance.attendees, "human");
     assert.equal(fetched.body.report.lines[0].provenance.receipt_id, "agent");
-    assert.equal(fetched.body.provenance.report.title.source, "agent");
+    assert.equal(fetched.body.provenance.report.title.source, "human");
     const merchantWrites = fetched.body.provenance.ledger.filter(
       (entry) => entry.entity_id === lineId && entry.field === "merchant" && entry.source !== "unset",
     );

@@ -18,8 +18,8 @@
 // and changes no difference between them. The flips are what they always were.
 //
 // 14 is the CLEAN draft, 13 is the dirty one, and once a report leaves draft the
-// surface SHRINKS to 6 — it does not grow after signing. S4 and S5 both hold six
-// names and are not the same six, which is why everything downstream of here
+// surface SHRINKS to 7 — it does not grow after signing. S4 and S5 both hold seven
+// names and are not the same seven, which is why everything downstream of here
 // compares sets of names and never counts.
 //
 // A tool that must not be called right now is a tool that does not exist right
@@ -55,15 +55,14 @@
 //
 // ── WIRING (one line, owned by node F1) ───────────────────────────────────────
 //
-// src/page/index.html must load this module from the top-level document:
+// src/page/index.html loads this module from the top-level document:
 //
 //     <script type="module" src="./register.js"></script>
 //
-// index.html is F1's output and this file is T2's, so that line is UX's to add;
-// its header comment already names this file as the registrar. Until it lands,
-// the module is loadable and correct but nothing evaluates it in the page.
+// Keeping that tag in the top-level page is what evaluates this registrar.
 
 import { createErp } from "../erp.js";
+import { createApiClient } from "./api-client.js";
 import { createToolset, compileSurface, surfaceState, writeTools } from "./tools/compile.js";
 
 // ── where we are ──────────────────────────────────────────────────────────────
@@ -80,6 +79,7 @@ const mountedInTopLevelDocument = inBrowser && window === window.top;
 
 // ── the model ─────────────────────────────────────────────────────────────────
 const erp = createErp();
+const api = createApiClient();
 
 // Listeners for anything in the page that wants to watch the surface move: F5's
 // inspector, H3's in-page agent, the manual console. They are told what changed,
@@ -94,11 +94,10 @@ function emitFlip(detail) {
 }
 
 // ── the signature seam ────────────────────────────────────────────────────────
-// submit_expense_report suspends while the employee reviews the report and signs
-// it in the page. That dialog is node F4 and it has not landed. The default
-// below is the SAFE one and it is deliberately not a stub that pretends: with no
-// human present to sign, nothing is signed and the draft stays editable. F4
-// installs the real dialog by calling setSignatureProvider once.
+// submit_expense_report uses a two-call handshake: the first call opens the page
+// review and returns an awaiting ticket, and a later call reads the server-owned
+// decision. The default below is deliberately safe: with no mounted dialog,
+// nothing is signed and the draft stays editable.
 let signatureProvider = null;
 
 function setSignatureProvider(fn) {
@@ -118,6 +117,7 @@ async function requestSignature(summary, signal) {
 }
 
 const hooks = {
+  api,
   requestSignature,
   onCallStart: (rec) => rec,
   onCallEnd: (rec, result) => {
@@ -306,18 +306,40 @@ function sameNames(a, b) {
 // a cookie and never decides who is signed in — it mirrors the shell's answer
 // into the ERP, and a mirror that is already correct is left alone so no
 // spurious flip is emitted.
+let hydration = 0;
+
+async function hydrateServerProjection() {
+  const run = ++hydration;
+  if (!erp.session()) {
+    erp.adoptServerReports([]);
+    erp.adoptServerReceipts([]);
+    return;
+  }
+  const [reportPayload, receiptPayload] = await Promise.all([
+    api.listReports(),
+    api.listReceipts(),
+  ]);
+  if (run !== hydration || !erp.session()) return;
+  erp.adoptServerReports(reportPayload.reports);
+  erp.adoptServerReceipts(receiptPayload.receipts);
+}
+
 function adoptSession(session) {
   const current = erp.session()?.id ?? null;
   const wanted = session?.persona ?? null;
   if (current === wanted) {
     sync("session");
+    hydrateServerProjection().catch((err) => console.error("register: server projection hydration failed", err));
     return;
   }
   if (wanted === null) erp.signOut("human");
   else erp.signIn(wanted, "human");
+  erp.adoptServerReports([]);
+  erp.adoptServerReceipts([]);
   // signIn/signOut emit, which calls sync through onChange; this call covers the
   // first paint, before any subscription exists.
   sync("session");
+  hydrateServerProjection().catch((err) => console.error("register: server projection hydration failed", err));
 }
 
 // ── the page object ───────────────────────────────────────────────────────────
@@ -328,6 +350,7 @@ function adoptSession(session) {
 // are reading the same table rather than two tables that agree by luck.
 export const registry = {
   erp,
+  api,
   toolset,
 
   /** Canonical state id: S0 | S1 | S2 | S3 | S4 | S5. */
@@ -374,6 +397,7 @@ export const registry = {
   /** Recompile now. Callers that mutate the ERP directly do not need this — the
    *  ERP's own change events already drive it. */
   refresh: (reason = "manual") => sync(reason),
+  hydrate: hydrateServerProjection,
 };
 
 // ── mount ─────────────────────────────────────────────────────────────────────

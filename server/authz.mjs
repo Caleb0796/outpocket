@@ -33,6 +33,20 @@ export function authorizeWrite(session) {
   }
 }
 
+export function authorizeReportRead(session, report) {
+  if (!session) throw new AuthzError("authentication is required");
+  if (session.role === "auditor") return;
+  if (session.role === WRITE_ROLE && report?.owner === session.personaId) return;
+  throw new AuthzError(`report '${report?.id ?? "unknown"}' is not readable by '${session.personaId ?? "none"}'`);
+}
+
+export function authorizeReportWrite(session, report) {
+  authorizeWrite(session);
+  if (!report || report.owner !== session.personaId) {
+    throw new AuthzError(`report '${report?.id ?? "unknown"}' is not writable by '${session.personaId ?? "none"}'`);
+  }
+}
+
 // The server's own exported write-route table. tests/acceptance/curl-403.sh
 // reads THIS array (via `node --input-type=module -e "import('./server/
 // authz.mjs').then(...)"`), never a hand-copied list — a route added here
@@ -49,20 +63,18 @@ export function authorizeWrite(session) {
 // Scope note: this table stops at the sign gate's own front door
 // (`POST /api/sign`, which this module now also gates — see
 // server/index.mjs). `/api/sign/:id/respond` and `/api/reports/:id/commit`
-// are deliberately NOT here: both already require the caller's session to
-// be the exact one that opened the sign request (server/sign.mjs's
-// assertSameSession), and since opening now requires `employee`, only an
-// employee session can ever reach them anyway — redundant gating that
-// would also be untestable honestly from curl alone, since `confirm_token`
-// never appears in any JSON response (R-13) and a role-correct call
-// without one 403s for a DIFFERENT reason (E_NO_CONFIRM_TOKEN), not the
-// "employee succeeds" positive control this table's own test requires for
-// every entry it lists.
+// are deliberately NOT in this positive-control table because a successful
+// request needs an already-open sign record and, for /respond, the dialog's
+// confirm_token. Both routes still call authorizeWrite() before parsing and
+// then require the exact session that opened the record.
 export const WRITE_ROUTES = Object.freeze([
   Object.freeze({ method: "POST", path: "/api/reports", tool: "create_expense_report" }),
   Object.freeze({ method: "POST", path: "/api/reports/:report_id/open", tool: "open_expense_report" }),
   Object.freeze({ method: "POST", path: "/api/reports/:report_id/lines", tool: "add_expense_line" }),
   Object.freeze({ method: "PATCH", path: "/api/reports/:report_id/lines/:line_id", tool: "update_expense_line" }),
+  Object.freeze({ method: "POST", path: "/api/ui/receipts", tool: "page_attach_receipt" }),
+  Object.freeze({ method: "PATCH", path: "/api/ui/reports/:report_id", tool: "page_update_expense_report" }),
+  Object.freeze({ method: "PATCH", path: "/api/ui/reports/:report_id/lines/:line_id", tool: "page_update_expense_line" }),
   Object.freeze({ method: "POST", path: "/api/reports/:report_id/lines/:line_id/receipt", tool: "link_receipt" }),
   Object.freeze({ method: "DELETE", path: "/api/reports/:report_id/lines/:line_id", tool: "remove_expense_line" }),
   Object.freeze({ method: "POST", path: "/api/sign", tool: "submit_expense_report" }),

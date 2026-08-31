@@ -179,8 +179,35 @@ export function mountEditor({ doc = globalThis.document, report, ledger = [] } =
   return root;
 }
 
-export const editor = { renderEditor, mountEditor, fieldCells, previousSource, provenanceText, SOURCE_LABEL, AUTHORED_SOURCES };
+export function mountCachedEditor({ doc = globalThis.document, tools = globalThis.outpocketTools } = {}) {
+  const region = doc?.querySelector?.('[data-region="editor"]');
+  const erp = tools?.erp;
+  if (!region || !erp) return null;
+
+  function paint() {
+    const cached = erp.openReportOrNull();
+    const provenance = cached?.provenance;
+    region.textContent = "";
+    if (!cached || !provenance) return null;
+    const report = { id: cached.id, fields: provenance.report, lines: provenance.lines };
+    const root = renderEditor(doc, { report, ledger: provenance.ledger });
+    region.appendChild(root);
+    return root;
+  }
+
+  erp.onChange(({ type }) => {
+    if (type === "reports" || type === "lines" || type === "session") paint();
+  });
+  paint();
+  return { paint };
+}
+
+export const editor = {
+  renderEditor, mountEditor, mountCachedEditor, fieldCells, previousSource,
+  provenanceText, SOURCE_LABEL, AUTHORED_SOURCES,
+};
 
 if (typeof document !== "undefined" && document.querySelector) {
   globalThis.outpocketEditor = editor;
+  mountCachedEditor({ doc: document, tools: globalThis.outpocketTools });
 }

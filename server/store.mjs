@@ -1,118 +1,169 @@
-// server/store.mjs — the report/line store, with per-field provenance built
-// in from the start.
-//
-// Node S8. Every expense-line (and report) field is stored as
-// {value, source, ts, actor} — never a bare scalar — so "which values a
-// human chose and which an agent chose" is a property of the data
-// structure itself, not something derived after the fact. Every field
-// write also appends one record to server/provenance.mjs's ledger (the
-// frozen, audit-facing shape: value_digest, not value, so the ledger never
-// stores a value twice) — this store's live `{value,...}` view and the
-// ledger's `value_digest` are two projections of the SAME writes, never
-// two independent sources of truth.
-//
-// server/index.mjs wires every report-field HTTP mutation through this
-// module. Its compact report array remains the signed-content projection,
-// while this store owns field authorship and the richer ledger returned by
-// GET /api/reports/:id. Keeping those as two projections was chosen because
-// the signed contract needs scalar fields while the editor needs
-// {value,source,ts,actor}; both are written in the same route statement.
-//
-// x-fieldSets (erp/contracts/provenance.schema.json): every field here
-// always has exactly one current provenance record.
+// server/store.mjs — the server-owned expense-report aggregate.
+
+import { createProvenanceLedger } from "./provenance.mjs";
+
 export const LINE_FIELDS = Object.freeze([
   "amount", "attendees", "category", "currency", "date",
   "description", "itemization", "merchant", "nights", "receipt_id",
 ]);
 export const REPORT_FIELDS = Object.freeze(["project", "title"]);
 
-import { createProvenanceLedger } from "./provenance.mjs";
+export class StoreError extends Error {
+  constructor(code, http, message) {
+    super(message || code);
+    this.name = "StoreError";
+    this.code = code;
+    this.http = http;
+  }
+}
 
-/**
- * createReportStore({now}) -> {
- *   createReport, seedReport, addLine, updateLine, removeLine,
- *   getReport, getLine, listReports, dayBook, dayBookForReport,
- * }
- */
+function copy(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function numericSuffix(id, prefix) {
+  if (typeof id !== "string" || !id.startsWith(prefix)) return null;
+  const value = Number(id.slice(prefix.length));
+  return Number.isInteger(value) ? value : null;
+}
+
 export function createReportStore({ now = () => new Date() } = {}) {
   const ledger = createProvenanceLedger({ now });
-  const reports = new Map(); // report_id -> internal report record
-  const lineOwners = new Map(); // line_id -> report_id, retained after deletion for ledger reads
-  let reportSeq = 1017; // matches server/seed.mjs's counter convention
+  const reports = new Map();
+  const receipts = new Map();
+  const lineOwners = new Map();
+  let reportSeq = 1017;
   let lineSeq = 0;
+  let receiptSeq = 0;
 
-  /** Write one field: appends a ledger record and updates the live {value,source,ts,actor} view. */
-  function setField(entity, entityId, fieldsHolder, field, value, { source, actor, tool = null, revision }) {
+  function setField(entity, entityId, fields, field, value, { source, actor, tool = null, revision }) {
     const rec = ledger.record({ entity, entityId, field, source, actor, tool, value, revision });
-    fieldsHolder[field] = { value, source: rec.source, ts: rec.at, actor: rec.actor };
-    return rec;
+    fields[field] = { value: copy(value), source: rec.source, ts: rec.at, actor: rec.actor };
   }
 
-  /** Seed every field of a fresh entity to source:'unset', value null — so every field always resolves. */
-  function initFields(entity, entityId, fieldNames, revision) {
+  function initFields(entity, entityId, names, revision) {
     const fields = {};
-    for (const field of fieldNames) {
-      const rec = ledger.record({ entity, entityId, field, source: "unset", actor: "system", tool: null, value: null, revision });
+    for (const field of names) {
+      const rec = ledger.record({
+        entity, entityId, field, source: "unset", actor: "system", tool: null, value: null, revision,
+      });
       fields[field] = { value: null, source: rec.source, ts: rec.at, actor: rec.actor };
     }
     return fields;
   }
 
-  function reportView(internal) {
+  function fieldsView(fields) {
+    return Object.fromEntries(Object.entries(fields).map(([name, rec]) => [name, copy(rec)]));
+  }
+
+  function lineView(line) {
+    return { id: line.id, fields: fieldsView(line.fields) };
+  }
+
+  function reportView(report) {
     return {
-      id: internal.id,
-      status: internal.status,
-      fields: internal.fields,
-      lines: [...internal.lines.values()].map(lineView),
+      id: report.id,
+      owner: report.owner,
+      status: report.status,
+      createdAt: report.createdAt,
+      submittedAt: report.submittedAt,
+      signature: copy(report.signature),
+      artifact: copy(report.artifact),
+      revision: report.revision,
+      fields: fieldsView(report.fields),
+      lines: [...report.lines.values()].map(lineView),
     };
   }
-  function lineView(internal) {
-    return { id: internal.id, fields: internal.fields };
+
+  function receiptView(receipt) {
+    return copy(receipt);
   }
 
-  function insertReport(id, { title, project }, { source, actor, tool = null, revision = 0, status = "draft" }) {
-    if (reports.has(id)) throw new RangeError(`report already exists: ${id}`);
-    const fields = initFields("report", id, REPORT_FIELDS, revision);
-    const internal = { id, status, fields, lines: new Map() };
-    reports.set(id, internal);
-    if (title !== undefined) setField("report", id, fields, "title", title, { source, actor, tool, revision });
-    if (project !== undefined) setField("report", id, fields, "project", project, { source, actor, tool, revision });
+  function requireReport(reportId) {
+    const report = reports.get(reportId);
+    if (!report) throw new StoreError("E_REPORT_NOT_FOUND", 404, `no such report: ${reportId}`);
+    return report;
+  }
+
+  function requireDraft(report) {
+    if (report.status !== "draft") {
+      throw new StoreError("E_REPORT_NOT_DRAFT", 409, `report ${report.id} is ${report.status}`);
+    }
+  }
+
+  function requireLine(report, lineId) {
+    const line = report.lines.get(lineId);
+    if (!line) throw new StoreError("E_LINE_NOT_FOUND", 404, `no such line: ${lineId}`);
+    return line;
+  }
+
+  function assertKnownFields(value, allowed, label) {
+    const unknown = Object.keys(value ?? {}).filter((field) => !allowed.includes(field));
+    if (unknown.length) {
+      throw new StoreError("E_BAD_REQUEST", 400, `${label} has unknown field(s): ${unknown.join(", ")}`);
+    }
+  }
+
+  function insertReport(report, write) {
+    if (reports.has(report.id)) throw new StoreError("E_REPORT_EXISTS", 409, `report already exists: ${report.id}`);
+    const revision = report.revision ?? 0;
+    const fields = initFields("report", report.id, REPORT_FIELDS, revision);
+    const internal = {
+      id: report.id,
+      owner: report.owner ?? null,
+      status: report.status ?? "draft",
+      createdAt: report.createdAt ?? now().toISOString(),
+      submittedAt: report.submittedAt ?? null,
+      signature: copy(report.signature ?? null),
+      artifact: copy(report.artifact ?? null),
+      revision,
+      fields,
+      lines: new Map(),
+    };
+    reports.set(report.id, internal);
+    if (report.title !== undefined) setField("report", report.id, fields, "title", report.title, { ...write, revision });
+    if (report.project !== undefined) setField("report", report.id, fields, "project", report.project, { ...write, revision });
     return internal;
   }
 
-  function insertLine(report, lineId, lineData, { source, actor, tool = null, revision }) {
-    if (report.lines.has(lineId)) throw new RangeError(`line already exists: ${lineId}`);
+  function insertLine(report, lineId, lineData, write, revision) {
+    if (report.lines.has(lineId)) throw new StoreError("E_LINE_EXISTS", 409, `line already exists: ${lineId}`);
+    assertKnownFields(lineData, LINE_FIELDS, "line");
     const fields = initFields("line", lineId, LINE_FIELDS, revision);
-    const internal = { id: lineId, fields };
-    report.lines.set(lineId, internal);
+    const line = { id: lineId, fields };
+    report.lines.set(lineId, line);
     lineOwners.set(lineId, report.id);
     for (const field of LINE_FIELDS) {
-      if (lineData[field] !== undefined) {
-        setField("line", lineId, fields, field, lineData[field], { source, actor, tool, revision });
-      }
+      if (lineData[field] !== undefined) setField("line", lineId, fields, field, lineData[field], { ...write, revision });
     }
-    return internal;
+    return line;
   }
 
-  /**
-   * createReport({title, project}, {source, actor, tool, revision}) -> report view
-   */
-  function createReport({ title, project }, { source, actor, tool = null, revision = 0 }) {
-    reportSeq += 1;
-    const id = `RP-${reportSeq}`;
-    const internal = insertReport(id, { title, project }, { source, actor, tool, revision });
-    return reportView(internal);
+  function seedReceipt(receipt, { owner = "chen" } = {}) {
+    if (receipts.has(receipt.id)) throw new StoreError("E_RECEIPT_EXISTS", 409, `receipt already exists: ${receipt.id}`);
+    const stored = {
+      id: receipt.id,
+      owner: receipt.owner ?? owner,
+      filename: receipt.filename,
+      size: receipt.size,
+      sha256: receipt.sha256,
+      addedBy: receipt.addedBy ?? "human",
+      linkedLineId: receipt.linkedLineId ?? null,
+      duplicateOf: receipt.duplicateOf ?? null,
+      archived: Boolean(receipt.archived),
+    };
+    receipts.set(stored.id, stored);
+    receiptSeq = Math.max(receiptSeq, numericSuffix(stored.id, "rc_") ?? 0);
+    return receiptView(stored);
   }
 
-  /** Seed an existing report id without consuming the next generated id. */
-  function seedReport(report, { revision = 0 } = {}) {
-    const internal = insertReport(
-      report.id,
-      { title: report.title, project: report.project },
-      { source: "seed", actor: "system", revision, status: report.status ?? "draft" },
+  function seedReport(report, { revision = report.revision ?? 0 } = {}) {
+    const stored = insertReport(
+      { ...report, revision },
+      { source: "seed", actor: "system", tool: null },
     );
     for (const line of report.lines ?? []) {
-      insertLine(internal, line.id, {
+      insertLine(stored, line.id, {
         amount: line.amount_cents ?? line.amountCents,
         attendees: line.attendees,
         category: line.category,
@@ -123,83 +174,220 @@ export function createReportStore({ now = () => new Date() } = {}) {
         merchant: line.merchant,
         nights: line.nights,
         receipt_id: line.receipt_id ?? line.receiptId,
-      }, { source: "seed", actor: "system", revision });
+      }, { source: "seed", actor: "system", tool: null }, revision);
+      lineSeq = Math.max(lineSeq, numericSuffix(line.id, "ln_") ?? 0);
     }
-    return reportView(internal);
+    reportSeq = Math.max(reportSeq, numericSuffix(report.id, "RP-") ?? 0);
+    return reportView(stored);
   }
 
-  function requireReport(reportId) {
-    const internal = reports.get(reportId);
-    if (!internal) throw new RangeError(`no such report: ${reportId}`);
-    return internal;
+  function seed(initial) {
+    for (const receipt of initial.receipts ?? []) seedReceipt(receipt);
+    for (const report of initial.reports ?? []) seedReport(report);
+    reportSeq = Math.max(reportSeq, initial.counters?.report ?? 0);
+    lineSeq = Math.max(lineSeq, initial.counters?.line ?? 0);
+    receiptSeq = Math.max(receiptSeq, initial.counters?.receipt ?? 0);
   }
 
-  /**
-   * addLine(reportId, lineData, {source, actor, tool, revision}) -> line view
-   * lineData: a plain object of LINE_FIELDS -> value. Unknown keys ignored;
-   * fields not given stay source:'unset', value null.
-   */
-  function addLine(reportId, lineData, { source, actor, tool = null, revision }) {
+  function createReport({ title, project, owner = null, createdAt }, write) {
+    reportSeq += 1;
+    const report = insertReport({
+      id: `RP-${reportSeq}`,
+      title,
+      project,
+      owner,
+      status: "draft",
+      createdAt,
+      revision: 0,
+    }, write);
+    return reportView(report);
+  }
+
+  function updateReport(reportId, patch, write) {
     const report = requireReport(reportId);
+    requireDraft(report);
+    assertKnownFields(patch, REPORT_FIELDS, "report patch");
+    report.revision += 1;
+    for (const field of REPORT_FIELDS) {
+      if (patch[field] !== undefined) setField("report", report.id, report.fields, field, patch[field], { ...write, revision: report.revision });
+    }
+    return reportView(report);
+  }
+
+  function addLine(reportId, lineData, write) {
+    const report = requireReport(reportId);
+    requireDraft(report);
+    assertKnownFields(lineData, LINE_FIELDS, "line");
+    report.revision += 1;
     lineSeq += 1;
-    const lineId = `ln_${lineSeq}`;
-    const internal = insertLine(report, lineId, lineData, { source, actor, tool, revision });
-    return lineView(internal);
+    const line = insertLine(report, `ln_${lineSeq}`, lineData, write, report.revision);
+    return lineView(line);
   }
 
-  /**
-   * updateLine(reportId, lineId, patch, {source, actor, tool, revision})
-   *   -> line view
-   *
-   * Only the fields present in `patch` get a new provenance record; every
-   * other field's {value,source,ts,actor} is untouched — a human editing
-   * one field must never flip the source of a field they did not touch.
-   */
-  function updateLine(reportId, lineId, patch, { source, actor, tool = null, revision }) {
+  function updateLine(reportId, lineId, patch, write) {
     const report = requireReport(reportId);
-    const internal = report.lines.get(lineId);
-    if (!internal) throw new RangeError(`no such line: ${lineId}`);
+    requireDraft(report);
+    const line = requireLine(report, lineId);
+    assertKnownFields(patch, LINE_FIELDS, "line patch");
+    report.revision += 1;
     for (const field of LINE_FIELDS) {
-      if (patch[field] !== undefined) {
-        setField("line", lineId, internal.fields, field, patch[field], { source, actor, tool, revision });
-      }
+      if (patch[field] !== undefined) setField("line", line.id, line.fields, field, patch[field], { ...write, revision: report.revision });
     }
-    return lineView(internal);
+    return lineView(line);
   }
 
-  /** Remove a live line while retaining its append-only ledger history. */
   function removeLine(reportId, lineId) {
     const report = requireReport(reportId);
-    if (!report.lines.delete(lineId)) throw new RangeError(`no such line: ${lineId}`);
+    requireDraft(report);
+    requireLine(report, lineId);
+    for (const receipt of receipts.values()) {
+      if (receipt.linkedLineId === lineId) receipt.linkedLineId = null;
+    }
+    report.lines.delete(lineId);
+    report.revision += 1;
+    return report.revision;
+  }
+
+  function addReceipt({ owner, filename, size, sha256 }) {
+    receiptSeq += 1;
+    const duplicate = [...receipts.values()].find((receipt) => receipt.sha256 === sha256) ?? null;
+    const receipt = {
+      id: `rc_${receiptSeq}`,
+      owner,
+      filename,
+      size,
+      sha256,
+      addedBy: "human",
+      linkedLineId: null,
+      duplicateOf: duplicate?.id ?? null,
+      archived: false,
+    };
+    receipts.set(receipt.id, receipt);
+    return receiptView(receipt);
+  }
+
+  function linkReceipt(reportId, lineId, receiptId, write) {
+    const report = requireReport(reportId);
+    requireDraft(report);
+    const line = requireLine(report, lineId);
+    const receipt = receipts.get(receiptId);
+    if (!receipt) throw new StoreError("E_RECEIPT_NOT_FOUND", 404, `no such receipt: ${receiptId}`);
+    if (receipt.owner !== report.owner) {
+      throw new StoreError("E_RECEIPT_FORBIDDEN", 403, `receipt ${receiptId} is not owned by report owner ${report.owner}`);
+    }
+    if (receipt.linkedLineId) {
+      throw new StoreError("E_RECEIPT_TAKEN", 409, `receipt ${receiptId} already backs line ${receipt.linkedLineId}`);
+    }
+    const twin = [...receipts.values()].find(
+      (candidate) => candidate.id !== receipt.id && candidate.sha256 === receipt.sha256 && candidate.linkedLineId,
+    );
+    if (twin) {
+      throw new StoreError("E_RECEIPT_DUP", 409, `receipt ${receiptId} duplicates ${twin.id}, which backs ${twin.linkedLineId}`);
+    }
+    const previousId = line.fields.receipt_id.value;
+    if (previousId) {
+      const previous = receipts.get(previousId);
+      if (previous) previous.linkedLineId = null;
+    }
+    report.revision += 1;
+    setField("line", line.id, line.fields, "receipt_id", receipt.id, { ...write, revision: report.revision });
+    receipt.linkedLineId = line.id;
+    return lineView(line);
+  }
+
+  function prepareSubmission(reportId, { expectedRevision, artifact, signedBy, submittedAt }) {
+    const report = requireReport(reportId);
+    requireDraft(report);
+    if (report.revision !== expectedRevision) {
+      throw new StoreError(
+        "E_SNAPSHOT_MISMATCH",
+        409,
+        `report ${reportId} revision moved from ${expectedRevision} to ${report.revision}`,
+      );
+    }
+    const storedArtifact = copy(artifact);
+    const signature = { signedBy, at: submittedAt };
+    return () => {
+      report.status = "submitted";
+      report.submittedAt = submittedAt;
+      report.signature = signature;
+      report.artifact = storedArtifact;
+    };
   }
 
   function getReport(reportId) {
-    const internal = reports.get(reportId);
-    return internal ? reportView(internal) : null;
+    const report = reports.get(reportId);
+    return report ? reportView(report) : null;
   }
 
   function getLine(reportId, lineId) {
-    const report = reports.get(reportId);
-    const internal = report?.lines.get(lineId);
-    return internal ? lineView(internal) : null;
+    const line = reports.get(reportId)?.lines.get(lineId);
+    return line ? lineView(line) : null;
+  }
+
+  function getReceipt(receiptId) {
+    const receipt = receipts.get(receiptId);
+    return receipt ? receiptView(receipt) : null;
   }
 
   function listReports() {
     return [...reports.values()].map(reportView);
   }
 
-  /** dayBook() -> the full provenance ledger, in seq order — the append-only audit trail. */
-  function dayBook() {
-    return ledger.ledger();
+  function listReceipts() {
+    return [...receipts.values()].map(receiptView);
   }
 
-  /** Include removed-line history: deleting a live row never deletes its prior writes. */
+  function dayBook() {
+    return copy(ledger.ledger());
+  }
+
   function dayBookForReport(reportId) {
-    return ledger.ledger().filter(
+    return copy(ledger.ledger().filter(
       (entry) => (entry.entity === "report" && entry.entity_id === reportId)
         || (entry.entity === "line" && lineOwners.get(entry.entity_id) === reportId),
-    );
+    ));
   }
 
-  return { createReport, seedReport, addLine, updateLine, removeLine, getReport, getLine, listReports, dayBook, dayBookForReport };
+  function stateProjection() {
+    return {
+      reports: [...reports.values()].map((report) => ({
+        id: report.id,
+        owner: report.owner,
+        status: report.status,
+        title: report.fields.title.value,
+        project: report.fields.project.value,
+        revision: report.revision,
+        artifact: copy(report.artifact),
+        lines: [...report.lines.values()].map((line) => ({
+          id: line.id,
+          ...Object.fromEntries(LINE_FIELDS.map((field) => [field, copy(line.fields[field].value)])),
+        })),
+      })),
+      receipts: listReceipts(),
+      counters: { report: reportSeq, line: lineSeq, receipt: receiptSeq },
+    };
+  }
+
+  return {
+    seed,
+    seedReport,
+    seedReceipt,
+    createReport,
+    updateReport,
+    addLine,
+    updateLine,
+    removeLine,
+    addReceipt,
+    linkReceipt,
+    prepareSubmission,
+    getReport,
+    getLine,
+    getReceipt,
+    listReports,
+    listReceipts,
+    dayBook,
+    dayBookForReport,
+    stateProjection,
+  };
 }

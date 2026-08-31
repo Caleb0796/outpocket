@@ -50,6 +50,10 @@
 export const RESPOND_SCHEMA = "outpocket.sign_respond_request/1";
 export const ALREADY_ANSWERED_TEXT = "already answered — start a new one";
 export const POLICY_UNAVAILABLE_TEXT = "Policy version unavailable. Nothing was signed.";
+export const SIGNED_RECORDED_TEXT =
+  "Signature recorded by the server. Submission will finish when submit_expense_report is called again.";
+export const DECLINED_RECORDED_TEXT =
+  "Sent back. Nothing was submitted; the draft remains editable.";
 
 /** Format integer cents as USD. */
 function usd(cents) {
@@ -190,11 +194,19 @@ export function respondBody({ requestId, decision, reason = null, confirmToken, 
  * they put their name.
  */
 export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = null } = {}) {
-  const root = el(doc, "div", { "data-sign-dialog": "", role: "dialog", "aria-modal": "true" });
+  const idPart = String(signRequest?.request_id ?? "request").replace(/[^a-z0-9_-]/gi, "-");
+  const headingId = `sign-heading-${idPart}`;
+  const consequenceId = `sign-consequence-${idPart}`;
+  const statusId = `sign-status-${idPart}`;
+  const root = el(doc, "dialog", {
+    "data-sign-dialog": "",
+    "aria-labelledby": headingId,
+    "aria-describedby": `${consequenceId} ${statusId}`,
+  });
   const sentence = certificationSentence(signRequest);
   const policyVersion = validPolicyVersion(signRequest?.policy_version);
 
-  root.appendChild(el(doc, "h2", { class: "sign-heading" }, "Sign this report"));
+  root.appendChild(el(doc, "h2", { class: "sign-heading", id: headingId, tabindex: "-1" }, "Sign this report"));
 
   const digestBox = el(doc, "div", { "data-snapshot-digest": signRequest?.snapshot_digest ?? "" });
   digestBox.appendChild(el(doc, "span", { class: "digest-label" }, "Snapshot digest"));
@@ -206,7 +218,7 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
   root.appendChild(digestBox);
 
   // Empty when the facts could not be named. Never a generic sentence.
-  root.appendChild(el(doc, "p", { "data-worst-case": "" }, sentence ?? ""));
+  root.appendChild(el(doc, "p", { "data-worst-case": "", id: consequenceId }, sentence ?? ""));
 
   // IMMEDIATELY AFTER, as a sibling. Do not insert anything between these two.
   const line = el(doc, "div", { "data-signature-line": "" });
@@ -234,7 +246,12 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
     "A commit cannot be made without a POST from this authenticated session to " +
     `/api/sign/${signRequest?.request_id ?? "{id}"}/respond.`));
 
-  root.appendChild(el(doc, "p", { "data-sign-status": "" }, ""));
+  root.appendChild(el(doc, "p", {
+    "data-sign-status": "",
+    id: statusId,
+    role: "status",
+    "aria-live": "polite",
+  }, ""));
 
   // Wire the buttons to the same guarded path a caller would use. Handlers are
   // attached even when confirm is disabled, on purpose: `disabled` is the
@@ -262,6 +279,27 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
   }
 
   return root;
+}
+
+function lockDecisionControls(root) {
+  root?.setAttribute?.("data-sign-decision-pending", "");
+  root?.querySelector?.("[data-sign-confirm]")?.setAttribute?.("disabled", "");
+  root?.querySelector?.("[data-sign-decline]")?.setAttribute?.("disabled", "");
+}
+
+function unlockDecisionControls(root) {
+  root?.removeAttribute?.("data-sign-decision-pending");
+  const decline = root?.querySelector?.("[data-sign-decline]");
+  decline?.removeAttribute?.("disabled");
+  const confirm = root?.querySelector?.("[data-sign-confirm]");
+  if (!confirm) return;
+  if (canConfirm(root)) confirm.removeAttribute("disabled");
+  else confirm.setAttribute("disabled", "");
+}
+
+function clearConfirmToken(root) {
+  const token = root?.querySelector?.("[data-confirm-token]");
+  if (token) token.value = "";
 }
 
 /**
@@ -316,6 +354,11 @@ export function canConfirm(root) {
 export async function submitDecision(root, {
   signRequest, decision, reason = null, fetchImpl = globalThis.fetch, doc = globalThis.document,
 } = {}) {
+  if (root?.decisionPending) return { posted: false, refused: "decision-pending" };
+  root.decisionPending = true;
+  lockDecisionControls(root);
+
+  try {
   // A mounted dialog begins its policy request before it is returned. Waiting
   // here keeps a forced or scripted click closed even if it bypasses the
   // disabled button while that request is still unresolved.
@@ -374,13 +417,25 @@ export async function submitDecision(root, {
   const payload = await res.json().catch(() => ({}));
 
   if (res.status === 409 && payload?.error === "E_ALREADY_ANSWERED") {
-    renderAlreadyAnswered(root, doc);
+    root.decisionTerminal = true;
+    renderAlreadyAnswered(root, doc, root.onRestart);
     return { posted: true, status: 409, alreadyAnswered: true, body };
   }
 
   if (res.ok) {
-    setStatus(root, "Signed. The server recorded who and when.", { kind: "signed" });
-    return { posted: true, status: res.status, response: payload, body };
+    const recordedDecision = payload?.decision;
+    if (recordedDecision !== "signed" && recordedDecision !== "declined") {
+      setStatus(root,
+        "The server accepted the response but did not return a recorded decision. The dialog remains open.",
+        { kind: "refused" });
+      return { posted: true, status: res.status, response: payload, body, refused: "missing-decision" };
+    }
+    const message = recordedDecision === "signed" ? SIGNED_RECORDED_TEXT : DECLINED_RECORDED_TEXT;
+    root.decisionTerminal = true;
+    clearConfirmToken(root);
+    setStatus(root, message, { kind: recordedDecision });
+    root.onDecisionAccepted?.({ decision: recordedDecision, message, response: payload });
+    return { posted: true, status: res.status, response: payload, body, decision: recordedDecision };
   }
 
   // THE SERVER REFUSED, AND IT SAYS WHY — so show ITS sentence, not our
@@ -393,6 +448,12 @@ export async function submitDecision(root, {
   setStatus(root, `The server refused this signature (${code}).${detail} Nothing was signed.`,
     { kind: "refused" });
   return { posted: true, status: res.status, response: payload, body };
+  } finally {
+    if (!root?.decisionTerminal) {
+      root.decisionPending = false;
+      unlockDecisionControls(root);
+    }
+  }
 }
 
 /**
@@ -406,7 +467,7 @@ export async function submitDecision(root, {
  * because the severity here is nuisance-grade denial, not forgery. Nothing was
  * committed and nothing was attested in their name.
  */
-export function renderAlreadyAnswered(root, doc = globalThis.document) {
+export function renderAlreadyAnswered(root, doc = globalThis.document, onRestart = null) {
   const status = root.querySelector("[data-sign-status]");
   if (status) {
     status.textContent = ALREADY_ANSWERED_TEXT;
@@ -414,9 +475,29 @@ export function renderAlreadyAnswered(root, doc = globalThis.document) {
   }
   const confirm = root.querySelector("[data-sign-confirm]");
   if (confirm) confirm.setAttribute("disabled", "");
+  root.querySelector("[data-sign-decline]")?.setAttribute("disabled", "");
 
   if (!root.querySelector("[data-sign-restart]")) {
     const again = el(doc, "button", { type: "button", "data-sign-restart": "" }, "Start a new signature request");
+    if (typeof onRestart === "function") {
+      again.addEventListener?.("click", async () => {
+        again.setAttribute("disabled", "");
+        setStatus(root, "Opening a fresh signature request…", { kind: "pending" });
+        try {
+          const result = await onRestart();
+          if (result?.status === "signed") {
+            setStatus(root, SIGNED_RECORDED_TEXT, { kind: "signed" });
+          } else if (result?.status !== "awaiting_signature") {
+            setStatus(root, "A fresh signature request could not be opened.", { kind: "refused" });
+            again.removeAttribute("disabled");
+          }
+        } catch (error) {
+          setStatus(root, `A fresh signature request could not be opened: ${error?.message ?? error}`,
+            { kind: "refused" });
+          again.removeAttribute("disabled");
+        }
+      });
+    }
     root.querySelector(".sign-controls")?.appendChild(again);
   }
   return root;
@@ -454,13 +535,58 @@ export async function restartSignRequest({
   return { signRequest: fresh, root: renderSignDialog(doc, { signRequest: fresh, confirmToken: token }), response: payload };
 }
 
+/** Replace the modal with a persistent, screen-reader-announced outcome. */
+export function showSignResult({
+  doc = globalThis.document, kind = "status", message = "", confirmation = null,
+} = {}) {
+  const region = doc?.querySelector?.('[data-region="sign"]');
+  if (!region) return null;
+  region.removeAttribute?.("data-sign-active");
+  region.textContent = "";
+  const text = message || (confirmation ? `Submitted. Confirmation ${confirmation}.` : "Signature status updated.");
+  const result = el(doc, "p", {
+    "data-sign-result": kind,
+    role: "status",
+    "aria-live": "polite",
+  }, text);
+  region.appendChild(result);
+  return result;
+}
+
+function closeAcceptedDialog(root, { doc, decision, message }) {
+  const previousFocus = root?.previousFocus ?? null;
+  if (root?.open && typeof root.close === "function") root.close();
+  else root?.removeAttribute?.("open");
+  showSignResult({ doc, kind: decision, message });
+  previousFocus?.focus?.();
+}
+
 /** Mount into the shell's sign region. */
-export function mountSignDialog({ doc = globalThis.document, signRequest, confirmToken, fetchImpl = globalThis.fetch } = {}) {
+export function mountSignDialog({
+  doc = globalThis.document,
+  signRequest,
+  confirmToken,
+  fetchImpl = globalThis.fetch,
+  onRestart = null,
+} = {}) {
   const region = doc?.querySelector?.('[data-region="sign"]');
   if (!region || !signRequest) return null;
   region.textContent = "";
+  region.setAttribute?.("data-sign-active", "");
   const root = renderSignDialog(doc, { signRequest, confirmToken, fetchImpl });
+  root.previousFocus = doc.activeElement ?? null;
+  root.onRestart = onRestart;
+  root.onDecisionAccepted = ({ decision, message }) => closeAcceptedDialog(root, { doc, decision, message });
   region.appendChild(root);
+
+  root.addEventListener?.("cancel", (event) => {
+    event.preventDefault?.();
+    setStatus(root, "Choose Sign this report or Send back instead to finish this review.", { kind: "refused" });
+  });
+
+  if (typeof root.showModal === "function") root.showModal();
+  else root.setAttribute("open", "");
+  root.querySelector(".sign-heading")?.focus?.();
 
   // Keep mount synchronous because the dialog port attaches its own listeners
   // to the returned root. The button closes during the request, and the submit
@@ -479,7 +605,7 @@ export function mountSignDialog({ doc = globalThis.document, signRequest, confir
 export const signDialog = {
   renderSignDialog, certificationSentence, certifiedFacts, respondBody,
   submitDecision, canConfirm, renderAlreadyAnswered, restartSignRequest, mountSignDialog,
-  POLICY_UNAVAILABLE_TEXT,
+  showSignResult, POLICY_UNAVAILABLE_TEXT, SIGNED_RECORDED_TEXT, DECLINED_RECORDED_TEXT,
 };
 
 if (typeof document !== "undefined" && document.querySelector) {

@@ -40,9 +40,9 @@
 //     the same report; it says nothing about a write route that never goes
 //     through /api/sign at all) — it is NOT layer 2 and must never be
 //     described as such.
-//   - E_SNAPSHOT_MISMATCH: S6 has landed (server/recanon.mjs). commit() below
-//     calls reconcile() against opts.getLiveReport(reportId) before treating
-//     anything as committed — GIVEN a single server instance (S1), true by
+//   - E_SNAPSHOT_MISMATCH: S6 has landed (server/recanon.mjs). open() and
+//     commit() both read the injected server aggregate before treating
+//     anything as signed or committed — GIVEN a single server instance (S1), true by
 //     construction, same argument as S12's lock. Still not this node's own
 //     concern in one sense: the canonicalisation logic itself lives entirely
 //     in recanon.mjs, unit-tested there; this module only calls it.
@@ -189,7 +189,7 @@ function toPolicyReport(report) {
   };
 }
 
-function authoritativeReport(report, { reportId, personaId, revision }) {
+function authoritativeReport(report, { reportId }) {
   if (!report || typeof report !== "object" || Array.isArray(report) || !Array.isArray(report.lines)) {
     throw new SignError("E_BAD_SIGN_REQUEST", 400, "report must be an object with a lines array");
   }
@@ -233,9 +233,9 @@ function authoritativeReport(report, { reportId, personaId, revision }) {
   return {
     id: reportId,
     lines,
-    owner: personaId,
+    owner: typeof report.owner === "string" ? report.owner : "",
     project: typeof report.project === "string" ? report.project : "",
-    revision,
+    revision: Number.isInteger(report.revision) && report.revision >= 0 ? report.revision : 0,
     status: report.status === "submitted" ? "submitted" : "draft",
     title: typeof report.title === "string" ? report.title : "",
     total_usd_cents: lines.reduce((total, line) => total + (line.usd_cents ?? 0), 0),
@@ -289,10 +289,13 @@ export function evaluateServerVerdict(report, { personaId, personaName, servedPo
  *   injects its own `now` and wants to observe locks.mjs's expiry from a
  *   test must also inject the same `locks` instance, built with the same
  *   `now`, or the two modules disagree about what "expired" means.
- * opts.getLiveReport: (reportId) -> report | null. S6's hook into live
- *   report state (S2/S8's store). Defaults to `() => null`; commit then
- *   re-evaluates the stored signed report, while the real server wires this
- *   to its fresh report projection so content changes are compared too.
+ * opts.getLiveReport: (reportId) -> report | null. The sole source for sign
+ *   content at both open and commit. With no reader, open refuses; a missing
+ *   report is never replaced by a client body or the signed snapshot.
+ * opts.prepareReportCommit: ({reportId, expectedRevision, artifact,
+ *   signedBy, submittedAt}) -> publish(). It validates the same aggregate
+ *   before chain publication and returns a synchronous no-throw transition.
+ *   With no publisher, commit refuses before publishing anything.
  * opts.chain: S7's real hash chain (server/chain.mjs). Defaults to a fresh
  *   createChain({now}) sharing THIS gate's clock. commit() appends to it —
  *   this REPLACES the earlier single-process, in-memory chain_entry
@@ -324,7 +327,8 @@ export function createSignGate({
   ttlMs = DEFAULT_TTL_MS,
   requireConfirmToken = true,
   locks = createReportLocks({ now }),
-  getLiveReport = () => null,
+  getLiveReport = null,
+  prepareReportCommit = null,
   chain = createChain({ now }),
   getServedPolicy = () => SERVED_POLICY,
   policyNow = () => new Date(),
@@ -334,6 +338,32 @@ export function createSignGate({
   const byTicket = new Map(); // ticket -> request_id
   const openByReport = new Map(); // report_id -> request_id (bookkeeping only — see NOT THIS NODE)
   let confirmCounter = 0;
+  let readReport = typeof getLiveReport === "function" ? getLiveReport : null;
+  let prepareCommit = typeof prepareReportCommit === "function" ? prepareReportCommit : null;
+
+  function setReportAuthority({ getLiveReport: reader, prepareReportCommit: prepare } = {}) {
+    if (typeof reader === "function") readReport = reader;
+    if (typeof prepare === "function") prepareCommit = prepare;
+  }
+
+  function hasReportAuthority() {
+    return readReport !== null && prepareCommit !== null;
+  }
+
+  function liveReport(reportId, personaId) {
+    if (!readReport) {
+      throw new SignError("E_REPORT_AUTHORITY_UNAVAILABLE", 503, "the server report authority is unavailable");
+    }
+    const report = readReport(reportId);
+    if (!report) throw new SignError("E_REPORT_NOT_FOUND", 404, `no such report: ${reportId}`);
+    if (report.owner !== personaId) {
+      throw new SignError("E_REPORT_FORBIDDEN", 403, `report ${reportId} is not owned by ${personaId}`);
+    }
+    if (report.status !== "draft") {
+      throw new SignError("E_REPORT_NOT_DRAFT", 409, `report ${reportId} is ${report.status}`);
+    }
+    return authoritativeReport(report, { reportId });
+  }
 
   function releaseReport(reportId, requestId) {
     if (openByReport.get(reportId) === requestId) openByReport.delete(reportId);
@@ -361,20 +391,18 @@ export function createSignGate({
   }
 
   /**
-   * open({sessionId, personaId, personaName, reportId, report, worstCase,
+   * open({sessionId, personaId, personaName, reportId, worstCase,
    *       violationHistoryCount}) -> { signRequest, ticket }
    *
-   * The caller supplies report content, but the gate owns every authority
-   * field around it: revision, owner, policy identity, converted USD totals
-   * and verdict. Legacy clients may still send those names to the HTTP route;
-   * server/index.mjs deliberately never forwards them here.
+   * Report content, provenance, receipt metadata and revision come only from
+   * the injected server report reader. The caller supplies an id and optional
+   * presentation text, never a document to sign.
    */
   function open({
     sessionId,
     personaId,
     personaName,
     reportId,
-    report,
     worstCase,
     violationHistoryCount,
   }) {
@@ -388,8 +416,7 @@ export function createSignGate({
     // no longer come from a request body at all. authoritativeReport() below
     // performs the deeper report-shape projection before digesting.
     const problems = [];
-    if (reportId === undefined) problems.push("report_id");
-    if (report === undefined) problems.push("report");
+    if (typeof reportId !== "string" || !reportId) problems.push("report_id");
     if (problems.length > 0) {
       throw new SignError("E_BAD_SIGN_REQUEST", 400, `missing field(s): ${problems.join(", ")}`);
     }
@@ -413,8 +440,8 @@ export function createSignGate({
     locks.assertUnlocked(reportId);
 
     const servedPolicy = getServedPolicy();
-    const revision = locks.currentRevision(reportId);
-    const signedReport = authoritativeReport(report, { reportId, personaId, revision });
+    const signedReport = liveReport(reportId, personaId);
+    const revision = signedReport.revision;
     const verdict = evaluateVerdict(signedReport, {
       personaId,
       personaName,
@@ -679,16 +706,8 @@ export function createSignGate({
       );
     }
 
-    // The fallback covers synthetic tests and pre-store callers only. A real
-    // HTTP report always resolves through getLiveReport, and both paths still
-    // pass through the same server-owned projection and policy evaluation.
-    const liveSource = getLiveReport(rec.report_id) ?? rec.snapshot.report;
-    const liveReport = authoritativeReport(liveSource, {
-      reportId: rec.report_id,
-      personaId: rec.persona_id,
-      revision: locks.currentRevision(rec.report_id),
-    });
-    const liveVerdict = evaluateVerdict(liveReport, {
+    const currentReport = liveReport(rec.report_id, rec.persona_id);
+    const liveVerdict = evaluateVerdict(currentReport, {
       personaId: rec.persona_id,
       personaName: rec.persona_name,
       servedPolicy,
@@ -705,7 +724,7 @@ export function createSignGate({
     // S6: report and verdict are rebuilt together before treating anything
     // as committed. GIVEN a single server instance, synchronous with no await
     // between the fetch and the comparison — true by construction.
-    const recon = reconcile(rec.snapshot, liveReport, liveVerdict);
+    const recon = reconcile(rec.snapshot, currentReport, liveVerdict);
     if (!recon.ok) {
       throw new SignError(
         "E_SNAPSHOT_MISMATCH",
@@ -748,11 +767,26 @@ export function createSignGate({
       },
     };
 
+    if (!prepareCommit) {
+      throw new SignError("E_REPORT_AUTHORITY_UNAVAILABLE", 503, "the server report commit authority is unavailable");
+    }
+    const publishReport = prepareCommit({
+      reportId: rec.report_id,
+      expectedRevision: rec.revision,
+      artifact: result.artifact,
+      signedBy: rec.signed_by,
+      submittedAt: chainEntry.at,
+    });
+    if (typeof publishReport !== "function") {
+      throw new SignError("E_REPORT_AUTHORITY_UNAVAILABLE", 503, "the server report commit authority did not prepare a transition");
+    }
+
     // Publication begins only after the complete result above exists. None
     // of the code below canonicalises data or builds provenance/response
     // objects, so a construction error cannot leave a committed chain entry
     // paired with an HTTP failure.
     chain.appendPrepared(chainEntry);
+    publishReport();
     confirmCounter = nextConfirmCounter;
     rec.state = "committed";
     releaseReport(rec.report_id, rec.request_id);
@@ -760,9 +794,21 @@ export function createSignGate({
     return result;
   }
 
-  // `locks` is exposed so a real write route (S2/S4, not this node) shares
-  // THIS gate's own lock/revision instance rather than accidentally
-  // constructing a second one that would never see these acquire/release
-  // calls. `chain` is exposed the same way, for GET /api/daybook (S7).
-  return { open, get, respond, continueTicket, commit, peekConfirmTokenForDialog, peekOpenRequestId, locks, chain };
+  // `locks` is exposed so every real write route shares THIS gate's lock
+  // instance rather than constructing a second one that would never see
+  // these acquire/release calls. Revision lives in the report aggregate.
+  // `chain` is exposed the same way, for GET /api/daybook (S7).
+  return {
+    open,
+    get,
+    respond,
+    continueTicket,
+    commit,
+    peekConfirmTokenForDialog,
+    peekOpenRequestId,
+    setReportAuthority,
+    hasReportAuthority,
+    locks,
+    chain,
+  };
 }

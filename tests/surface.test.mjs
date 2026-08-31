@@ -2,15 +2,43 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
-import { makeWorld, names, buildCleanReport } from "./helpers.mjs";
+import { makeWorld, names, buildCleanReport, createLocalApi } from "./helpers.mjs";
 import { createErp } from "../src/erp.js";
+import { createApiClient } from "../src/page/api-client.js";
 import { createToolset, DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
 import { digest } from "../src/canonical.js";
 
 function makeApiWorld({ requestSignature, fetchImpl }) {
   const now = () => new Date(2026, 7, 28, 10, 0, 0);
   const erp = createErp({ now });
-  const toolset = createToolset(erp, { requestSignature, fetchImpl });
+  const localApi = createLocalApi(erp);
+  const remoteApi = createApiClient({ fetchImpl });
+  const commits = new Map();
+  const api = {
+    ...localApi,
+    async commitReport(reportId, requestId, signal) {
+      const result = await remoteApi.commitReport(reportId, requestId, signal);
+      if (result.ok && result.body?.status === "committed") commits.set(reportId, result.body);
+      return result;
+    },
+    async getReport(reportId) {
+      const payload = await localApi.getReport(reportId);
+      const committed = commits.get(reportId);
+      if (committed) {
+        payload.report.status = "submitted";
+        payload.report.submitted_at = committed.chain_entry?.at ?? null;
+        payload.report.signature = {
+          signedBy: committed.chain_entry?.actor ?? null,
+          at: committed.chain_entry?.at ?? null,
+        };
+        payload.report.artifact = committed.artifact;
+        payload.report.revision = committed.committed_revision;
+      }
+      return payload;
+    },
+    dayBook: (signal) => remoteApi.dayBook(signal),
+  };
+  const toolset = createToolset(erp, { requestSignature, api });
   return {
     erp,
     toolset,
@@ -181,7 +209,11 @@ test("submit commits the signed request on the server and renders only server co
   assert.equal(calls[0].url, `/api/reports/${reportId}/commit`);
   assert.equal(calls[0].init.method, "POST");
   assert.equal(calls[0].init.credentials, "include");
-  assert.deepEqual(JSON.parse(calls[0].init.body), { report_id: reportId, request_id: requestId });
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    schema: "outpocket.commit_request/1",
+    report_id: reportId,
+    request_id: requestId,
+  });
   assert.match(text, /Confirmation CH-9007/);
   assert.match(text, /server revision 41/);
   assert.match(text, /7\/11 field\(s\) filled via agent tools/);

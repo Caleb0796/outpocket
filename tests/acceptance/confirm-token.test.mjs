@@ -14,22 +14,18 @@
 //       READ IT — otherwise clause 2 is satisfied by there being no token
 //       to leak, which is not a control.
 //
-// THE BUG THIS FIXES: src/page/sign-install.js's browserDialogPort.present()
-// reads `awaiting.confirm_token` and `awaiting.request_id` — but
-// bridge.beginSign() (the tool-facing call) deliberately never carries
-// either (R-13/R-44's narrow {status, ticket}). So in the shipped page,
-// mountSignDialog() is always called with confirmToken:"" and
-// signRequest.request_id:null, and submitDecision() POSTs to
-// /api/sign/null/respond — the dialog CANNOT complete a signature. This
-// file proves the fix — server/sign.mjs's new GET
+// THE BUG THIS ORIGINALLY FIXED: browserDialogPort.present() read
+// confirm_token and request_id from bridge.beginSign(), even though that
+// tool-facing call deliberately carries only {status, ticket}. The current
+// installer instead obtains the dialog-only fields through openForDialog()
+// and keeps the tool result narrow. This file proves the underlying channel —
+// server/sign.mjs's GET
 // /api/sign/{request_id}/confirm-token route (session-scoped, NOT a
 // registered tool) plus src/page/sign-bridge.js's new openForDialog(),
 // which fetches both request_id and confirm_token through that same
 // legitimate channel — using the REAL F4 dialog code and a REAL running
-// server, never src/page/sign-install.js's own (still-buggy)
-// browserDialogPort, since fixing that file is UX's (F7's owner), not
-// this node's, to land — see this node's PIT for the exact line still
-// needed there.
+// server. tests/acceptance/sign-install.test.mjs separately covers the live
+// browserDialogPort wiring and the two-call coordinator.
 //
 // THE FAKE DOM: same approach as tests/acceptance/sign-dialog.test.mjs and
 // banner.test.mjs (no jsdom in this repo). Real addEventListener/
@@ -38,8 +34,6 @@
 // here vacuous.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { createApp } from "../../server/index.mjs";
 import { createSignGate, CONFIRM_TOKEN_RE } from "../../server/sign.mjs";
@@ -47,30 +41,11 @@ import { createSignBridge } from "../../src/page/sign-bridge.js";
 import { renderSignDialog, mountSignDialog, submitDecision, canConfirm } from "../../src/page/ui/sign-dialog.js";
 import { makeWorld, buildCleanReport, names } from "../helpers.mjs";
 
-const schemaPath = fileURLToPath(new URL("../../erp/contracts/signature.schema.json", import.meta.url));
-const SCHEMA = JSON.parse(readFileSync(schemaPath, "utf8"));
-
-function clone(v) {
-  return JSON.parse(JSON.stringify(v));
-}
-
-let nextReportId = 1;
-function freshReportId() {
-  return `RP-CT-${nextReportId++}`;
-}
-
-function openBody(reportId, overrides = {}) {
-  const ex = clone(SCHEMA.examples[0]);
+function openBody(reportId) {
   return {
     report_id: reportId,
-    revision: ex.revision,
-    policy_version: ex.policy_version,
-    policy_digest: ex.snapshot.policy_digest,
-    report: { ...ex.snapshot.report, id: reportId },
-    verdict: ex.snapshot.verdict,
-    worst_case: ex.worst_case,
-    violation_history_count: ex.violation_history_count,
-    ...overrides,
+    worst_case: "Submitting makes this report final.",
+    violation_history_count: 0,
   };
 }
 
@@ -173,12 +148,39 @@ function fetchWithCookie(base, cookie) {
   return (path, init = {}) => fetch(`${base}${path}`, { ...init, headers: { ...init.headers, Cookie: cookie } });
 }
 
+async function createDraft(fetchImpl) {
+  const created = await fetchImpl("/api/reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: "Confirm-token fixture", project: "FALCON" }),
+  });
+  const createdBody = await created.json();
+  assert.equal(created.status, 201, JSON.stringify(createdBody));
+  const reportId = createdBody.report_id;
+  const added = await fetchImpl(`/api/reports/${reportId}/lines`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      date: "2026-08-20",
+      merchant: "Heron Cafeteria",
+      category: "meals",
+      amount_cents: 1820,
+      currency: "USD",
+      attendees: 1,
+      description: "Lunch",
+    }),
+  });
+  const addedBody = await added.json();
+  assert.equal(added.status, 201, JSON.stringify(addedBody));
+  return reportId;
+}
+
 // ── (1) POSITIVE, END TO END ─────────────────────────────────────────────
 test("D-89 clause 1: the page obtains its own confirm_token, signs for real, and the report commits — peekConfirmTokenForDialog never appears in this path", async () => {
   await withApp(async (base) => {
     const cookie = await login(base, "chen");
     const fetchImpl = fetchWithCookie(base, cookie);
-    const reportId = freshReportId();
+    const reportId = await createDraft(fetchImpl);
     const bridge = createSignBridge({ fetchImpl, headers: { Cookie: cookie } });
     const doc = makeFakeDoc();
 
@@ -219,7 +221,7 @@ test("D-89 clauses 2+3: no tool on the real surface leaks confirm_token, while a
   await withApp(async (base) => {
     const cookie = await login(base, "chen");
     const fetchImpl = fetchWithCookie(base, cookie);
-    const reportId = freshReportId();
+    const reportId = await createDraft(fetchImpl);
     const bridge = createSignBridge({ fetchImpl, headers: { Cookie: cookie } });
     const doc = makeFakeDoc();
 

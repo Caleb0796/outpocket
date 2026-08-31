@@ -80,10 +80,9 @@ export const policyHandler = createPolicyHandler();
  * built under. Reuses verifyPolicyDocument rather than re-deriving the
  * digest a second way — one canonicaliser, one verification, two readers.
  * null when the load-time lock check itself failed (half (b): the server
- * is refusing to serve ANY policy), in which case there is nothing to
- * compare against and commit() must not fail closed on a null it cannot
- * interpret — see its own SKIP behaviour, same discipline as S6's
- * getLiveReport.
+ * is refusing to serve ANY policy). Sign open and commit both fail closed
+ * with E_POLICY_LOCK_FAILED when that verified identity is unavailable;
+ * neither policy nor live-report authority has a compatibility fallback.
  */
 export function getServedPolicy(document = POLICY_DOCUMENT, lock = readVersionLock()) {
   const verified = verifyPolicyDocument(document, lock);

@@ -140,20 +140,10 @@ check_route() {
 
 REPORT_ID=""
 LINE_ID=""
-SIGNATURE_EXAMPLE="$(jq -c '.examples[0]' erp/contracts/signature.schema.json)"
+RECEIPT_ID=""
 
 sign_open_body() {
-  jq -cn --arg rid "$1" --argjson ex "$SIGNATURE_EXAMPLE" '
-    {
-      report_id: $rid,
-      revision: $ex.revision,
-      policy_version: $ex.policy_version,
-      policy_digest: $ex.snapshot.policy_digest,
-      report: ($ex.snapshot.report + {id: $rid}),
-      verdict: $ex.snapshot.verdict,
-      worst_case: $ex.worst_case,
-      violation_history_count: $ex.violation_history_count
-    }'
+  jq -cn --arg rid "$1" '{report_id: $rid}'
 }
 
 i=0
@@ -185,11 +175,27 @@ while [ "$i" -lt "$ROUTE_COUNT" ]; do
           '{"merchant":"Updated Co"}' "200"
       fi
       ;;
+    "/api/ui/receipts")
+      check_route "$TOOL" "$METHOD" "/api/ui/receipts" \
+        '{"filename":"receipt.svg","size":321,"sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}' "201"
+      RECEIPT_ID="$(echo "$REPLY_BODY" | jq -r '.receipt.id')"
+      ;;
+    "/api/ui/reports/:report_id")
+      check_route "$TOOL" "$METHOD" "/api/ui/reports/$REPORT_ID" \
+        '{"title":"Boston workshop — corrected"}' "200"
+      ;;
+    "/api/ui/reports/:report_id/lines/:line_id")
+      check_route "$TOOL" "$METHOD" "/api/ui/reports/$REPORT_ID/lines/$LINE_ID" \
+        '{"attendees":2}' "200"
+      ;;
     "/api/reports/:report_id/lines/:line_id/receipt")
       check_route "$TOOL" "$METHOD" "/api/reports/$REPORT_ID/lines/$LINE_ID/receipt" \
-        '{"receipt_id":"rc_1"}' "200"
+        "$(jq -cn --arg receipt_id "$RECEIPT_ID" '{receipt_id:$receipt_id}')" "200"
       ;;
     "/api/sign")
+      out="$(do_req POST "/api/reports/$REPORT_ID/lines" "$CHEN_COOKIE" \
+        '{"date":"2026-08-20","merchant":"Sign Test Co","category":"meals","amount_cents":1500,"currency":"USD","attendees":1}')"
+      assert_eq "submit_expense_report setup: replacement clean line is accepted" "201" "$(echo "$out" | head -n1)"
       check_route "$TOOL" "$METHOD" "/api/sign" "$(sign_open_body "$REPORT_ID")" "200"
       ;;
     *)

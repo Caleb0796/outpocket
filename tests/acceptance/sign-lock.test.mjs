@@ -1,16 +1,8 @@
-// tests/acceptance/sign-lock.test.mjs — node S12, the report revision
-// counter and the atomic sign lock.
+// tests/acceptance/sign-lock.test.mjs — node S12, the atomic sign lock.
 //
-// NOTE ON SCOPE (matching kb/pits/S4.md's own precedent): `server/index.mjs`
-// has no report-content-mutation HTTP routes yet — S2 (per-request authz)
-// and S4's future write-route callers build those, downstream of this node.
-// Every one of those routes' first line will be `locks.assertUnlocked
-// (reportId)` (server/locks.mjs) — the exact function this file exercises
-// directly, over the real signGate.locks instance a real write route would
-// share. "curl to any mutating endpoint returns 423" is therefore proven
-// here as "the guard every future mutating endpoint must call throws 423
-// E_SIGN_IN_PROGRESS while a sign request is open, and stops throwing the
-// instant it is released" — the mechanism, not a fabricated stand-in route.
+// Report-content writes now run over the real HTTP routes. These tests prove
+// those routes and the sign gate share one lock, while revision remains in
+// the report aggregate rather than in a parallel lock-side counter.
 //
 // Proves:
 //   - locks.mjs's own API: acquire/release/assertUnlocked/isLocked, with the
@@ -18,48 +10,29 @@
 //   - expiry releases the lock (R-44's "advancing the clock past expires_at
 //     releases the lock and permits a new sign request"), through a real
 //     signGate + real HTTP server sharing one injected clock.
-//   - the revision counter is server-owned: a client's claimed revision is
-//     trusted only the first time a report_id is seen; `bumpRevision` (the
-//     stand-in for "an accepted mutation" — no such route exists yet) is
-//     what actually advances it, and every subsequently opened sign request
-//     carries that value, not whatever the client sends.
+//   - the revision is server-owned by the report aggregate and advances only
+//     through accepted report mutations.
 //   - the atomic pairing: two concurrent HTTP opens for the SAME report_id
 //     never both win, and a failed acquire leaves no residual lock state —
 //     genuine concurrency over real sockets, not a single-threaded assertion
 //     dressed up as one.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { createApp } from "../../server/index.mjs";
 import { createSignGate } from "../../server/sign.mjs";
 import { createReportLocks, LockError, LOCK_CODE, LOCK_HTTP } from "../../server/locks.mjs";
-
-const schemaPath = fileURLToPath(new URL("../../erp/contracts/signature.schema.json", import.meta.url));
-const SCHEMA = JSON.parse(readFileSync(schemaPath, "utf8"));
-
-function clone(v) {
-  return JSON.parse(JSON.stringify(v));
-}
 
 let nextReportId = 1;
 function freshReportId() {
   return `RP-LOCK-${nextReportId++}`;
 }
 
-/** A fresh, valid open-sign body, from erp/contracts/signature.schema.json examples[0]. */
 function openBody(reportId, overrides = {}) {
-  const ex = clone(SCHEMA.examples[0]);
   return {
     report_id: reportId,
-    revision: ex.revision,
-    policy_version: ex.policy_version,
-    policy_digest: ex.snapshot.policy_digest,
-    report: { ...ex.snapshot.report, id: reportId },
-    verdict: ex.snapshot.verdict,
-    worst_case: ex.worst_case,
-    violation_history_count: ex.violation_history_count,
+    worst_case: "Submitting makes this report final.",
+    violation_history_count: 0,
     ...overrides,
   };
 }
@@ -95,6 +68,30 @@ async function postJson(base, path, cookie, body) {
   });
   const json = await res.json().catch(() => null);
   return { status: res.status, body: json };
+}
+
+async function addLine(base, cookie, reportId, merchant) {
+  return postJson(base, `/api/reports/${reportId}/lines`, cookie, {
+    date: "2026-08-20",
+    merchant,
+    category: "meals",
+    amount_cents: 1820,
+    currency: "USD",
+    attendees: 1,
+    description: "Lunch",
+  });
+}
+
+async function createDraft(base, cookie) {
+  const created = await postJson(base, "/api/reports", cookie, {
+    title: "Lock fixture",
+    project: "FALCON",
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const reportId = created.body.report_id;
+  const added = await addLine(base, cookie, reportId, "Heron Cafeteria");
+  assert.equal(added.status, 201, JSON.stringify(added.body));
+  return { reportId, report: added.body.report };
 }
 
 /** What a real mutating write route (S2/S4, not this node) will do as its first line. */
@@ -162,24 +159,17 @@ test("expiry lazily releases the lock — an injectable clock, no timers", () =>
   assert.equal(locks.isLocked(reportId), true);
 });
 
-test("revision counter: seeded once from the caller, then server-owned — bumpRevision is the stand-in for an accepted mutation", () => {
+test("the lock object carries no parallel report revision authority", () => {
   const locks = createReportLocks();
-  const reportId = freshReportId();
-
-  assert.equal(locks.getRevision(reportId, 5), 5, "first sight seeds from the caller's claim");
-  assert.equal(locks.getRevision(reportId, 999), 5, "a later, different claim for the same report_id is ignored");
-
-  assert.equal(locks.bumpRevision(reportId), 6);
-  assert.equal(locks.bumpRevision(reportId), 7);
-  assert.equal(locks.getRevision(reportId, 0), 7, "the fallback is ignored once anything has been recorded");
+  assert.deepEqual(Object.keys(locks).sort(), ["acquire", "assertUnlocked", "isLocked", "release"]);
 });
 
 // ── R-44's literal clause, over a real signGate + real HTTP server ───────
-test("open() takes the report lock synchronously with the snapshot: a mutating request between open and the continuation call is refused 423 with a code field; commit release-and-reopen works", async () => {
+test("open() takes the report lock synchronously: a real mutation is refused 423, and decline releases it", async () => {
   const gate = createSignGate({ ttlMs: 5_000 });
   await withApp(gate, async (base) => {
-    const reportId = freshReportId();
     const cookie = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookie);
 
     const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(opened.status, 200);
@@ -191,6 +181,9 @@ test("open() takes the report lock synchronously with the snapshot: a mutating r
     assert.equal(guard.blocked, true);
     assert.equal(guard.status, 423);
     assert.deepEqual(guard.body, { error: "E_SIGN_IN_PROGRESS" });
+    const blockedWrite = await addLine(base, cookie, reportId, "Blocked Cafe");
+    assert.equal(blockedWrite.status, 423);
+    assert.equal(blockedWrite.body.error, "E_SIGN_IN_PROGRESS");
 
     // Decline releases it immediately (recovery path, not commit-only).
     const declined = await postJson(base, `/api/sign/${opened.body.sign_request.request_id}/respond`, cookie, {
@@ -207,6 +200,8 @@ test("open() takes the report lock synchronously with the snapshot: a mutating r
     });
     assert.equal(declined.status, 200);
     assert.equal(guardMutation(gate.locks, reportId).blocked, false, "decline frees the report lock");
+    const acceptedWrite = await addLine(base, cookie, reportId, "Released Cafe");
+    assert.equal(acceptedWrite.status, 201, JSON.stringify(acceptedWrite.body));
 
     // A fresh sign request can now be opened for the same report.
     const reopened = await postJson(base, "/api/sign", cookie, openBody(reportId));
@@ -219,8 +214,8 @@ test("expiry (server-owned clock) releases the lock and permits a new sign reque
   let clock = new Date(2026, 0, 1, 10, 0, 0);
   const gate = createSignGate({ now: () => clock, ttlMs: 5_000 });
   await withApp(gate, async (base) => {
-    const reportId = freshReportId();
     const cookie = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookie);
 
     const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(opened.status, 200);
@@ -234,19 +229,18 @@ test("expiry (server-owned clock) releases the lock and permits a new sign reque
   });
 });
 
-test("revision is carried in the sign request from the server's own counter, not the client's claim, once one accepted mutation has happened", async () => {
+test("revision is carried from the server aggregate and advances only after accepted mutations", async () => {
   const gate = createSignGate({ ttlMs: 5_000 });
   await withApp(gate, async (base) => {
-    const reportId = freshReportId();
     const cookie = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookie);
 
-    gate.locks.bumpRevision(reportId); // 1
-    gate.locks.bumpRevision(reportId); // 2
-    gate.locks.bumpRevision(reportId); // 3 — the stand-in for three accepted mutations
+    assert.equal((await addLine(base, cookie, reportId, "Second Cafe")).status, 201);
+    assert.equal((await addLine(base, cookie, reportId, "Third Cafe")).status, 201);
 
-    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId, { revision: 999 }));
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(opened.status, 200);
-    assert.equal(opened.body.sign_request.revision, 3, "the server's own count wins over the client's claimed revision");
+    assert.equal(opened.body.sign_request.revision, 3);
 
     const request_id = opened.body.sign_request.request_id;
     const sid = cookie.split("=")[1];
@@ -261,9 +255,10 @@ test("revision is carried in the sign request from the server's own counter, not
       confirm_token: gate.peekConfirmTokenForDialog(request_id, { sessionId: sid }),
     });
 
-    gate.locks.bumpRevision(reportId); // 4 — one more accepted mutation
+    const fourth = await addLine(base, cookie, reportId, "Fourth Cafe");
+    assert.equal(fourth.status, 201);
 
-    const reopened = await postJson(base, "/api/sign", cookie, openBody(reportId, { revision: 0 }));
+    const reopened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(reopened.status, 200);
     assert.equal(reopened.body.sign_request.revision, 4, "the counter's new value is carried automatically into the next sign request");
   });
@@ -279,9 +274,9 @@ test("revision is carried in the sign request from the server's own counter, not
 test("two concurrent opens for the SAME report_id never both win, and the loser leaves no residual lock", async () => {
   const gate = createSignGate({ ttlMs: 30_000 });
   await withApp(gate, async (base) => {
-    const reportId = freshReportId();
     const cookieA = await login(base, "chen");
     const cookieB = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookieA);
 
     const [a, b] = await Promise.all([
       postJson(base, "/api/sign", cookieA, openBody(reportId)),

@@ -4,14 +4,10 @@
 // DOM-only, S5's bridge is DOM-free, and nothing joined them. Three modules
 // each scoped correctly; the seam belonged to no node.
 //
-// WHAT THIS FILE IS CAREFUL ABOUT. A test that shows the provider was INSTALLED
-// proves a path exists and says nothing about whether the human's decision is
-// consulted — PRESENT IS NOT USEFUL. So the dialog is stubbed twice, to APPROVE
-// and to DECLINE, against the SAME wire, and the two outcomes must differ by a
-// named reason. And there is a negative control: with the provider not
-// installed, the same submit must fall back to register.js's safe default, so
-// that the passing cases are attributable to the wiring rather than to anything
-// that would have happened anyway.
+// The shipped client abandons a suspended execute around 22 seconds. These
+// tests therefore drive the real two-call contract: the first tool call mounts
+// the dialog and returns an awaiting ticket, and a later call reads the
+// server-owned decision. A single-call test would encode the production bug.
 //
 // Everything here is real except the dialog: a real http server, S1's real
 // session cookie, S5's real sign gate and bridge, T2's real registry and its
@@ -25,6 +21,7 @@ import { createServer } from "node:http";
 import { createApp } from "../../server/index.mjs";
 import { createSignGate } from "../../server/sign.mjs";
 import { createSignBridge, SIGN_MODE } from "../../src/page/sign-bridge.js";
+import { createApiClient } from "../../src/page/api-client.js";
 import { registry } from "../../src/page/register.js";
 import {
   installSignatureProvider, createSignatureProvider, buildOpenBody,
@@ -34,6 +31,7 @@ import {
 const erp = registry.erp;
 
 async function withApp(signGate, fn) {
+  const previousApi = { ...registry.api };
   const app = createApp({ signGate });
   const server = createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
@@ -41,6 +39,7 @@ async function withApp(signGate, fn) {
   try {
     await fn(`http://127.0.0.1:${port}`);
   } finally {
+    Object.assign(registry.api, previousApi);
     await new Promise((resolve) => server.close(resolve));
   }
 }
@@ -55,55 +54,60 @@ async function login(base, persona = "chen") {
 }
 const cookieToSid = (pair) => pair.split("=")[1];
 
-/** Drive the real ERP to a CLEAN open draft, so submit_expense_report exists. */
-function cleanDraft() {
+/** Create a clean server draft and cache its projection in the page model. */
+async function cleanDraft(base, cookie) {
   erp.signIn("chen");
-  const report = erp.createReport({ title: "Boston client workshop", project: "FALCON" }, "human");
-  erp.openReport(report.id, "human");
-  erp.addLine({
+  const api = createApiClient({ baseUrl: base, headers: { Cookie: cookie } });
+  Object.assign(registry.api, api);
+  const created = await api.createReport({ title: "Boston client workshop", project: "FALCON" });
+  const added = await api.addLine(created.report.id, {
     date: "2026-08-20", merchant: "Blue Bottle", category: "meals",
     amount: 12.00, currency: "USD", attendees: 1, description: "Coffee with the client",
-  }, "human");
-  return report;
+  });
+  erp.adoptServerReceipts(added.receipts);
+  return erp.adoptServerReport(added.report, { open: true, provenance: added.provenance });
 }
 
 /**
- * A stubbed dialog. On approve it does what F4's dialog does in the page: POST
- * the decision to /api/sign/{id}/respond. It reads request_id and confirm_token
- * through server/sign.mjs's peekOpenRequestId / peekConfirmTokenForDialog,
- * which that file documents as THE TEST-ONLY STAND-IN for reading the rendered
- * dialog's DOM. Nothing here invents a second delivery channel.
+ * A stubbed page port. It only records that the dialog was mounted; the test's
+ * explicit respond() below stands in for the human clicking the rendered DOM.
  */
-function stubDialog({ approve, gate, sid, base, cookie, reportId, reason = null }) {
+function stubDialog() {
   const seen = [];
+  const finished = [];
   return {
     seen,
-    async present(context) {
-      seen.push(context);
-      if (!approve) return { approved: false, reason: reason ?? REASONS.DECLINED };
-
-      const requestId = gate.peekOpenRequestId(reportId, { sessionId: sid });
-      const confirmToken = gate.peekConfirmTokenForDialog(requestId, { sessionId: sid });
-      const rec = gate.get(requestId, { sessionId: sid });
-
-      const res = await fetch(`${base}/api/sign/${requestId}/respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: cookie },
-        body: JSON.stringify({
-          schema: "outpocket.sign_respond_request/1",
-          request_id: requestId,
-          decision: "signed",
-          reason: null,
-          method: "click",
-          acknowledged_digest: rec.snapshot_digest,
-          acknowledged_revision: rec.revision,
-          confirm_token: confirmToken,
-        }),
-      });
-      assert.equal(res.status, 200, "the stubbed dialog's respond must be accepted");
-      return { approved: true };
-    },
+    finished,
+    available: () => true,
+    async present(context) { seen.push(context); return { mounted: true }; },
+    finish(result) { finished.push(result); },
   };
+}
+
+async function respond({ gate, sid, base, cookie, reportId, decision, reason = null }) {
+  const requestId = gate.peekOpenRequestId(reportId, { sessionId: sid });
+  const confirmToken = gate.peekConfirmTokenForDialog(requestId, { sessionId: sid });
+  const rec = gate.get(requestId, { sessionId: sid });
+  const res = await fetch(`${base}/api/sign/${requestId}/respond`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({
+      schema: "outpocket.sign_respond_request/1",
+      request_id: requestId,
+      decision,
+      reason,
+      method: "click",
+      acknowledged_digest: rec.snapshot_digest,
+      acknowledged_revision: rec.revision,
+      confirm_token: confirmToken,
+    }),
+  });
+  assert.equal(res.status, 200, "the stubbed human decision must be accepted");
+  return { requestId, body: await res.json() };
+}
+
+function textOf(result) {
+  return result?.content?.[0]?.text ?? "";
 }
 
 // ── clause 1: installed exactly once ────────────────────────────────────────
@@ -116,7 +120,7 @@ test("the provider is installed EXACTLY ONCE — not zero, and not once per regi
     erp,
   };
   const bridge = createSignBridge({ baseUrl: "http://127.0.0.1:1" });
-  const dialogPort = { present: async () => ({ approved: false }) };
+  const dialogPort = { present: async () => ({ mounted: true }) };
 
   const first = installSignatureProvider({ registry: fakeRegistry, bridge, dialogPort });
   assert.equal(first.installed, true);
@@ -133,47 +137,57 @@ test("the provider is installed EXACTLY ONCE — not zero, and not once per regi
 
 // ── clause 2: the wire carries a DECISION, not merely a path ────────────────
 
-test("APPROVE: an agent's submit_expense_report completes, and the result carries S5's ticket", async () => {
+test("SIGN: the first tool call returns promptly, reuses one ticket, and a later call commits once", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     resetInstallForTests();
     const cookie = await login(base);
     const sid = cookieToSid(cookie);
-    const report = cleanDraft();
+    const report = await cleanDraft(base, cookie);
+    const realCommit = registry.api.commitReport;
+    let commitCalls = 0;
+    registry.api.commitReport = (...args) => {
+      commitCalls++;
+      return realCommit(...args);
+    };
 
-    // THE REAL TOOL, NOT THE PROVIDER DIRECTLY. The accept says an
-    // AGENT-INITIATED submit_expense_report completes, so this goes through
+    // THE REAL TOOL, NOT THE PROVIDER DIRECTLY. Both calls go through
     // registry.executeTool and therefore through compile.js's double lock,
-    // output budget and error path — the same dispatch a real agent's call
-    // takes. Calling the provider directly would prove the provider works and
+    // output budget and error path — the same dispatch a real agent's calls
+    // take. Calling the provider directly would prove the provider works and
     // say nothing about whether register.js ever reaches it.
     assert.equal(registry.state(), "S3");
     assert.ok(registry.names().includes("submit_expense_report"));
 
     const bridge = createSignBridge({ baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } });
-    const dialog = stubDialog({ approve: true, gate, sid, base, cookie, reportId: report.id });
+    const dialog = stubDialog();
 
     const install = installSignatureProvider({ registry, bridge, dialogPort: dialog, erp });
     assert.equal(install.installed, true);
     try {
-      const result = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
-      const text = result?.content?.[0]?.text ?? "";
-
-      assert.match(text, /Signed and submitted/i,
-        `the agent's submit must complete once the human approved, got: ${JSON.stringify(text)}`);
+      const started = Date.now();
+      const first = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
+      const elapsed = Date.now() - started;
+      const awaiting = JSON.parse(textOf(first));
+      assert.ok(elapsed < 2000, `first call suspended for ${elapsed}ms`);
+      assert.equal(awaiting.status, "awaiting_signature");
+      assert.match(awaiting.ticket, /^tk_[0-9a-f]{32}$/);
+      assert.doesNotMatch(textOf(first), /confirm_token|ct_|snapshot|sha256|revision|sg_/i);
       assert.equal(dialog.seen.length, 1, "the dialog must have been consulted exactly once");
 
-      // the ticket from S5's continueSign reached the provider's result
-      const ctx = dialog.seen[0];
-      assert.match(ctx.opened.ticket, /^tk_[0-9a-f]{32}$/, "S5's ticket did not reach the dialog");
+      const stillWaiting = JSON.parse(textOf(
+        await registry.executeTool("submit_expense_report", {}, { source: "agent" })));
+      assert.deepEqual(stillWaiting, awaiting, "a repeat call must reuse the same server record");
+      assert.equal(dialog.seen.length, 1, "a repeat call opened a second dialog/sign request");
 
-      // and the server recorded the human step
-      // the report actually left draft — the submit was performed, not merely
-      // reported. (openReportOrNull() still returns the report after a submit;
-      // it is the STATUS that moves, which is why this asserts on status.)
-      assert.notEqual(erp.openReportOrNull()?.status, "draft",
-        "the report is still a draft, so nothing was actually submitted");
+      await respond({ gate, sid, base, cookie, reportId: report.id, decision: "signed" });
+      const completed = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
+      assert.match(textOf(completed), /Signed and submitted/i);
+      assert.doesNotMatch(textOf(completed), /confirm_token|ct_[0-9a-f]/i);
+      assert.equal(commitCalls, 1, "the signed continuation must commit exactly once");
+      assert.equal(erp.openReportOrNull()?.status, "submitted");
       assert.ok(erp.openReportOrNull()?.signature, "no signature was recorded on the report");
+      assert.equal(dialog.finished.at(-1)?.kind, "committed");
     } finally {
       install.uninstall?.();
       resetInstallForTests();
@@ -181,32 +195,47 @@ test("APPROVE: an agent's submit_expense_report completes, and the result carrie
   });
 });
 
-test("DECLINE: the SAME wire refuses, and the two outcomes differ by a NAMED reason", async () => {
+test("SEND BACK: the second call reads the server decline, does not commit, and restores S3", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     resetInstallForTests();
     const cookie = await login(base);
-    const report = cleanDraft();
+    const sid = cookieToSid(cookie);
+    const report = await cleanDraft(base, cookie);
+    const realCommit = registry.api.commitReport;
+    let commitCalls = 0;
+    registry.api.commitReport = (...args) => {
+      commitCalls++;
+      return realCommit(...args);
+    };
 
     const bridge = createSignBridge({ baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } });
-    const dialog = stubDialog({ approve: false, gate, base, cookie, reportId: report.id,
-      reason: "the meal total looks wrong to me" });
+    const dialog = stubDialog();
+    const install = installSignatureProvider({ registry, bridge, dialogPort: dialog, erp });
+    try {
+      const first = JSON.parse(textOf(await registry.executeTool("submit_expense_report", {}, { source: "agent" })));
+      assert.equal(first.status, "awaiting_signature");
 
-    const provider = createSignatureProvider({ bridge, dialogPort: dialog, erp });
-    const decision = await provider({
-      reportId: report.id, title: report.title, project: report.project,
-      totalUsd: "12.00", warnings: 0, approver: "Dana Whitfield", lines: [],
-    });
-
-    assert.equal(decision.signed, false, "a declined dialog must not produce a signature");
-    assert.equal(decision.reason, "the meal total looks wrong to me",
-      "the refusal must carry the human's own named reason, not a generic one");
-    assert.equal(dialog.seen.length, 1, "the dialog must be consulted on the decline path too");
-    resetInstallForTests();
+      await respond({
+        gate, sid, base, cookie, reportId: report.id, decision: "declined",
+        reason: "the meal total looks wrong to me",
+      });
+      const declined = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
+      assert.match(textOf(declined), /sent it back/i);
+      assert.match(textOf(declined), /meal total looks wrong/i);
+      assert.doesNotMatch(textOf(declined), /confirm_token|ct_[0-9a-f]/i);
+      assert.equal(commitCalls, 0, "a declined continuation must not call commit");
+      assert.equal(erp.openReportOrNull()?.status, "draft");
+      assert.equal(registry.state(), "S3");
+      assert.equal(dialog.finished.at(-1)?.kind, "declined");
+    } finally {
+      install.uninstall?.();
+      resetInstallForTests();
+    }
   });
 });
 
-test("the two outcomes are produced by the SAME wire and DIFFER — present is not useful", async () => {
+test("the provider obtains both outcomes from continueSign, never from the dialog port", async () => {
   // Both arms in one test, sharing one provider factory and one bridge
   // construction, so the difference cannot be attributed to anything but the
   // dialog's answer.
@@ -216,17 +245,25 @@ test("the two outcomes are produced by the SAME wire and DIFFER — present is n
     const cookie = await login(base);
     const sid = cookieToSid(cookie);
 
-    const mk = (approve, reportId, reason) => createSignatureProvider({
+    const mk = () => createSignatureProvider({
       bridge: createSignBridge({ baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } }),
-      dialogPort: stubDialog({ approve, gate, sid, base, cookie, reportId, reason }),
+      dialogPort: stubDialog(),
       erp,
     });
 
-    const r1 = cleanDraft();
-    const approved = await mk(true, r1.id)({ reportId: r1.id, approver: "Dana Whitfield", lines: [], warnings: 0 });
+    const r1 = await cleanDraft(base, cookie);
+    const signedProvider = mk();
+    const signedSummary = { reportId: r1.id, personaId: "chen", approver: "Dana Whitfield", lines: [], warnings: 0 };
+    assert.equal((await signedProvider(signedSummary)).status, "awaiting_signature");
+    await respond({ gate, sid, base, cookie, reportId: r1.id, decision: "signed" });
+    const approved = await signedProvider(signedSummary);
 
-    const r2 = cleanDraft();
-    const declined = await mk(false, r2.id, "sending this back")({ reportId: r2.id, approver: "Dana Whitfield", lines: [], warnings: 0 });
+    const r2 = await cleanDraft(base, cookie);
+    const declinedProvider = mk();
+    const declinedSummary = { reportId: r2.id, personaId: "chen", approver: "Dana Whitfield", lines: [], warnings: 0 };
+    assert.equal((await declinedProvider(declinedSummary)).status, "awaiting_signature");
+    await respond({ gate, sid, base, cookie, reportId: r2.id, decision: "declined", reason: "sending this back" });
+    const declined = await declinedProvider(declinedSummary);
 
     assert.notEqual(approved.signed, declined.signed);
     assert.equal(approved.signed, true);
@@ -244,8 +281,11 @@ test("NEGATIVE CONTROL — with NO provider installed, the same submit reaches r
   // is silently removed, submit_expense_report must visibly stop signing — and
   // this test is what fails first. An assertion that something CHANGED is only
   // as strong as the evidence it could have NOT changed.
-  resetInstallForTests();
-  const report = cleanDraft();
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    resetInstallForTests();
+    const cookie = await login(base);
+    await cleanDraft(base, cookie);
 
   // ASSERT THE PRECONDITION FIRST. Without this the control passes for the
   // WRONG REASON: my first draft used a string amount, toCents() returned null,
@@ -253,34 +293,34 @@ test("NEGATIVE CONTROL — with NO provider installed, the same submit reaches r
   // surface at all — so "the submit did not complete" was true and had nothing
   // to do with the provider. A negative control that can be satisfied by the
   // tool being absent is not a control.
-  assert.equal(registry.state(), "S3", "the fixture must be a CLEAN draft, or this control proves nothing");
-  assert.ok(registry.names().includes("submit_expense_report"),
-    "submit_expense_report must be ON the surface, or its refusal says nothing about the provider");
+    assert.equal(registry.state(), "S3", "the fixture must be a CLEAN draft, or this control proves nothing");
+    assert.ok(registry.names().includes("submit_expense_report"),
+      "submit_expense_report must be ON the surface, or its refusal says nothing about the provider");
 
   // registry.erp is the same ERP the toolset dispatches against; drive the real
   // tool, through the real double lock, with nothing installed.
-  const result = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
-  const text = result?.content?.[0]?.text ?? "";
+    const result = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
+    const text = result?.content?.[0]?.text ?? "";
 
-  assert.match(text, /sent it back/i,
-    "with no provider installed the submit must NOT complete");
-  assert.ok(text.includes("nobody to sign"),
-    `the refusal must be register.js's safe default, got: ${JSON.stringify(text)}`);
-  assert.equal(erp.openReportOrNull()?.status, "draft",
-    "the draft must stay editable when nobody signed");
+    assert.match(text, /sent it back/i,
+      "with no provider installed the submit must NOT complete");
+    assert.ok(text.includes("nobody to sign"),
+      `the refusal must be register.js's safe default, got: ${JSON.stringify(text)}`);
+    assert.equal(erp.openReportOrNull()?.status, "draft",
+      "the draft must stay editable when nobody signed");
+  });
 });
 
 // ── the open body ───────────────────────────────────────────────────────────
 
 test("buildOpenBody carries the worst case the dialog prints above the signature line", () => {
   const body = buildOpenBody(
-    { reportId: "RP-1018", approver: "Dana Whitfield", lines: [], warnings: 0 },
-    { erp: null, policy: { version: "2026.08.1", digest: "sha256:x" } });
+    { reportId: "RP-1018", approver: "Dana Whitfield", lines: [], warnings: 0 });
   assert.equal(body.report_id, "RP-1018");
   assert.ok(body.worst_case && body.worst_case.length > 0, "no worst case for F4 to print");
   assert.ok(body.worst_case.includes("Dana Whitfield"),
     "the consequence must name who approves it — a generic consequence is a ritual");
-  assert.equal(body.policy_version, "2026.08.1");
+  assert.deepEqual(Object.keys(body).sort(), ["report_id", "violation_history_count", "worst_case"]);
 });
 
 // ── browserDialogPort ───────────────────────────────────────────────────────
@@ -327,10 +367,9 @@ test("browserDialogPort passes the SERVER's sign_request and confirm_token to th
     },
   };
 
-  // present() never resolves until the human acts, so do not await it here.
-  port.present({ opened });
-  await new Promise((r) => setTimeout(r, 0));
+  const presented = await port.present({ opened });
 
+  assert.equal(presented.mounted, true);
   assert.equal(seen.length, 1, "the dialog was not mounted");
   const args = seen[0];
 
@@ -356,10 +395,63 @@ test("browserDialogPort refuses rather than mounting a dialog with no identity",
 
   for (const opened of [undefined, {}, { signRequest: {} }, { signRequest: { request_id: "" } }]) {
     const r = await port.present({ opened });
-    assert.equal(r.approved, false);
+    assert.equal(r.mounted, false);
     assert.match(r.reason, /could not be opened|nobody to sign/,
       `an unopened sign request must be refused with a reason, got ${JSON.stringify(r)}`);
   }
+});
+
+test("concurrent first calls share one open operation and one awaiting ticket", async () => {
+  let releaseOpen;
+  let openCalls = 0;
+  const opened = {
+    requestId: "sg_" + "a".repeat(16),
+    ticket: "tk_" + "b".repeat(32),
+    confirmToken: "ct_" + "c".repeat(32),
+    signRequest: { request_id: "sg_" + "a".repeat(16) },
+  };
+  const bridge = {
+    openForDialog: async () => {
+      openCalls++;
+      await new Promise((resolve) => { releaseOpen = resolve; });
+      return opened;
+    },
+    continueSign: async () => ({ status: "awaiting_signature", ticket: opened.ticket }),
+  };
+  const dialog = stubDialog();
+  const provider = createSignatureProvider({ bridge, dialogPort: dialog });
+  const summary = { reportId: "RP-1018", personaId: "chen", warnings: 0 };
+
+  const first = provider(summary);
+  const second = provider(summary);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(openCalls, 1);
+  releaseOpen();
+
+  assert.deepEqual(await first, await second);
+  assert.equal(dialog.seen.length, 1);
+});
+
+test("a signed continuation grants one commit claim until settle releases or completes it", async () => {
+  const opened = {
+    requestId: "sg_" + "a".repeat(16),
+    ticket: "tk_" + "b".repeat(32),
+    confirmToken: "ct_" + "c".repeat(32),
+    signRequest: { request_id: "sg_" + "a".repeat(16) },
+  };
+  const bridge = {
+    openForDialog: async () => opened,
+    continueSign: async () => ({ state: "answered", decision: "signed" }),
+  };
+  const provider = createSignatureProvider({ bridge, dialogPort: stubDialog() });
+  const summary = { reportId: "RP-1018", personaId: "chen", warnings: 0 };
+
+  assert.equal((await provider(summary)).status, "awaiting_signature");
+  const claimed = await provider(summary);
+  assert.equal(claimed.signed, true);
+  assert.equal((await provider(summary)).status, "submission_in_progress");
+  claimed.settle({ status: "retryable" });
+  assert.equal((await provider(summary)).signed, true);
 });
 
 test("createSignatureProvider REFUSES a bridge without openForDialog, rather than falling back", () => {

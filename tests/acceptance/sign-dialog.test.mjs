@@ -37,13 +37,15 @@ import {
   renderSignDialog, certificationSentence, certifiedFacts, respondBody,
   submitDecision, canConfirm, restartSignRequest, mountSignDialog,
   ALREADY_ANSWERED_TEXT, POLICY_UNAVAILABLE_TEXT,
+  SIGNED_RECORDED_TEXT, DECLINED_RECORDED_TEXT,
 } from "../../src/page/ui/sign-dialog.js";
 
 // ── the fake document ────────────────────────────────────────────────────────
 
 class FakeNode {
-  constructor(tag) {
+  constructor(tag, ownerDocument = null) {
     this.tagName = String(tag).toUpperCase();
+    this.ownerDocument = ownerDocument;
     this.attributes = new Map();
     this.children = [];
     this.parent = null;
@@ -96,20 +98,26 @@ class FakeNode {
   }
   dispatchEvent(ev) { for (const fn of this.listeners.get(ev.type) ?? []) fn(ev); return true; }
   click() { return this.dispatchEvent({ type: "click", target: this }); }
+  focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; }
+  showModal() { this.open = true; this.setAttribute("open", ""); }
+  close() { this.open = false; this.removeAttribute("open"); }
 }
 
-const fakeDoc = { createElement: (tag) => new FakeNode(tag) };
+const fakeDoc = {
+  activeElement: null,
+  createElement(tag) { return new FakeNode(tag, this); },
+};
 
 function fakeDocWithSignRegion() {
-  const region = new FakeNode("section");
-  region.setAttribute("data-region", "sign");
-  return {
-    doc: {
-      createElement: fakeDoc.createElement,
-      querySelector: (selector) => selector === '[data-region="sign"]' ? region : null,
-    },
-    region,
+  const doc = {
+    activeElement: null,
+    createElement(tag) { return new FakeNode(tag, this); },
+    querySelector: null,
   };
+  const region = new FakeNode("section", doc);
+  region.setAttribute("data-region", "sign");
+  doc.querySelector = (selector) => selector === '[data-region="sign"]' ? region : null;
+  return { doc, region };
 }
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
@@ -203,6 +211,20 @@ test("TWO DIFFERENT REPORTS PRODUCE DIFFERENT SENTENCES — a ritual would produ
   assert.ok(a.includes("RP-1018") && !a.includes("RP-1099"));
   assert.ok(b.includes("RP-1099") && !b.includes("RP-1018"));
   assert.ok(b.includes("1 line,"), "singular line count is not pluralised correctly");
+});
+
+test("the native dialog has an accessible name and description", () => {
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN });
+  const heading = root.querySelector(".sign-heading");
+  const consequence = root.querySelector("[data-worst-case]");
+  const status = root.querySelector("[data-sign-status]");
+
+  assert.equal(root.tagName, "DIALOG");
+  assert.equal(root.getAttribute("aria-labelledby"), heading.getAttribute("id"));
+  assert.deepEqual(root.getAttribute("aria-describedby").split(" "), [
+    consequence.getAttribute("id"), status.getAttribute("id"),
+  ]);
+  assert.equal(status.getAttribute("aria-live"), "polite");
 });
 
 // ── cannot be confirmed while empty: what the page DOES ─────────────────────
@@ -337,6 +359,42 @@ test("the confirm_token appears exactly once in the dialog and is not echoed int
   walk(root);
   assert.ok(!attrValues.includes(TOKEN), "the confirm_token was echoed into an attribute value");
   assert.ok(!root.textContent.includes(TOKEN), "the confirm_token is rendered as visible text");
+});
+
+test("signed and declined responses render different server-owned outcomes and clear the token", async () => {
+  for (const [decision, expected] of [
+    ["signed", SIGNED_RECORDED_TEXT],
+    ["declined", DECLINED_RECORDED_TEXT],
+  ]) {
+    const fetchImpl = spyFetch([{
+      status: 200,
+      payload: { schema: "outpocket.sign_response/1", state: "answered", decision },
+    }]);
+    const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+    await submitDecision(root, { signRequest: REPORT_A, decision, fetchImpl, doc: fakeDoc });
+
+    assert.equal(statusOf(root), expected);
+    assert.equal(root.querySelector("[data-confirm-token]").value, "");
+  }
+});
+
+test("two immediate decision clicks produce one POST and lock both buttons synchronously", async () => {
+  const fetchImpl = spyFetch([{
+    status: 200,
+    payload: { schema: "outpocket.sign_response/1", state: "answered", decision: "signed" },
+  }]);
+  const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
+  const confirm = root.querySelector("[data-sign-confirm]");
+  const decline = root.querySelector("[data-sign-decline]");
+
+  confirm.click();
+  assert.ok(confirm.hasAttribute("disabled"));
+  assert.ok(decline.hasAttribute("disabled"));
+  decline.click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(fetchImpl.calls.length, 1);
+  assert.equal(fetchImpl.calls[0].body.decision, "signed");
 });
 
 // ── R-34: the recovery ──────────────────────────────────────────────────────
@@ -510,7 +568,7 @@ test("CONTROL — success renders, while mounted policy loading uses the server 
   const fetchImpl = spyFetch([{ status: 200, payload: { state: "answered", decision: "signed" } }]);
   const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
   await submitDecision(root, { signRequest: REPORT_A, decision: "signed", fetchImpl, doc: fakeDoc });
-  assert.match(statusOf(root), /signed/i);
+  assert.equal(statusOf(root), SIGNED_RECORDED_TEXT);
   assert.ok(!/nothing was signed/i.test(statusOf(root)),
     "the success path must not read like a failure");
 
@@ -556,4 +614,36 @@ test("CONTROL — success renders, while mounted policy loading uses the server 
   assert.equal(refused.posted, false);
   assert.equal(refused.refused, "no-policy-version");
   assert.equal(unavailableFetch.calls.length, 1, "a signature POST escaped after the policy GET failed");
+});
+
+test("mounted dialog opens modally, blocks Escape, then closes and restores focus after a server decision", async () => {
+  const mountedDoc = fakeDocWithSignRegion();
+  const trigger = new FakeNode("button", mountedDoc.doc);
+  trigger.focus();
+  const fetchImpl = spyFetch([
+    { status: 200, payload: { version: "2026.08.1" } },
+    { status: 200, payload: { schema: "outpocket.sign_response/1", state: "answered", decision: "declined" } },
+  ]);
+  const root = mountSignDialog({
+    doc: mountedDoc.doc,
+    signRequest: REPORT_A,
+    confirmToken: TOKEN,
+    fetchImpl,
+  });
+  await root.policyVersionReady;
+
+  assert.equal(root.open, true);
+  assert.equal(mountedDoc.doc.activeElement, root.querySelector(".sign-heading"));
+  let prevented = false;
+  root.dispatchEvent({ type: "cancel", preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(root.open, true, "Escape must not silently close an open sign request");
+  assert.match(statusOf(root), /choose sign this report or send back instead/i);
+
+  root.querySelector("[data-sign-decline]").click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(root.open, false);
+  assert.equal(mountedDoc.region.querySelector("[data-sign-result]").textContent, DECLINED_RECORDED_TEXT);
+  assert.equal(mountedDoc.doc.activeElement, trigger);
 });

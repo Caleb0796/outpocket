@@ -11,23 +11,14 @@
 #            duplicate keys) PLUS the real content-change case. Five false
 #            positives would be as bad as the one false negative: an honest
 #            report reformatted in transit must NOT be rejected.
-#   PART 2 — the literal accept scenario over real HTTP: sign a snapshot,
-#            mutate one line through a second request, then commit — 409
-#            E_SNAPSHOT_MISMATCH, both digests in the response.
+#   PART 2 — prove the shipped HTTP routes stop mutation at the sign lock,
+#            then exercise re-canonicalisation independently against an
+#            intentionally mutable injected aggregate.
 #
-# PART 2's "second request" deliberately does NOT go through S2's real
-# report-content routes: those are gated by S12's lock (server/locks.mjs),
-# which already refuses any such request with 423 while a sign is open —
-# proven separately below, against the REAL, unmodified server. Routing
-# PART 2 through the locked routes would prove nothing about S6, since the
-# mutation would never reach live state for recanon to compare against.
-# What S6 is actually responsible for is the case S12's lock is not there
-# to catch — the TOCTOU window this node's charter calls "the only part of
-# the sign-gate that is actually ours" — so PART 2 uses a small test-only
-# bootstrap (below) that wires the REAL server/sign.mjs and server/
-# recanon.mjs to a report store that is NOT lock-gated, on purpose, to
-# exercise S6 as an independent layer rather than as a redundant echo of
-# S12.
+# The real report-content route is gated by S12 and returns 423 while signing.
+# A direct createSignGate test supplies the unlocked mutation needed to prove
+# S6 remains a separate layer. createApp always installs its own report reader,
+# so this test-only seam cannot replace the application aggregate.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -68,12 +59,12 @@ const base = {
 };
 
 function expectMatch(liveReport, label) {
-  const r = reconcile(base, liveReport);
+  const r = reconcile(base, liveReport, base.verdict);
   assert.equal(r.ok, true, label + ": expected the digest to match, it did not");
   console.log("ok: " + label);
 }
 function expectMismatch(liveReport, label) {
-  const r = reconcile(base, liveReport);
+  const r = reconcile(base, liveReport, base.verdict);
   assert.equal(r.ok, false, label + ": expected the digest to MISMATCH, it matched");
   console.log("ok: " + label);
 }
@@ -101,7 +92,7 @@ const nfd = "Café Co";      // e + combining acute, same glyph
 assert.notEqual(nfc, nfd, "test setup: the two encodings must differ as raw strings");
 const signedWithNfc = { ...base, report: { ...base.report, lines: [{ id: "ln_1", merchant: nfc, amount_cents: 1500 }] } };
 const liveWithNfd = { ...base.report, lines: [{ id: "ln_1", merchant: nfd, amount_cents: 1500 }] };
-const r3 = reconcile(signedWithNfc, liveWithNfd);
+const r3 = reconcile(signedWithNfc, liveWithNfd, signedWithNfc.verdict);
 assert.equal(r3.ok, true, "attack 3/5 (unicode NFC vs NFD): expected a match, it did not");
 console.log("ok: attack 3/5 (unicode NFC vs NFD) does not change the digest");
 
@@ -130,11 +121,11 @@ expectMismatch(
   "a genuine amount change IS caught",
 );
 
-// skipped: no live report at all (a report_id with no live-state entry).
-const rSkip = reconcile(base, null);
-assert.equal(rSkip.ok, true, "no live report: skipped, not a false mismatch");
-assert.equal(rSkip.skipped, true, "no live report: skipped must be true");
-console.log("ok: no live-state entry for this report_id is skipped, not falsely flagged");
+// Missing live state is never a successful reconciliation.
+const rMissing = reconcile(base, null);
+assert.equal(rMissing.ok, false, "no live report must not reconcile successfully");
+assert.equal(rMissing.skipped, false, "no live report must not be marked skipped");
+console.log("ok: no live-state entry for this report_id is a refusal, never a skipped success");
 NODE_EOF
 
 if node "$VECTORS_SCRIPT"; then
@@ -186,13 +177,8 @@ REAL_REPORT_ID="$(echo "$out" | tail -n +2 | jq -r '.report_id')"
 out="$(do_req "$REAL_BASE" POST "/api/reports/$REAL_REPORT_ID/lines" "$CHEN_REAL" '{"date":"2026-08-20","merchant":"Acme Co","category":"meals","amount_cents":1500,"currency":"USD"}')"
 REAL_LINE_ID="$(echo "$out" | tail -n +2 | jq -r '.line.id')"
 
-SIGNATURE_EXAMPLE="$(jq -c '.examples[0]' erp/contracts/signature.schema.json)"
 sign_open_body_real() {
-  jq -cn --arg rid "$1" --argjson ex "$SIGNATURE_EXAMPLE" '
-    { report_id: $rid, revision: $ex.revision, policy_version: $ex.policy_version,
-      policy_digest: $ex.snapshot.policy_digest, report: ($ex.snapshot.report + {id: $rid}),
-      verdict: $ex.snapshot.verdict, worst_case: $ex.worst_case,
-      violation_history_count: $ex.violation_history_count }'
+  jq -cn --arg rid "$1" '{report_id: $rid}'
 }
 out="$(do_req "$REAL_BASE" POST /api/sign "$CHEN_REAL" "$(sign_open_body_real "$REAL_REPORT_ID")")"
 real_sign_status="$(echo "$out" | head -n1)"
@@ -207,122 +193,70 @@ assert_eq "PART 2a: the lock's own code" "E_SIGN_IN_PROGRESS" "$(echo "$lock_bod
 cleanup_real
 trap - EXIT
 
-# ── PART 2b: the literal scenario — sign, mutate through an UNLOCKED second
-# request, submit, and get caught at commit. Custom bootstrap: a report
-# store that is NOT behind S12's lock, so the mutation in step 2 actually
-# reaches live state, which is exactly the case this node exists to cover.
-BOOTSTRAP_DIR="$(mktemp -d)"
-BOOTSTRAP_SCRIPT="$BOOTSTRAP_DIR/bootstrap.mjs"
-cat >"$BOOTSTRAP_SCRIPT" <<NODE_EOF
-import { createServer } from "node:http";
-import { createApp } from "$ROOT/server/index.mjs";
-import { createSignGate } from "$ROOT/server/sign.mjs";
+# ── PART 2b: exercise S6 independently with an injected mutable aggregate.
+# createApp always replaces a supplied gate's reader with its own aggregate;
+# this direct gate test is therefore the only intentional unlocked seam.
+MUTATION_DIR="$(mktemp -d)"
+MUTATION_SCRIPT="$MUTATION_DIR/mutation.mjs"
+cat >"$MUTATION_SCRIPT" <<NODE_EOF
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createSignGate, GENESIS_DIGEST } from "$ROOT/server/sign.mjs";
 
-// A report store deliberately outside S2/S12's reach — see toctou.sh's own
-// header comment for why: this is what S6 alone must catch.
-const reports = new Map();
-
-function sendJson(res, status, body) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(body));
-}
-
-const signGate = createSignGate({ requireConfirmToken: false, getLiveReport: (id) => reports.get(id) ?? null });
-const realApp = createApp({ signGate });
-
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url, "http://localhost");
-  if (req.method === "POST" && url.pathname === "/__test__/reports") {
-    const chunks = []; for await (const c of req) chunks.push(c);
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-    reports.set(body.id, body.report);
-    return sendJson(res, 201, { ok: true });
-  }
-  const mutateMatch = url.pathname.match(/^\\/__test__\\/reports\\/([^/]+)\\/mutate$/);
-  if (req.method === "POST" && mutateMatch) {
-    const chunks = []; for await (const c of req) chunks.push(c);
-    const patch = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-    const report = reports.get(mutateMatch[1]);
-    if (!report) return sendJson(res, 404, { error: "E_NOT_FOUND" });
-    const line = report.lines.find((l) => l.id === patch.line_id);
-    if (line && typeof patch.merchant === "string") line.merchant = patch.merchant;
-    return sendJson(res, 200, { ok: true, report });
-  }
-  return realApp(req, res);
+const schema = JSON.parse(readFileSync("$ROOT/erp/contracts/signature.schema.json", "utf8"));
+const reportId = "RP-TOCTOU-1";
+let liveReport = JSON.parse(JSON.stringify(schema.examples[0].snapshot.report));
+liveReport.id = reportId;
+let prepareCalls = 0;
+const gate = createSignGate({
+  requireConfirmToken: false,
+  getLiveReport: () => liveReport,
+  prepareReportCommit: () => {
+    prepareCalls += 1;
+    return () => {};
+  },
 });
-server.listen(0, () => console.log("listening on :" + server.address().port));
+const sessionId = "toctou-session";
+const { signRequest } = gate.open({
+  sessionId,
+  personaId: "chen",
+  personaName: "Chen Xiao",
+  reportId,
+});
+gate.respond({
+  requestId: signRequest.request_id,
+  sessionId,
+  decision: "signed",
+  reason: null,
+  method: "click",
+  acknowledgedDigest: signRequest.snapshot_digest,
+  acknowledgedRevision: signRequest.revision,
+});
+
+liveReport = JSON.parse(JSON.stringify(liveReport));
+liveReport.lines[0].merchant = "Tampered Co";
+let refusal;
+try {
+  gate.commit({ requestId: signRequest.request_id, reportId, sessionId });
+} catch (error) {
+  refusal = error;
+}
+assert.equal(refusal?.code, "E_SNAPSHOT_MISMATCH");
+assert.equal(refusal?.http, 409);
+assert.equal(refusal?.detail?.signed_digest, signRequest.snapshot_digest);
+assert.notEqual(refusal?.detail?.recomputed_digest, signRequest.snapshot_digest);
+assert.equal(prepareCalls, 0, "a mismatch must not prepare report publication");
+assert.deepEqual(gate.chain.list(), [], "a mismatch must append nothing");
+assert.equal(gate.chain.currentHead(), GENESIS_DIGEST, "a mismatch must not move the chain head");
+console.log("ok: PART 2b: an unlocked live mutation is refused with E_SNAPSHOT_MISMATCH before publication");
 NODE_EOF
 
-LOG_BOOT="$(mktemp)"
-node "$BOOTSTRAP_SCRIPT" >"$LOG_BOOT" 2>&1 &
-BOOT_PID=$!
-cleanup_boot() { kill "$BOOT_PID" >/dev/null 2>&1 || true; wait "$BOOT_PID" 2>/dev/null || true; rm -f "$LOG_BOOT"; rm -rf "$BOOTSTRAP_DIR"; }
-trap cleanup_boot EXIT
-
-BOOT_PORT=""
-for _ in $(seq 1 100); do
-  if grep -q "listening on :" "$LOG_BOOT" 2>/dev/null; then
-    BOOT_PORT="$(grep -o 'listening on :[0-9]*' "$LOG_BOOT" | grep -o '[0-9]*$')"
-    break
-  fi
-  sleep 0.05
-done
-if [ -z "$BOOT_PORT" ]; then
-  echo "FAIL: toctou bootstrap server never logged a listening port"
-  cat "$LOG_BOOT"
-  exit 1
+if node "$MUTATION_SCRIPT"; then
+  ok "PART 2b: independent re-canonicalisation test exited 0"
+else
+  fail "PART 2b: independent re-canonicalisation test exited nonzero"
 fi
-BOOT_BASE="http://127.0.0.1:$BOOT_PORT"
-
-CHEN_BOOT="$(login "$BOOT_BASE" chen)"
-REPORT_ID="RP-TOCTOU-1"
-LINE_ID="ln_1"
-LIVE_REPORT="$(jq -n --arg rid "$REPORT_ID" --arg lid "$LINE_ID" '{id:$rid, title:"T", lines:[{id:$lid, merchant:"Acme Co", amount_cents:1500}]}')"
-curl -s -X POST "$BOOT_BASE/__test__/reports" -H "Content-Type: application/json" \
-  -d "$(jq -cn --arg rid "$REPORT_ID" --argjson report "$LIVE_REPORT" '{id:$rid, report:$report}')" >/dev/null
-
-sign_open_body_boot() {
-  jq -cn --arg rid "$1" --argjson report "$2" --argjson ex "$SIGNATURE_EXAMPLE" '
-    { report_id: $rid, revision: 0, policy_version: $ex.policy_version,
-      policy_digest: $ex.snapshot.policy_digest, report: $report,
-      verdict: $ex.snapshot.verdict, worst_case: $ex.worst_case,
-      violation_history_count: $ex.violation_history_count }'
-}
-
-# step 1: sign the current, unmutated snapshot.
-out="$(do_req "$BOOT_BASE" POST /api/sign "$CHEN_BOOT" "$(sign_open_body_boot "$REPORT_ID" "$LIVE_REPORT")")"
-sign_status="$(echo "$out" | head -n1)"; sign_body="$(echo "$out" | tail -n +2)"
-assert_eq "PART 2b: sign opens" "200" "$sign_status"
-REQUEST_ID="$(echo "$sign_body" | jq -r '.sign_request.request_id')"
-SNAPSHOT_DIGEST="$(echo "$sign_body" | jq -r '.sign_request.snapshot_digest')"
-REVISION="$(echo "$sign_body" | jq -r '.sign_request.revision')"
-
-# step 2: sign it (requireConfirmToken:false in this bootstrap, per its own
-# header comment — never the shipped server's default).
-out="$(do_req "$BOOT_BASE" POST "/api/sign/$REQUEST_ID/respond" "$CHEN_BOOT" "$(jq -cn \
-  --arg rid "$REQUEST_ID" --arg dig "$SNAPSHOT_DIGEST" --argjson rev "$REVISION" \
-  '{schema:"outpocket.sign_respond_request/1", request_id:$rid, decision:"signed", reason:null, method:"click", acknowledged_digest:$dig, acknowledged_revision:$rev}')")"
-respond_status="$(echo "$out" | head -n1)"
-assert_eq "PART 2b: employee signs" "200" "$respond_status"
-
-# step 3: mutate ONE line through the second, unlocked request.
-out="$(curl -s -w '\n%{http_code}' -X POST "$BOOT_BASE/__test__/reports/$REPORT_ID/mutate" \
-  -H "Content-Type: application/json" -d "$(jq -cn --arg lid "$LINE_ID" '{line_id:$lid, merchant:"Tampered Co"}')")"
-mutate_status="$(echo "$out" | tail -n1)"
-assert_eq "PART 2b: the second request's mutation itself succeeds (this is the TOCTOU window)" "200" "$mutate_status"
-
-# step 4: submit — the server must catch it.
-out="$(do_req "$BOOT_BASE" POST "/api/reports/$REPORT_ID/commit" "$CHEN_BOOT" \
-  "$(jq -cn --arg rid "$REQUEST_ID" --arg report_id "$REPORT_ID" '{schema:"outpocket.commit_request/1", request_id:$rid, report_id:$report_id}')")"
-commit_status="$(echo "$out" | head -n1)"
-commit_body="$(echo "$out" | tail -n +2)"
-assert_eq "PART 2b: commit is refused" "409" "$commit_status"
-assert_eq "PART 2b: with code E_SNAPSHOT_MISMATCH" "E_SNAPSHOT_MISMATCH" "$(echo "$commit_body" | jq -r '.error.code')"
-signed_in_body="$(echo "$commit_body" | jq -r '.error.signed_digest')"
-recomputed_in_body="$(echo "$commit_body" | jq -r '.error.recomputed_digest')"
-assert_eq "PART 2b: the response carries the SIGNED digest" "$SNAPSHOT_DIGEST" "$signed_in_body"
-assert_not_eq "PART 2b: the response carries a DIFFERENT recomputed digest (the day book's two digests)" "$SNAPSHOT_DIGEST" "$recomputed_in_body"
-assert_not_eq "PART 2b: recomputed_digest is not null/empty" "null" "$recomputed_in_body"
+rm -rf "$MUTATION_DIR"
 
 echo "$FAILS failure(s)"
 if [ "$FAILS" -gt 0 ]; then exit 1; fi

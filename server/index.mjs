@@ -17,12 +17,18 @@ import { policyHandler, SERVED_POLICY } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
 import { createVersionHandler } from "./routes/version.mjs";
-import { createSignGate, SignError } from "./sign.mjs";
-import { authorizeWrite, AuthzError } from "./authz.mjs";
+import { createSignGate, evaluateServerVerdict, SignError } from "./sign.mjs";
+import {
+  authorizeWrite,
+  authorizeReportRead,
+  authorizeReportWrite,
+  AuthzError,
+} from "./authz.mjs";
 import { LockError } from "./locks.mjs";
-import { createReportStore, LINE_FIELDS } from "./store.mjs";
+import { createReportStore, LINE_FIELDS, StoreError } from "./store.mjs";
 import { verifyChain } from "./chain.mjs";
-import { toUsdCents } from "../src/policy.js";
+import { CATEGORIES, FX, toUsdCents } from "../src/policy.js";
+import { PERSONAS as ERP_PERSONAS } from "../src/erp.js";
 
 // S5's persona display names, read from F1's own file (server/personas.json)
 // rather than retyped — signed_by must resolve the same name F1 shows.
@@ -160,59 +166,51 @@ function sendJson(res, status, body) {
  */
 export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSignGate } = {}) {
   const sessions = new Map(); // sid -> persona id
-  const state = seedState(); // S9: deterministic on every boot, no clock, no RNG
   const reportStore = createReportStore();
-  for (const report of state.reports) reportStore.seedReport(report);
-  const stateDigestHandler = createStateDigestHandler(() => state);
+  reportStore.seed(seedState());
+  const stateDigestHandler = createStateDigestHandler(() => reportStore.stateProjection());
   const versionHandler = createVersionHandler(); // D1 (I4): GET /version
   const serveStatic = makeStaticHandler(pageRoot);
 
-  function findReport(reportId) {
-    return state.reports.find((r) => r.id === reportId) ?? null;
-  }
-
-  function findReceipt(receiptId) {
-    return state.receipts.find((receipt) => receipt.id === receiptId) ?? null;
-  }
-
   function reportProjection(reportId) {
-    const report = findReport(reportId);
-    const stored = reportStore.getReport(reportId);
-    if (!report || !stored) return null;
-    const storedLines = new Map(stored.lines.map((line) => [line.id, line]));
+    const report = reportStore.getReport(reportId);
+    if (!report) return null;
     const lines = report.lines.map((line) => {
-      const fields = storedLines.get(line.id)?.fields;
-      const value = (field, fallback = null) => fields?.[field]?.value ?? fallback;
-      const receiptId = value("receipt_id", line.receipt_id ?? line.receiptId ?? null);
-      const receipt = receiptId ? findReceipt(receiptId) : null;
-      const amountCents = value("amount", line.amount_cents ?? line.amountCents ?? null);
-      const currency = value("currency", line.currency ?? null);
+      const value = (field) => line.fields[field].value;
+      const receiptId = value("receipt_id");
+      const receipt = receiptId ? reportStore.getReceipt(receiptId) : null;
+      const amountCents = value("amount");
+      const currency = value("currency");
       return {
         amount_cents: amountCents,
-        attendees: value("attendees", line.attendees ?? null),
-        category: value("category", line.category ?? null),
+        attendees: value("attendees"),
+        category: value("category"),
         currency,
-        date: value("date", line.date ?? null),
-        description: value("description", line.description ?? null),
+        date: value("date"),
+        description: value("description"),
         id: line.id,
-        itemization: value("itemization", line.itemization ?? null),
-        merchant: value("merchant", line.merchant ?? null),
-        nights: value("nights", line.nights ?? null),
-        provenance: Object.fromEntries(LINE_FIELDS.map((field) => [field, fields?.[field]?.source ?? "unset"])),
+        itemization: value("itemization"),
+        merchant: value("merchant"),
+        nights: value("nights"),
+        provenance: Object.fromEntries(LINE_FIELDS.map((field) => [field, line.fields[field].source])),
         receipt_id: receiptId,
-        receipt_sha256: receipt?.sha256 ?? line.receipt_sha256 ?? null,
+        receipt_sha256: receipt?.sha256 ?? null,
         usd_cents: amountCents === null ? null : toUsdCents(amountCents, currency),
       };
     });
     return {
+      created_at: report.createdAt,
       id: report.id,
       lines,
       owner: report.owner,
-      project: stored.fields.project.value,
-      revision: signGate.locks.currentRevision(report.id),
+      project: report.fields.project.value,
+      revision: report.revision,
+      signature: report.signature,
       status: report.status,
-      title: stored.fields.title.value,
+      submitted_at: report.submittedAt,
+      title: report.fields.title.value,
       total_usd_cents: lines.reduce((total, line) => total + (line.usd_cents ?? 0), 0),
+      artifact: report.artifact,
     };
   }
 
@@ -226,12 +224,18 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     };
   }
 
-  // The production gate re-reads the same signed projection GET report
-  // returns: scalar report values plus the compact provenance sources from
-  // server/store.mjs. Tests may still inject a gate for clocks and failure
-  // paths; the HTTP open route below nevertheless sends it a server-built
-  // projection whenever the report exists here.
-  const signGate = providedSignGate ?? createSignGate({ getLiveReport: reportProjection, getServedPolicy: () => SERVED_POLICY });
+  const reportAuthority = {
+    getLiveReport: reportProjection,
+    prepareReportCommit: ({ reportId, expectedRevision, artifact, signedBy, submittedAt }) =>
+      reportStore.prepareSubmission(reportId, { expectedRevision, artifact, signedBy, submittedAt }),
+  };
+  const signGate = providedSignGate ?? createSignGate({
+    ...reportAuthority,
+    getServedPolicy: () => SERVED_POLICY,
+  });
+  if (providedSignGate) {
+    providedSignGate.setReportAuthority(reportAuthority);
+  }
 
   function sessionFromRequest(req) {
     const sid = parseCookies(req.headers.cookie).sid;
@@ -250,8 +254,114 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     throw err;
   }
 
+  function sendStoreError(res, err) {
+    if (err instanceof StoreError) return sendJson(res, err.http, { error: err.code, message: err.message });
+    throw err;
+  }
+
+  function unexpectedFields(body, allowed) {
+    return Object.keys(body).filter((key) => !allowed.includes(key));
+  }
+
+  function requireReportAccess(session, reportId, { write = false } = {}) {
+    const report = reportProjection(reportId);
+    if (!report) throw new StoreError("E_REPORT_NOT_FOUND", 404, "no such report");
+    if (write) authorizeReportWrite(session, report);
+    else authorizeReportRead(session, report);
+    return report;
+  }
+
+  function personaScope(personaId) {
+    return ERP_PERSONAS.find((persona) => persona.id === personaId) ?? null;
+  }
+
+  function parseLineFields(body, { partial = false } = {}) {
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new StoreError("E_BAD_REQUEST", 400, "line body must be a JSON object");
+    }
+    const allowed = [
+      "date", "merchant", "category", "amount_cents", "currency",
+      "attendees", "nights", "itemization", "description",
+    ];
+    const extra = unexpectedFields(body, allowed);
+    if (extra.length) throw new StoreError("E_BAD_REQUEST", 400, `unknown line field(s): ${extra.join(", ")}`);
+    if (partial && Object.keys(body).length === 0) {
+      throw new StoreError("E_BAD_REQUEST", 400, "line patch must change at least one field");
+    }
+    if (!partial) {
+      const missing = ["date", "merchant", "category", "amount_cents"].filter((key) => !Object.hasOwn(body, key));
+      if (missing.length) throw new StoreError("E_BAD_REQUEST", 400, `missing line field(s): ${missing.join(", ")}`);
+    }
+
+    const fields = {};
+    if (Object.hasOwn(body, "date")) {
+      if (typeof body.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+        throw new StoreError("E_BAD_REQUEST", 400, "date must be YYYY-MM-DD");
+      }
+      fields.date = body.date;
+    }
+    if (Object.hasOwn(body, "merchant")) {
+      if (typeof body.merchant !== "string" || !body.merchant.trim()) {
+        throw new StoreError("E_BAD_REQUEST", 400, "merchant must be a non-empty string");
+      }
+      fields.merchant = body.merchant.trim();
+    }
+    if (Object.hasOwn(body, "category")) {
+      const category = typeof body.category === "string" ? body.category.trim().toLowerCase() : "";
+      if (!CATEGORIES.includes(category)) {
+        throw new StoreError("E_BAD_REQUEST", 400, `category must be one of: ${CATEGORIES.join(", ")}`);
+      }
+      fields.category = category;
+    }
+    if (Object.hasOwn(body, "amount_cents")) {
+      if (!Number.isInteger(body.amount_cents) || body.amount_cents <= 0) {
+        throw new StoreError("E_BAD_REQUEST", 400, "amount_cents must be a positive integer");
+      }
+      fields.amount = body.amount_cents;
+    }
+    if (Object.hasOwn(body, "currency")) {
+      const currency = typeof body.currency === "string" ? body.currency.trim().toUpperCase() : "";
+      if (!Object.hasOwn(FX, currency)) {
+        throw new StoreError("E_BAD_REQUEST", 400, `currency must be one of: ${Object.keys(FX).join(", ")}`);
+      }
+      fields.currency = currency;
+    } else if (!partial) {
+      fields.currency = "USD";
+    }
+    for (const field of ["attendees", "nights"]) {
+      if (!Object.hasOwn(body, field)) continue;
+      if (body[field] !== null && (!Number.isInteger(body[field]) || body[field] < 1)) {
+        throw new StoreError("E_BAD_REQUEST", 400, `${field} must be null or an integer at least 1`);
+      }
+      fields[field] = body[field];
+    }
+    if (Object.hasOwn(body, "description")) {
+      if (body.description !== null && typeof body.description !== "string") {
+        throw new StoreError("E_BAD_REQUEST", 400, "description must be a string or null");
+      }
+      fields.description = typeof body.description === "string" ? body.description.trim() : null;
+    }
+    if (Object.hasOwn(body, "itemization")) {
+      if (body.itemization !== null && !Array.isArray(body.itemization)) {
+        throw new StoreError("E_BAD_REQUEST", 400, "itemization must be an array or null");
+      }
+      fields.itemization = body.itemization === null ? null : body.itemization.map((item, index) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) {
+          throw new StoreError("E_BAD_REQUEST", 400, `itemization[${index}] must be an object`);
+        }
+        const itemExtra = unexpectedFields(item, ["label", "amount_cents"]);
+        if (itemExtra.length || typeof item.label !== "string" || !item.label.trim()
+            || !Number.isInteger(item.amount_cents) || item.amount_cents <= 0) {
+          throw new StoreError("E_BAD_REQUEST", 400, `itemization[${index}] needs exactly label and positive amount_cents`);
+        }
+        return { label: item.label.trim(), amount_cents: item.amount_cents };
+      });
+    }
+    return fields;
+  }
+
   // S12's lock: while a sign request is open for report_id, every one of
-  // these six routes must refuse rather than mutate. Returns true (and has
+  // these report routes must refuse rather than mutate. Returns true (and has
   // already sent the 423 response) if the caller should stop.
   function blockedByLock(res, reportId) {
     try {
@@ -264,17 +374,21 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     }
   }
 
-  // ── S2/S8: report-content mutation plus field provenance ───────────────
-  // Each accepted HTTP write updates compact report content and the richer
-  // field ledger in one synchronous route statement. These endpoints are
-  // the named agent-tool routes in authz.mjs, so the server labels them as
-  // agent writes itself; it never accepts a client-authored source label.
-  function findLine(report, lineId) {
-    return report?.lines.find((l) => l.id === lineId) ?? null;
+  function agentWrite(tool) {
+    return { source: "agent", actor: "agent", tool };
   }
 
-  function agentWrite(tool, revision) {
-    return { source: "agent", actor: "agent", tool, revision };
+  function humanWrite(session) {
+    return { source: "human", actor: PERSONA_NAMES[session.personaId] ?? session.personaId, tool: null };
+  }
+
+  function reportPayload(reportId) {
+    const report = reportProjection(reportId);
+    return {
+      report,
+      provenance: provenanceProjection(reportId),
+      receipts: reportStore.listReceipts().filter((receipt) => receipt.owner === report.owner),
+    };
   }
 
   async function routeRequest(req, res) {
@@ -306,14 +420,163 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       return sendJson(res, 200, { persona: session.persona, role: session.role });
     }
 
+    if (req.method === "GET" && url.pathname === "/api/reports") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      const reports = reportStore.listReports()
+        .filter((report) => session.role === "auditor" || report.owner === session.personaId)
+        .map((report) => reportProjection(report.id));
+      return sendJson(res, 200, { reports });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/receipts") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      const receipts = reportStore.listReceipts()
+        .filter((receipt) => session.role === "auditor" || receipt.owner === session.personaId);
+      return sendJson(res, 200, { receipts });
+    }
+
     {
       const reportMatch = url.pathname.match(/^\/api\/reports\/([^/]+)$/);
       if (reportMatch && req.method === "GET") {
         const session = sessionFromRequest(req);
         if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
-        const report = reportProjection(reportMatch[1]);
-        if (!report) return sendJson(res, 404, { error: "E_REPORT_NOT_FOUND", message: "no such report" });
-        return sendJson(res, 200, { report, provenance: provenanceProjection(report.id) });
+        try {
+          const report = requireReportAccess(session, reportMatch[1]);
+          return sendJson(res, 200, reportPayload(report.id));
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
+      }
+    }
+
+    {
+      const validationMatch = url.pathname.match(/^\/api\/reports\/([^/]+)\/validation$/);
+      if (validationMatch && req.method === "GET") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          const report = requireReportAccess(session, validationMatch[1]);
+          const verdict = evaluateServerVerdict(report, {
+            personaId: report.owner,
+            personaName: PERSONA_NAMES[report.owner] ?? report.owner,
+            servedPolicy: SERVED_POLICY,
+            now: () => new Date(),
+          });
+          return sendJson(res, 200, { verdict, ...reportPayload(report.id) });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          if (err instanceof SignError) return sendSignError(res, err);
+          return sendStoreError(res, err);
+        }
+      }
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/ui/receipts") {
+      const session = sessionFromRequest(req);
+      if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+      try {
+        authorizeWrite(session);
+      } catch (err) {
+        return sendAuthzError(res, err);
+      }
+      const body = await readJsonBody(req);
+      const extra = body && typeof body === "object" && !Array.isArray(body)
+        ? unexpectedFields(body, ["filename", "size", "sha256"])
+        : [];
+      if (!body || typeof body !== "object" || Array.isArray(body)
+          || extra.length
+          || typeof body.filename !== "string" || !body.filename.trim()
+          || !Number.isInteger(body.size) || body.size < 0
+          || typeof body.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(body.sha256)) {
+        return sendJson(res, 400, {
+          error: "E_BAD_REQUEST",
+          message: "receipt metadata must contain exactly a non-empty filename, non-negative integer size, and lowercase SHA-256",
+        });
+      }
+      const receipt = reportStore.addReceipt({
+        owner: session.personaId,
+        filename: body.filename.trim(),
+        size: body.size,
+        sha256: body.sha256,
+      });
+      const receipts = reportStore.listReceipts().filter((entry) => entry.owner === session.personaId);
+      return sendJson(res, 201, { receipt, receipts });
+    }
+
+    {
+      const uiReportMatch = url.pathname.match(/^\/api\/ui\/reports\/([^/]+)$/);
+      if (uiReportMatch && req.method === "PATCH") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        let report;
+        try {
+          report = requireReportAccess(session, uiReportMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
+        if (blockedByLock(res, report.id)) return;
+        const body = await readJsonBody(req);
+        if (!body || typeof body !== "object" || Array.isArray(body)
+            || Object.keys(body).length === 0
+            || unexpectedFields(body, ["title", "project"]).length) {
+          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "report patch must contain only title or project" });
+        }
+        const patch = {};
+        if (Object.hasOwn(body, "title")) {
+          if (typeof body.title !== "string" || !body.title.trim()) {
+            return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "title must be a non-empty string" });
+          }
+          patch.title = body.title.trim();
+        }
+        if (Object.hasOwn(body, "project")) {
+          const project = typeof body.project === "string" ? body.project.trim().toUpperCase() : "";
+          const scopedProject = personaScope(session.personaId)?.projects.find((entry) => entry.code === project);
+          if (!scopedProject || !scopedProject.active) {
+            return sendJson(res, 403, { error: "E_PROJECT_FORBIDDEN", message: `project ${project || "(none)"} is not active in this session's scope` });
+          }
+          patch.project = project;
+        }
+        try {
+          reportStore.updateReport(report.id, patch, humanWrite(session));
+          return sendJson(res, 200, { report_id: report.id, ...reportPayload(report.id) });
+        } catch (err) {
+          return sendStoreError(res, err);
+        }
+      }
+    }
+
+    {
+      const uiLineMatch = url.pathname.match(/^\/api\/ui\/reports\/([^/]+)\/lines\/([^/]+)$/);
+      if (uiLineMatch && req.method === "PATCH") {
+        const session = sessionFromRequest(req);
+        if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        let report;
+        try {
+          report = requireReportAccess(session, uiLineMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
+        const line = reportStore.getLine(report.id, uiLineMatch[2]);
+        if (!line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND", message: "no such line" });
+        if (blockedByLock(res, report.id)) return;
+        const body = await readJsonBody(req);
+        try {
+          const patch = parseLineFields(body, { partial: true });
+          reportStore.updateLine(report.id, line.id, patch, humanWrite(session));
+          const payload = reportPayload(report.id);
+          return sendJson(res, 200, {
+            report_id: report.id,
+            line: payload.report.lines.find((entry) => entry.id === line.id),
+            ...payload,
+          });
+        } catch (err) {
+          return sendStoreError(res, err);
+        }
       }
     }
 
@@ -322,25 +585,46 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       const session = sessionFromRequest(req);
       if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
       // S2: opening a sign request is submit_expense_report's write — only
-      // an employee session may start one. /respond and /commit are not
-      // separately gated (see server/authz.mjs's WRITE_ROUTES comment):
-      // both already require the caller's session to be the one that
-      // opened it, which after this check can only ever be an employee's.
+      // an employee session may start one. The later response and commit
+      // routes repeat this role check before their request bodies are read.
       try {
         authorizeWrite(session);
       } catch (err) {
         return sendAuthzError(res, err);
       }
       const body = await readJsonBody(req);
-      if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "request body must be a JSON object" });
+      }
+      if (typeof body.report_id !== "string" || !body.report_id) {
+        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "report_id is required" });
+      }
       try {
-        const report = reportProjection(body.report_id) ?? body.report;
+        requireReportAccess(session, body.report_id, { write: true });
+      } catch (err) {
+        if (err instanceof AuthzError) return sendAuthzError(res, err);
+        return sendStoreError(res, err);
+      }
+      const extra = unexpectedFields(body, ["report_id", "worst_case", "violation_history_count"]);
+      if (extra.length) {
+        return sendJson(res, 400, {
+          error: "E_BAD_SIGN_REQUEST",
+          message: `sign request contains client authority field(s): ${extra.join(", ")}`,
+        });
+      }
+      if (body.worst_case !== undefined && (typeof body.worst_case !== "string" || !body.worst_case)) {
+        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "worst_case must be a non-empty string" });
+      }
+      if (body.violation_history_count !== undefined
+          && (!Number.isInteger(body.violation_history_count) || body.violation_history_count < 0)) {
+        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "violation_history_count must be a non-negative integer" });
+      }
+      try {
         const { signRequest, ticket } = signGate.open({
           sessionId: session.sid,
           personaId: session.personaId,
           personaName: PERSONA_NAMES[session.personaId] ?? session.persona,
           reportId: body.report_id,
-          report,
           worstCase: body.worst_case,
           violationHistoryCount: body.violation_history_count,
         });
@@ -395,6 +679,11 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       if (respondMatch && req.method === "POST") {
         const session = sessionFromRequest(req);
         if (!session) return sendJson(res, 401, { error: "E_NO_SESSION" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
         const body = await readJsonBody(req);
         if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
         if (body.request_id !== respondMatch[1]) return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "request_id in body must match the URL" });
@@ -421,22 +710,39 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       if (commitMatch && req.method === "POST") {
         const session = sessionFromRequest(req);
         if (!session) return sendJson(res, 401, { error: "E_NO_SESSION", message: "authentication is required" });
+        try {
+          authorizeWrite(session);
+        } catch (err) {
+          return sendAuthzError(res, err);
+        }
         const body = await readJsonBody(req);
-        if (!body || typeof body !== "object") {
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
           return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "request body must be a JSON object" });
         }
+        if (body.schema !== "outpocket.commit_request/1" || typeof body.request_id !== "string" || !body.request_id) {
+          return sendJson(res, 400, {
+            error: "E_BAD_REQUEST",
+            message: "commit request needs schema outpocket.commit_request/1 and a non-empty request_id",
+          });
+        }
         if (body.report_id !== commitMatch[1]) return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "report_id in body must match the URL" });
+        const extra = unexpectedFields(body, ["schema", "request_id", "report_id"]);
+        if (extra.length) {
+          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: `commit request has unknown field(s): ${extra.join(", ")}` });
+        }
         try {
+          requireReportAccess(session, commitMatch[1], { write: true });
           const result = signGate.commit({ requestId: body.request_id, reportId: commitMatch[1], sessionId: session.sid });
           return sendJson(res, result.http_status, result);
         } catch (err) {
-          if (!(err instanceof SignError)) throw err;
-          return sendJson(res, err.http, { error: err.code, message: err.message });
+          if (err instanceof SignError) return sendJson(res, err.http, { error: err.code, message: err.message });
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
         }
       }
     }
 
-    // ── S2: the six report-content write routes (see WRITE_ROUTES comment
+    // ── S2: agent report-content write routes (see WRITE_ROUTES comment
     // above and server/authz.mjs) ────────────────────────────────────────
     if (req.method === "POST" && url.pathname === "/api/reports") {
       const session = sessionFromRequest(req);
@@ -447,18 +753,29 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         return sendAuthzError(res, err);
       }
       const body = await readJsonBody(req);
-      if (!body || typeof body.title !== "string" || !body.title.trim() || typeof body.project !== "string" || !body.project.trim()) {
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "request body must be a JSON object" });
+      }
+      const extra = unexpectedFields(body, ["title", "project"]);
+      if (extra.length || typeof body.title !== "string" || !body.title.trim()
+          || typeof body.project !== "string" || !body.project.trim()) {
         return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "title and project are required, non-empty strings" });
       }
-      const stored = reportStore.createReport(
-        { title: body.title, project: body.project },
-        agentWrite("create_expense_report", 0),
-      );
-      const id = stored.id;
-      state.counters.report = Number(id.slice("RP-".length));
-      const report = { id, title: body.title, project: body.project, status: "draft", owner: session.personaId, opened_by: null, lines: [] };
-      state.reports.push(report);
-      return sendJson(res, 201, { report_id: id, report: reportProjection(id) });
+      const project = body.project.trim().toUpperCase();
+      const scopedProject = personaScope(session.personaId)?.projects.find((entry) => entry.code === project);
+      if (!scopedProject || !scopedProject.active) {
+        return sendJson(res, 403, { error: "E_PROJECT_FORBIDDEN", message: `project ${project} is not active in this session's scope` });
+      }
+      try {
+        const stored = reportStore.createReport({
+          title: body.title.trim(),
+          project,
+          owner: session.personaId,
+        }, agentWrite("create_expense_report"));
+        return sendJson(res, 201, { report_id: stored.id, ...reportPayload(stored.id) });
+      } catch (err) {
+        return sendStoreError(res, err);
+      }
     }
 
     {
@@ -471,11 +788,19 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         } catch (err) {
           return sendAuthzError(res, err);
         }
-        const report = findReport(openMatch[1]);
-        if (!report) return sendJson(res, 404, { error: "E_REPORT_NOT_FOUND" });
+        let report;
+        try {
+          report = requireReportAccess(session, openMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
         if (blockedByLock(res, report.id)) return;
-        report.opened_by = session.personaId;
-        return sendJson(res, 200, { report_id: report.id, opened_by: report.opened_by });
+        const body = await readJsonBody(req);
+        if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) {
+          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "open request body must be an empty object" });
+        }
+        return sendJson(res, 200, { report_id: report.id, ...reportPayload(report.id) });
       }
     }
 
@@ -489,35 +814,28 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         } catch (err) {
           return sendAuthzError(res, err);
         }
-        const report = findReport(linesMatch[1]);
-        if (!report) return sendJson(res, 404, { error: "E_REPORT_NOT_FOUND" });
+        let report;
+        try {
+          report = requireReportAccess(session, linesMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
         if (blockedByLock(res, report.id)) return;
         const body = await readJsonBody(req);
-        if (!body || typeof body.merchant !== "string" || !body.merchant.trim() || !Number.isInteger(body.amount_cents) || body.amount_cents < 0) {
-          return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "merchant (string) and amount_cents (non-negative integer) are required" });
+        try {
+          const fields = parseLineFields(body);
+          const storedLine = reportStore.addLine(report.id, fields, agentWrite("add_expense_line"));
+          const payload = reportPayload(report.id);
+          return sendJson(res, 201, {
+            report_id: report.id,
+            line_id: storedLine.id,
+            line: payload.report.lines.find((entry) => entry.id === storedLine.id),
+            ...payload,
+          });
+        } catch (err) {
+          return sendStoreError(res, err);
         }
-        const nextRevision = signGate.locks.currentRevision(report.id) + 1;
-        const storedLine = reportStore.addLine(report.id, {
-          amount: body.amount_cents,
-          category: body.category ?? null,
-          currency: body.currency ?? "USD",
-          date: body.date ?? null,
-          merchant: body.merchant,
-        }, agentWrite("add_expense_line", nextRevision));
-        const line = {
-          id: storedLine.id,
-          date: body.date ?? null,
-          merchant: body.merchant,
-          category: body.category ?? null,
-          amount_cents: body.amount_cents,
-          currency: body.currency ?? "USD",
-          receipt_id: null,
-        };
-        report.lines.push(line);
-        state.counters.line = Number(line.id.slice("ln_".length));
-        const revision = signGate.locks.bumpRevision(report.id);
-        const projectedLine = reportProjection(report.id).lines.find((entry) => entry.id === line.id);
-        return sendJson(res, 201, { report_id: report.id, line: projectedLine, revision });
       }
     }
 
@@ -531,34 +849,43 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         } catch (err) {
           return sendAuthzError(res, err);
         }
-        const report = findReport(lineMatch[1]);
-        const line = findLine(report, lineMatch[2]);
-        if (!report || !line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND" });
+        let report;
+        try {
+          report = requireReportAccess(session, lineMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
+        const line = reportStore.getLine(report.id, lineMatch[2]);
+        if (!line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND", message: "no such line" });
         if (blockedByLock(res, report.id)) return;
 
         if (req.method === "DELETE") {
-          reportStore.removeLine(report.id, line.id);
-          report.lines = report.lines.filter((l) => l.id !== line.id);
-          const revision = signGate.locks.bumpRevision(report.id);
-          return sendJson(res, 200, { report_id: report.id, line_id: line.id, revision });
+          const body = await readJsonBody(req);
+          if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) {
+            return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "remove request body must be an empty object" });
+          }
+          try {
+            reportStore.removeLine(report.id, line.id);
+            return sendJson(res, 200, { report_id: report.id, line_id: line.id, ...reportPayload(report.id) });
+          } catch (err) {
+            return sendStoreError(res, err);
+          }
         }
 
         const body = await readJsonBody(req);
-        if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
-        const patch = {};
-        for (const key of ["date", "merchant", "category", "currency"]) {
-          if (typeof body[key] === "string") patch[key] = body[key];
+        try {
+          const patch = parseLineFields(body, { partial: true });
+          reportStore.updateLine(report.id, line.id, patch, agentWrite("update_expense_line"));
+          const payload = reportPayload(report.id);
+          return sendJson(res, 200, {
+            report_id: report.id,
+            line: payload.report.lines.find((entry) => entry.id === line.id),
+            ...payload,
+          });
+        } catch (err) {
+          return sendStoreError(res, err);
         }
-        if (Number.isInteger(body.amount_cents) && body.amount_cents >= 0) patch.amount = body.amount_cents;
-        const nextRevision = signGate.locks.currentRevision(report.id) + 1;
-        reportStore.updateLine(report.id, line.id, patch, agentWrite("update_expense_line", nextRevision));
-        for (const key of ["date", "merchant", "category", "currency"]) {
-          if (patch[key] !== undefined) line[key] = patch[key];
-        }
-        if (patch.amount !== undefined) line.amount_cents = patch.amount;
-        const revision = signGate.locks.bumpRevision(report.id);
-        const projectedLine = reportProjection(report.id).lines.find((entry) => entry.id === line.id);
-        return sendJson(res, 200, { report_id: report.id, line: projectedLine, revision });
       }
     }
 
@@ -572,25 +899,33 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         } catch (err) {
           return sendAuthzError(res, err);
         }
-        const report = findReport(receiptMatch[1]);
-        const line = findLine(report, receiptMatch[2]);
-        if (!report || !line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND" });
+        let report;
+        try {
+          report = requireReportAccess(session, receiptMatch[1], { write: true });
+        } catch (err) {
+          if (err instanceof AuthzError) return sendAuthzError(res, err);
+          return sendStoreError(res, err);
+        }
+        const line = reportStore.getLine(report.id, receiptMatch[2]);
+        if (!line) return sendJson(res, 404, { error: "E_LINE_NOT_FOUND", message: "no such line" });
         if (blockedByLock(res, report.id)) return;
         const body = await readJsonBody(req);
-        if (!body || typeof body.receipt_id !== "string" || !body.receipt_id.trim()) {
+        if (!body || typeof body !== "object" || Array.isArray(body)
+            || unexpectedFields(body, ["receipt_id"]).length
+            || typeof body.receipt_id !== "string" || !body.receipt_id.trim()) {
           return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "receipt_id is required" });
         }
-        const nextRevision = signGate.locks.currentRevision(report.id) + 1;
-        reportStore.updateLine(
-          report.id,
-          line.id,
-          { receipt_id: body.receipt_id },
-          agentWrite("link_receipt", nextRevision),
-        );
-        line.receipt_id = body.receipt_id;
-        const revision = signGate.locks.bumpRevision(report.id);
-        const projectedLine = reportProjection(report.id).lines.find((entry) => entry.id === line.id);
-        return sendJson(res, 200, { report_id: report.id, line: projectedLine, revision });
+        try {
+          reportStore.linkReceipt(report.id, line.id, body.receipt_id.trim(), agentWrite("link_receipt"));
+          const payload = reportPayload(report.id);
+          return sendJson(res, 200, {
+            report_id: report.id,
+            line: payload.report.lines.find((entry) => entry.id === line.id),
+            ...payload,
+          });
+        } catch (err) {
+          return sendStoreError(res, err);
+        }
       }
     }
 

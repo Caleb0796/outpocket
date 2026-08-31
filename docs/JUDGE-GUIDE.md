@@ -80,13 +80,21 @@ change, reply: `Continue with the newly available tools.`
 Send:
 
 ```text
-Call submit_expense_report for the open clean report. Pause while I review it; do not answer the page's signature prompt for me.
+Call submit_expense_report once for the open clean report. It should return awaiting_signature with a ticket and open the page review. Stop there while I review it; do not answer the page's signature prompt for me.
 ```
 
 The page should open a review dialog beside the report. Check the report,
 policy version, worst-case explanation, and snapshot digest, then click
-**Sign this report** yourself. The call completes, the report becomes submitted,
-and the employee surface contracts to 7 tools; editing and submission are gone.
+**Sign this report** yourself. The page records the server's decision, but the
+draft is not submitted by that click alone. Send one follow-up:
+
+```text
+Call submit_expense_report again to continue the pending signature and finish submission.
+```
+
+That second call reads the signed decision, commits exactly once, and returns
+the final confirmation. The employee surface then contracts to 7 tools;
+editing and submission are gone.
 
 ### 3:45 — reload the committed state
 
@@ -119,8 +127,10 @@ refuses an auditor's direct write request.
   password or API token is passed in the prompt.
 - Validation changes the next set of actions the agent receives, and the server
   recomputes the verdict again at commit.
-- Submission pauses for page review, binds the reviewed snapshot, then leaves a
-  linked day-book entry visible to a read-only auditor.
+- Submission uses a two-call review handshake: the first call returns an opaque
+  awaiting ticket, the page records the human decision, and the second call
+  commits the bound snapshot and leaves a linked day-book entry visible to a
+  read-only auditor.
 
 It does not demonstrate durable storage across process restart, server receipt
 of attachment bytes, or proof that every response POST corresponds to a real

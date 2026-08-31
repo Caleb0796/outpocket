@@ -17,9 +17,9 @@
 // than the pre-T3 table for that reason and for no other; the state machine itself
 // is unchanged, and the differences between rows are exactly what they were.
 //
-// Read that table in the right direction: 13 is the CLEAN draft and 12 is the dirty
-// one, and once a report leaves draft the surface SHRINKS to 6. It does not grow
-// after signing. S4 and S5 both hold six names and are not the same six, which is
+// Read that table in the right direction: 14 is the CLEAN draft and 13 is the dirty
+// one, and once a report leaves draft the surface SHRINKS to 7. It does not grow
+// after signing. S4 and S5 both hold seven names and are not the same seven, which is
 // why anything downstream compares sets of names and never counts.
 //
 // A tool that must not be called right now is a tool that does not exist right now.

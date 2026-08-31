@@ -26,13 +26,14 @@
 //
 // ── THE SHAPE ────────────────────────────────────────────────────────────────
 //
-//   submit_expense_report            (agent calls it)
-//     -> hooks.requestSignature(summary, signal)      register.js
-//        -> bridge.openForDialog(openBody)            S5: opens the record AND
-//                                                     fetches the confirm_token
-//        -> dialogPort.present(context)               F4: the human decides
-//        -> bridge.continueSign(ticket, reportId)     S5: reads the answer
-//     <- {signed, reason, request_id, commitReport}   register.js resumes
+//   first submit_expense_report      (agent calls it)
+//     -> bridge.openForDialog(openBody)               opens one server record
+//     -> dialogPort.present(context)                  mounts F4 and returns
+//     <- {status:'awaiting_signature', ticket}        tool call ends promptly
+//
+//   later submit_expense_report
+//     -> bridge.continueSign(ticket, reportId)        reads the server answer
+//     <- signed / declined / still awaiting           never trusts local click state
 //
 // openForDialog rather than beginSign, and the difference is not cosmetic: see
 // step 1 below. beginSign is what a TOOL's execute() calls and is deliberately
@@ -53,21 +54,15 @@ export const REASONS = Object.freeze({
 });
 
 /**
- * Build the POST /api/sign body from the summary register.js hands us plus the
- * live ERP. server/sign.mjs `open` names these fields.
+ * Build the POST /api/sign body from the report reference plus presentation
+ * copy. Report content, provenance, receipt metadata, revision, policy identity
+ * and verdict are read by the server from its own aggregate.
  */
-export function buildOpenBody(summary, { erp, policy } = {}) {
-  const report = erp?.openReportOrNull?.() ?? null;
-  const verdict = report ? erp?.verdict?.(report.id) : null;
+export function buildOpenBody(summary) {
   return {
     report_id: summary.reportId,
-    revision: report?.revision ?? 1,
-    policy_version: policy?.version ?? null,
-    policy_digest: policy?.digest ?? null,
-    report: report ?? { id: summary.reportId, lines: summary.lines ?? [] },
-    verdict: verdict ?? { clean: true, warnings: summary.warnings ?? 0 },
     worst_case: worstCaseFor(summary),
-    violation_history_count: verdict?.warnings ?? summary.warnings ?? 0,
+    violation_history_count: summary.warnings ?? 0,
   };
 }
 
@@ -85,12 +80,11 @@ export function worstCaseFor(summary) {
 /**
  * Make the provider register.js will call.
  *
- * `dialogPort.present(context) -> Promise<{approved:boolean, reason?:string}>`
- * is the seam. In the page it raises F4's dialog; in a test it is stubbed to
- * approve or decline, which is the only way to show that the WIRE CARRIES A
- * DECISION rather than merely existing.
+ * `dialogPort.present(context) -> {mounted:boolean}` is the seam. It mounts F4
+ * and returns immediately; the provider learns the decision only through the
+ * server-side continuation ticket on a later tool call.
  */
-export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}) {
+export function createSignatureProvider({ bridge, dialogPort } = {}) {
   if (!bridge) throw new TypeError("createSignatureProvider needs a sign bridge");
   if (!dialogPort?.present) throw new TypeError("createSignatureProvider needs a dialogPort with present()");
 
@@ -108,58 +102,162 @@ export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}
       "address the record it is signing.");
   }
 
+  let pending = null;
+  let opening = null;
+
+  const keyFor = (summary) => `${summary.personaId ?? "session"}:${summary.reportId}`;
+  const awaiting = (record) => Object.freeze({
+    status: "awaiting_signature",
+    ticket: record.ticket,
+  });
+
+  async function restart(record) {
+    if (pending !== record) return { status: "stale" };
+    let answered;
+    try {
+      answered = await bridge.continueSign(record.ticket, record.reportId);
+    } catch {
+      pending = null;
+      return open(record.summary);
+    }
+    if (answered?.decision === "signed") {
+      dialogPort.finish?.({
+        kind: "signed",
+        message: "Signature recorded by the server. Call submit_expense_report again to finish submission.",
+      });
+      return { status: "signed" };
+    }
+    if (answered?.status === "awaiting_signature") return awaiting(record);
+    pending = null;
+    return open(record.summary);
+  }
+
+  async function open(summary, signal) {
+    const key = keyFor(summary);
+    if (opening?.key === key) return opening.promise;
+    if (typeof dialogPort.available === "function" && !dialogPort.available()) {
+      return { unavailable: true, reason: REASONS.NO_DIALOG };
+    }
+
+    const promise = (async () => {
+      const openBody = buildOpenBody(summary);
+      const opened = await bridge.openForDialog(openBody, signal);
+      const record = {
+        key,
+        reportId: summary.reportId,
+        summary,
+        openBody,
+        opened,
+        ticket: opened?.ticket ?? null,
+        request_id: opened?.requestId ?? null,
+        commitClaimed: false,
+      };
+      pending = record;
+      const presented = await dialogPort.present({
+        summary,
+        openBody,
+        opened,
+        signal,
+        onRestart: () => restart(record),
+      });
+      if (presented?.mounted === false) {
+        pending = null;
+        return { unavailable: true, reason: presented.reason || REASONS.NO_DIALOG };
+      }
+      return record;
+    })();
+
+    opening = { key, promise };
+    try {
+      return await promise;
+    } finally {
+      if (opening?.promise === promise) opening = null;
+    }
+  }
+
   return async function requestSignature(summary, signal) {
-    const openBody = buildOpenBody(summary, { erp, policy });
+    const key = keyFor(summary);
+    if (pending && pending.key !== key) pending = null;
 
-    // 1. OPEN THE RECORD THROUGH THE DIALOG CHANNEL, NOT THE TOOL CHANNEL.
-    //
-    // This used to call beginSign(), and that was a real defect in merged work.
-    // beginSign() is the TOOL-facing call and it is deliberately narrow —
-    // Object.freeze({status, ticket}), nothing echoed from the sign_request —
-    // because handing a tool result the digest and the revision would give
-    // x-signRequestState.survivingVector its two echoed values for free
-    // (R-13/R-44). So request_id, snapshot_digest and confirm_token were all
-    // undefined here, `?? null` and `?? ""` turned that into a dialog with no
-    // identity, and a real click POSTed to /api/sign/null/respond.
-    //
-    // openForDialog() (S5, D-89) is the same open plus a session-scoped
-    // GET /api/sign/{id}/confirm-token that is NOT a registered tool. The
-    // beginSign()/continueSign() are unchanged, so their narrow result contract
-    // still holds. The provider now returns request_id to its owning submit tool
-    // because POST /api/reports/{id}/commit cannot address the signed record
-    // without it. It also returns bridge.commitReport as an internal transport
-    // function so the final POST keeps the bridge's base URL and Cookie header in
-    // Node as well as the browser. Neither value is rendered in the tool result;
-    // signRequest and confirmToken remain inside this dialog channel.
-    const opened = await bridge.openForDialog(openBody, signal);
-    const ticket = opened?.ticket ?? null;
-    const request_id = opened?.requestId ?? null;
-    const commitTransport = typeof bridge.commitReport === "function"
-      ? { commitReport: bridge.commitReport }
-      : {};
-
-    // 2. the human decides, in the page.
-    const decision = await dialogPort.present({ summary, openBody, opened, signal });
-
-    if (!decision?.approved) {
-      return { signed: false, reason: decision?.reason || REASONS.DECLINED, ticket, request_id, ...commitTransport };
+    if (!pending) {
+      const record = await open(summary, signal);
+      if (record?.unavailable) {
+        return { signed: false, reason: record.reason || REASONS.NO_DIALOG };
+      }
+      return awaiting(record);
     }
 
-    // 3. ASK THE SERVER WHAT IT RECORDED. Not what the dialog told us — the
-    //    dialog's word is a claim, the server's record is the answer, and this
-    //    is the whole difference between a sign gate and a decoration.
-    const answered = await bridge.continueSign(ticket, summary.reportId, signal);
-
-    if (answered?.status === "awaiting_signature") {
-      return { signed: false, reason: REASONS.NOT_ANSWERED, ticket, request_id, ...commitTransport };
+    const record = pending;
+    let answered;
+    try {
+      answered = await bridge.continueSign(record.ticket, record.reportId, signal);
+    } catch (error) {
+      if (error?.code === "E_NO_CONFIRM_TOKEN" || error?.status === 410) {
+        pending = null;
+        dialogPort.finish?.({
+          kind: "expired",
+          message: "This signature request expired. Call submit_expense_report to open a new review.",
+        });
+        return { signed: false, reason: "the signature request expired" };
+      }
+      throw error;
     }
-    if (answered?.decision && answered.decision !== "signed") {
+
+    if (answered?.status === "awaiting_signature") return awaiting(record);
+
+    if (answered?.decision === "declined") {
+      pending = null;
+      const reason = answered.reason || REASONS.DECLINED;
+      dialogPort.finish?.({
+        kind: "declined",
+        message: `Sent back. Nothing was submitted; the draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
+      });
       return {
-        signed: false, reason: answered.reason || REASONS.DECLINED,
-        ticket, request_id, response: answered, ...commitTransport,
+        signed: false,
+        reason,
+        ticket: record.ticket,
+        request_id: record.request_id,
+        response: answered,
       };
     }
-    return { signed: true, reason: null, ticket, request_id, response: answered, ...commitTransport };
+
+    if (answered?.decision !== "signed") {
+      return { signed: false, reason: REASONS.NOT_ANSWERED, ticket: record.ticket };
+    }
+
+    if (record.commitClaimed) {
+      return { status: "submission_in_progress", ticket: record.ticket };
+    }
+    record.commitClaimed = true;
+    dialogPort.finish?.({
+      kind: "submitting",
+      message: "Signature recorded by the server. Submission is finishing.",
+    });
+
+    return {
+      signed: true,
+      reason: null,
+      ticket: record.ticket,
+      request_id: record.request_id,
+      response: answered,
+      settle({ status, confirmation = null, message = null } = {}) {
+        if (pending !== record) return;
+        if (status === "committed") {
+          pending = null;
+          dialogPort.finish?.({
+            kind: "committed",
+            confirmation,
+            message: message || `Submitted${confirmation ? `. Confirmation ${confirmation}.` : "."}`,
+          });
+          return;
+        }
+        record.commitClaimed = false;
+        dialogPort.finish?.({
+          kind: "retryable",
+          message: message || "The server did not finish submission. Call submit_expense_report again to retry the signed commit.",
+        });
+      },
+    };
   };
 }
 
@@ -173,7 +271,7 @@ export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}
 let installed = null;
 
 /** installSignatureProvider(...) -> {installed:boolean, uninstall} */
-export function installSignatureProvider({ registry, bridge, dialogPort, erp, policy, force = false } = {}) {
+export function installSignatureProvider({ registry, bridge, dialogPort, force = false } = {}) {
   if (installed && !force) return { installed: false, already: true, uninstall: installed };
   if (typeof registry?.setSignatureProvider !== "function") {
     return { installed: false, reason: "registry has no setSignatureProvider" };
@@ -181,8 +279,6 @@ export function installSignatureProvider({ registry, bridge, dialogPort, erp, po
   const provider = createSignatureProvider({
     bridge,
     dialogPort,
-    erp: erp ?? registry.erp,
-    policy,
   });
   const uninstall = registry.setSignatureProvider(provider);
   installed = () => { uninstall?.(); installed = null; };
@@ -193,17 +289,21 @@ export function installSignatureProvider({ registry, bridge, dialogPort, erp, po
 export function resetInstallForTests() { installed = null; }
 
 /**
- * The browser dialog port: raise F4's dialog and resolve when the human acts.
+ * The browser dialog port: raise F4's dialog and return as soon as it is shown.
  *
  * F4's module is DOM-only and publishes itself on globalThis rather than being
  * imported, which keeps it free of any transport dependency — so this port
  * reaches it the same way the rest of the page does.
  */
 export function browserDialogPort({ doc = globalThis.document, signDialog = null } = {}) {
+  const resolveDialog = () => signDialog ?? globalThis.outpocketSignDialog;
   return {
-    async present({ opened }) {
-      const dialog = signDialog ?? globalThis.outpocketSignDialog;
-      if (!dialog?.mountSignDialog) return { approved: false, reason: REASONS.NO_DIALOG };
+    available() {
+      return Boolean(resolveDialog()?.mountSignDialog);
+    },
+    async present({ opened, onRestart }) {
+      const dialog = resolveDialog();
+      if (!dialog?.mountSignDialog) return { mounted: false, reason: REASONS.NO_DIALOG };
 
       // THE SERVER'S OWN sign_request, NOT ONE ASSEMBLED HERE. The previous
       // version rebuilt this object out of openBody and read request_id /
@@ -215,17 +315,19 @@ export function browserDialogPort({ doc = globalThis.document, signDialog = null
       // way to guarantee that.
       const signRequest = opened?.signRequest ?? null;
       if (!signRequest?.request_id) {
-        return { approved: false, reason: "the sign request could not be opened, so there is nothing to sign" };
+        return { mounted: false, reason: "the sign request could not be opened, so there is nothing to sign" };
       }
 
-      const root = dialog.mountSignDialog({ doc, signRequest, confirmToken: opened.confirmToken ?? "" });
-      if (!root) return { approved: false, reason: REASONS.NO_DIALOG };
-
-      return new Promise((resolve) => {
-        root.querySelector("[data-sign-confirm]")?.addEventListener("click", () => resolve({ approved: true }));
-        root.querySelector("[data-sign-decline]")?.addEventListener("click", () =>
-          resolve({ approved: false, reason: REASONS.DECLINED }));
+      const root = dialog.mountSignDialog({
+        doc,
+        signRequest,
+        confirmToken: opened.confirmToken ?? "",
+        onRestart,
       });
+      return root ? { mounted: true, root } : { mounted: false, reason: REASONS.NO_DIALOG };
+    },
+    finish(result) {
+      return resolveDialog()?.showSignResult?.({ doc, ...result }) ?? null;
     },
   };
 }
@@ -244,7 +346,6 @@ if (typeof document !== "undefined" && document.querySelector) {
       registry,
       bridge: createSignBridge({}),
       dialogPort: browserDialogPort({ doc: document }),
-      erp: registry.erp,
     });
   }
 }

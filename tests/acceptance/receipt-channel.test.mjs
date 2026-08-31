@@ -20,7 +20,92 @@ import assert from "node:assert/strict";
 import { createErp } from "../../src/erp.js";
 import { buildDefs, ALL_TOOL_NAMES } from "../../src/page/tools/defs.js";
 import { createToolset, compileSurface, STATES, MEMBERSHIP } from "../../src/page/tools/compile.js";
-import { findBinaryChannelViolations, scanSchemaForBinaryChannel } from "../../src/page/ui/receipts.js";
+import {
+  findBinaryChannelViolations, scanSchemaForBinaryChannel,
+  renderReceiptChannel, mountReceipts,
+} from "../../src/page/ui/receipts.js";
+
+class FakeNode {
+  constructor(tag, ownerDocument = null) {
+    this.tagName = String(tag).toUpperCase();
+    this.ownerDocument = ownerDocument;
+    this.attributes = new Map();
+    this.children = [];
+    this.parent = null;
+    this.listeners = new Map();
+    this._text = "";
+    this.files = [];
+  }
+  setAttribute(name, value) {
+    this.attributes.set(name, String(value));
+    if (name === "disabled") this.disabled = true;
+  }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  hasAttribute(name) { return this.attributes.has(name); }
+  appendChild(child) { child.parent = this; this.children.push(child); return child; }
+  set textContent(value) { this._text = String(value); this.children = []; }
+  get textContent() {
+    return this.children.length ? this.children.map((child) => child.textContent).join("") : this._text;
+  }
+  matches(selector) {
+    const attr = /^\[([a-z0-9-]+)(?:="([^"]*)")?\]$/i.exec(selector);
+    if (!attr) return this.tagName === selector.toUpperCase();
+    const [, name, expected] = attr;
+    return this.attributes.has(name) && (expected === undefined || this.attributes.get(name) === expected);
+  }
+  querySelector(selector) {
+    for (const child of this.children) {
+      if (child.matches(selector)) return child;
+      const nested = child.querySelector(selector);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  addEventListener(type, listener) {
+    if (!this.listeners.has(type)) this.listeners.set(type, []);
+    this.listeners.get(type).push(listener);
+  }
+  async emit(type, event = {}) {
+    await Promise.all((this.listeners.get(type) ?? []).map((listener) => listener({ type, target: this, ...event })));
+  }
+}
+
+function fakeReceiptDocument() {
+  const doc = {
+    createElement(tag) { return new FakeNode(tag, this); },
+    querySelector: null,
+  };
+  const region = new FakeNode("section", doc);
+  region.setAttribute("data-region", "receipts");
+  doc.querySelector = (selector) => selector === '[data-region="receipts"]' ? region : null;
+  return { doc, region };
+}
+
+function fakeShell(initialSession) {
+  let session = initialSession;
+  const listeners = [];
+  return {
+    getSession: () => session,
+    onSession(listener) { listeners.push(listener); },
+    setSession(next, { notify = true } = {}) {
+      session = next;
+      if (notify) listeners.forEach((listener) => listener(next));
+    },
+  };
+}
+
+function fakeReceiptStore() {
+  let adoptions = 0;
+  return {
+    state: { receipts: [] },
+    onChange() {},
+    adoptServerReceipts(receipts) {
+      adoptions++;
+      this.state.receipts = receipts;
+    },
+    adoptionCount: () => adoptions,
+  };
+}
 
 /** Browser-shaped rows: what getTools() answers with. */
 function asBrowserTools(defs) {
@@ -89,6 +174,75 @@ test("the scanner would actually catch each banned form — a negative control",
     { type: "object", properties: { receipt_id: { type: "string" }, line_id: { type: "string" } } }), []);
 });
 
+test("the receipt picker is enabled for an employee and disabled with an accessible explanation for an auditor", () => {
+  const { doc } = fakeReceiptDocument();
+  const employee = renderReceiptChannel(doc, { storeAttached: true, canAttach: true });
+  const employeeInput = employee.querySelector("[data-receipt-input]");
+  assert.equal(employeeInput.hasAttribute("disabled"), false);
+  assert.equal(employeeInput.getAttribute("aria-describedby"), null);
+
+  const auditor = renderReceiptChannel(doc, {
+    storeAttached: true,
+    canAttach: false,
+    disabledReason: "Auditors can review receipt metadata, but cannot attach receipts.",
+  });
+  const auditorInput = auditor.querySelector("[data-receipt-input]");
+  const explanation = auditor.querySelector('[data-receipt-store="read-only"]');
+  assert.equal(auditorInput.hasAttribute("disabled"), true);
+  assert.equal(auditorInput.getAttribute("aria-describedby"), explanation.getAttribute("id"));
+  assert.match(explanation.textContent, /Auditors can review receipt metadata, but cannot attach receipts/i);
+});
+
+test("a stale employee picker rechecks the current role and refuses an auditor without calling the API", async () => {
+  const { doc, region } = fakeReceiptDocument();
+  const shell = fakeShell({ persona: "chen", role: "employee" });
+  const erp = fakeReceiptStore();
+  let apiCalls = 0;
+  const api = { async attachReceiptMetadata() { apiCalls++; return { receipts: [] }; } };
+  mountReceipts({ doc, shell, tools: { erp, api } });
+
+  const staleInput = region.querySelector("[data-receipt-input]");
+  shell.setSession({ persona: "ruiz", role: "auditor" }, { notify: false });
+  staleInput.files = [{ name: "stale.svg", async arrayBuffer() { return new Uint8Array([1]).buffer; } }];
+  await staleInput.emit("change");
+
+  assert.equal(apiCalls, 0);
+  assert.equal(erp.adoptionCount(), 0);
+  assert.deepEqual(erp.state.receipts, []);
+  assert.match(region.querySelector("[data-receipt-error]").textContent, /cannot attach receipts/i);
+  assert.equal(region.querySelector("[data-receipt-input]").hasAttribute("disabled"), true);
+});
+
+test("an upload rejection stays visible with the filename and server message and adopts no receipt payload", async () => {
+  const { doc, region } = fakeReceiptDocument();
+  const shell = fakeShell({ persona: "chen", role: "employee" });
+  const erp = fakeReceiptStore();
+  const api = {
+    async attachReceiptMetadata() {
+      throw new Error("E_FORBIDDEN: auditor sessions cannot upload receipts");
+    },
+  };
+  mountReceipts({ doc, shell, tools: { erp, api } });
+
+  const input = region.querySelector("[data-receipt-input]");
+  input.files = [{ name: "audit-evidence.svg", async arrayBuffer() { return new Uint8Array([1, 2, 3]).buffer; } }];
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await input.emit("change");
+  } finally {
+    console.error = originalError;
+  }
+
+  const alert = region.querySelector("[data-receipt-error]");
+  assert.equal(alert.getAttribute("role"), "alert");
+  assert.match(alert.textContent, /audit-evidence\.svg/);
+  assert.match(alert.textContent, /E_FORBIDDEN: auditor sessions cannot upload receipts/);
+  assert.equal(erp.adoptionCount(), 0);
+  assert.deepEqual(erp.state.receipts, []);
+  assert.match(region.querySelector("[data-receipt-input]").getAttribute("aria-describedby"), /receipt-upload-error/);
+});
+
 // ── clause 2 ─────────────────────────────────────────────────────────────────
 
 /** Drive the ERP to S2/S3: employee signed in, draft open, one line on it. */
@@ -113,7 +267,11 @@ function codeOf(result) {
 
 test("link_receipt with an unknown receipt id fails, names the id, mutates nothing, and is distinguishable from an unknown line", async () => {
   const { erp, report, line } = employeeWithOpenDraft();
-  const toolset = createToolset(erp);
+  const toolset = createToolset(erp, {
+    api: {
+      linkReceipt: async (_reportId, args) => erp.linkReceipt(args.line_id, args.receipt_id, "agent"),
+    },
+  });
 
   // (iii) is asserted over the CANONICAL DIGEST rather than a field-by-field
   // comparison: the digest covers the whole projection, so a mutation anywhere

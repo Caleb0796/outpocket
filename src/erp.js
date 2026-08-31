@@ -1,8 +1,7 @@
-// 账房 COUNTINGHOUSE — in-memory ERP core.
-// Pure module: no DOM. The data is a simulation; the mechanisms are real:
-// every call passes the same session/permission gate a production backend
-// would enforce, every mutation lands in the day book, and receipts never
-// leave the browser (only filename/size/sha256 metadata is visible to tools).
+// 账房 COUNTINGHOUSE — in-memory page model and server-response cache.
+// Pure module: no DOM. In the product page, report data is hydrated from the
+// server aggregate; the local mutation helpers remain useful to the pure
+// state-machine demonstrations and tests, but are not an authority boundary.
 
 import { validateReport, toCents, toUsdCents, POLICY_VERSION } from "./policy.js";
 
@@ -34,7 +33,7 @@ export const PERSONAS = [
   {
     id: "chen",
     name: "Chen Xiao",
-    title: "Field Applications Engineer",
+    title: "Field engineer",
     role: "employee",
     costCenter: "CC-4200 · Field Engineering",
     currency: "USD",
@@ -47,8 +46,8 @@ export const PERSONAS = [
   },
   {
     id: "ruiz",
-    name: "Ava Ruiz",
-    title: "Internal Audit",
+    name: "Elena Ruiz",
+    title: "Internal audit",
     role: "auditor",
     costCenter: "CC-9000 · Internal Audit",
     currency: "USD",
@@ -115,6 +114,105 @@ export function createErp({ now = () => new Date(), hashBytes = sha256Hex } = {}
     const r = requireOpenReport();
     if (r.status !== "draft") throw new ErpError("NOT_DRAFT", `Report ${r.id} is ${r.status} and can no longer be edited.`);
     return r;
+  }
+
+  function serverLine(line) {
+    if (!line || typeof line !== "object" || Array.isArray(line) || typeof line.id !== "string") {
+      throw new ErpError("BAD_SERVER_RESPONSE", "The server returned an invalid expense line.");
+    }
+    const provenance = line.provenance && typeof line.provenance === "object"
+      ? { ...line.provenance }
+      : {};
+    const authored = Object.values(provenance).filter((source) => source !== "unset");
+    const createdBy = authored.includes("agent") ? "agent" : authored[0] ?? "unset";
+    const lastEditedBy = authored.includes("human") ? "human" : createdBy;
+    return {
+      id: line.id,
+      date: line.date ?? null,
+      merchant: line.merchant ?? null,
+      category: line.category ?? null,
+      amountCents: line.amount_cents ?? line.amountCents ?? null,
+      currency: line.currency ?? null,
+      usdCents: line.usd_cents ?? line.usdCents ?? null,
+      attendees: line.attendees ?? undefined,
+      nights: line.nights ?? undefined,
+      itemization: Array.isArray(line.itemization)
+        ? line.itemization.map((item) => ({
+            label: item.label,
+            amountCents: item.amount_cents ?? item.amountCents,
+          }))
+        : undefined,
+      description: line.description ?? null,
+      receiptId: line.receipt_id ?? line.receiptId ?? null,
+      receiptSha256: line.receipt_sha256 ?? line.receiptSha256 ?? null,
+      provenance,
+      createdBy,
+      lastEditedBy,
+    };
+  }
+
+  function serverReport(report, provenance = null) {
+    if (!report || typeof report !== "object" || Array.isArray(report)
+        || typeof report.id !== "string" || !Array.isArray(report.lines)) {
+      throw new ErpError("BAD_SERVER_RESPONSE", "The server returned an invalid expense report.");
+    }
+    return {
+      id: report.id,
+      title: report.title,
+      project: report.project,
+      owner: report.owner,
+      status: report.status,
+      createdAt: report.created_at ?? report.createdAt ?? null,
+      submittedAt: report.submitted_at ?? report.submittedAt ?? null,
+      signature: report.signature ?? null,
+      artifact: report.artifact ?? null,
+      revision: report.revision,
+      lines: report.lines.map(serverLine),
+      provenance,
+    };
+  }
+
+  function adoptServerReport(report, { open = false, provenance = null } = {}) {
+    const previous = state.reports.find((entry) => entry.id === report?.id);
+    const projected = serverReport(report, provenance ?? previous?.provenance ?? null);
+    const index = state.reports.findIndex((entry) => entry.id === projected.id);
+    if (index === -1) state.reports.push(projected);
+    else state.reports[index] = projected;
+    const reportNumber = Number(projected.id.replace(/^RP-/, ""));
+    if (Number.isInteger(reportNumber)) state.counters.report = Math.max(state.counters.report, reportNumber);
+    for (const line of projected.lines) {
+      const lineNumber = Number(line.id.replace(/^ln_/, ""));
+      if (Number.isInteger(lineNumber)) state.counters.line = Math.max(state.counters.line, lineNumber);
+    }
+    if (open) state.openReportId = projected.id;
+    emit("reports", { reportId: projected.id });
+    return projected;
+  }
+
+  function adoptServerReports(reports) {
+    if (!Array.isArray(reports)) throw new ErpError("BAD_SERVER_RESPONSE", "The server report list is invalid.");
+    const provenanceById = new Map(state.reports.map((report) => [report.id, report.provenance]));
+    state.reports = reports.map((report) => serverReport(report, provenanceById.get(report.id) ?? null));
+    if (state.openReportId && !state.reports.some((report) => report.id === state.openReportId)) {
+      state.openReportId = null;
+    }
+    for (const report of state.reports) {
+      const reportNumber = Number(report.id.replace(/^RP-/, ""));
+      if (Number.isInteger(reportNumber)) state.counters.report = Math.max(state.counters.report, reportNumber);
+    }
+    emit("reports");
+    return state.reports;
+  }
+
+  function adoptServerReceipts(receipts) {
+    if (!Array.isArray(receipts)) throw new ErpError("BAD_SERVER_RESPONSE", "The server receipt list is invalid.");
+    state.receipts = receipts.map((receipt) => ({ ...receipt }));
+    for (const receipt of state.receipts) {
+      const receiptNumber = Number(receipt.id?.replace(/^rc_/, ""));
+      if (Number.isInteger(receiptNumber)) state.counters.receipt = Math.max(state.counters.receipt, receiptNumber);
+    }
+    emit("receipts");
+    return state.receipts;
   }
 
   // ── normalization ────────────────────────────────────────────
@@ -447,6 +545,7 @@ export function createErp({ now = () => new Date(), hashBytes = sha256Hex } = {}
   return {
     state, now, onChange, log,
     signIn, signOut, session: () => state.session,
+    adoptServerReport, adoptServerReports, adoptServerReceipts,
     attachReceipt, listReports, createReport, openReport,
     openReportOrNull: () => (state.openReportId ? getReport(state.openReportId) : null),
     addLine, updateLine, removeLine, linkReceipt,

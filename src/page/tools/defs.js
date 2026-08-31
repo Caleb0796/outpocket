@@ -152,16 +152,19 @@ export const TEXT = { violationText, reportStatusLine, lineText, lineVerdictText
 export function buildDefs(erp, hooks = {}) {
   const S = { type: "string" };
   const session = erp.session();
+  const api = hooks.api;
 
-  async function getApiJson(path, init) {
-    const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
-    if (typeof fetchImpl !== "function") throw new Error("No fetch implementation is available for the server API.");
-    const response = await fetchImpl(`${hooks.baseUrl ?? ""}${path}`, {
-      credentials: "include",
-      ...init,
-    });
-    const body = await response.json();
-    return { ok: response.ok, status: response.status, body };
+  function serverApi(method) {
+    if (typeof api?.[method] !== "function") {
+      throw new Error(`The server API does not provide ${method}().`);
+    }
+    return api[method].bind(api);
+  }
+
+  function adoptReportPayload(payload, { open = false } = {}) {
+    const report = erp.adoptServerReport(payload.report, { open, provenance: payload.provenance });
+    if (Array.isArray(payload.receipts)) erp.adoptServerReceipts(payload.receipts);
+    return report;
   }
 
   const get_signin_status = {
@@ -208,7 +211,9 @@ export function buildDefs(erp, hooks = {}) {
       "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: () => {
+    execute: async (args, opts) => {
+      const payload = await serverApi("listReports")(opts?.signal);
+      erp.adoptServerReports(payload.reports);
       const rows = erp.listReports().map((r) => `${r.id} “${r.title}” · ${r.project} · ${r.status} · ${r.lines} line(s) · ${fmtUsd(r.totalUsd)}`);
       return ok(rows.length ? rows.join("\n") : "No reports yet.");
     },
@@ -227,8 +232,9 @@ export function buildDefs(erp, hooks = {}) {
       required: ["title", "project"],
     },
     annotations: { readOnlyHint: false },
-    execute: ({ title, project }, opts, source) => {
-      const r = erp.createReport({ title, project }, source);
+    execute: async (args, opts) => {
+      const payload = await serverApi("createReport")(args, opts?.signal);
+      const r = adoptReportPayload(payload, { open: true });
       return ok(`Draft ${r.id} created and opened for project ${r.project}.\n${reportStatusLine(erp)}`);
     },
   };
@@ -243,8 +249,9 @@ export function buildDefs(erp, hooks = {}) {
       required: ["report_id"],
     },
     annotations: { readOnlyHint: false },
-    execute: ({ report_id }, opts, source) => {
-      erp.openReport(report_id, source);
+    execute: async (args, opts) => {
+      const payload = await serverApi("openReport")(args, opts?.signal);
+      adoptReportPayload(payload, { open: true });
       return ok(reportStatusLine(erp));
     },
   };
@@ -276,14 +283,22 @@ export function buildDefs(erp, hooks = {}) {
       required: ["report_id"],
     },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: ({ report_id }) => {
+    execute: async ({ report_id }, opts) => {
       // The browser parses inputSchema but does not enforce it, so check here.
       const id = typeof report_id === "string" ? report_id.trim() : "";
-      const r = id ? erp.state.reports.find((x) => x.id === id) : null;
-      if (!r) {
+      if (!id) {
         const known = erp.listReports().map((x) => x.id).join(", ");
         return ok(`No report ${id || "(no report_id given)"}. Readable here: ${known || "(none)"}.`);
       }
+      let payload;
+      try {
+        payload = await serverApi("getReport")(id, opts?.signal);
+      } catch (error) {
+        if (error?.status !== 404) throw error;
+        const known = erp.listReports().map((x) => x.id).join(", ");
+        return ok(`No report ${id}. Readable here: ${known || "(none)"}.`);
+      }
+      const r = adoptReportPayload(payload);
       const vd = erp.verdict(r.id); // pure: validates, never records
       const lines = r.lines.length ? r.lines.map(lineText).join("\n") : "(no lines)";
       return ok(
@@ -330,8 +345,11 @@ export function buildDefs(erp, hooks = {}) {
       required: ["date", "merchant", "category", "amount"],
     },
     annotations: { readOnlyHint: false },
-    execute: (args, opts, source) => {
-      const { line } = erp.addLine(coerceLine(args), source);
+    execute: async (args, opts) => {
+      const open = erp.openReportOrNull();
+      const payload = await serverApi("addLine")(open.id, coerceLine(args), opts?.signal);
+      const report = adoptReportPayload(payload);
+      const line = report.lines.find((entry) => entry.id === payload.line_id);
       return ok(`Line ${line.id} added: ${line.merchant} · ${line.category} · ${fmtMoney(line.amountCents ?? 0, line.currency)}.\n${lineVerdictText(erp, line)}`);
     },
   };
@@ -346,9 +364,16 @@ export function buildDefs(erp, hooks = {}) {
       required: ["line_id"],
     },
     annotations: { readOnlyHint: false },
-    execute: ({ line_id, ...patch }, opts, source) => {
-      const { line } = erp.updateLine(line_id, coerceLine(patch), source);
-      return ok(`Line ${line_id} updated.\n${lineVerdictText(erp, line)}`);
+    execute: async (args, opts) => {
+      const open = erp.openReportOrNull();
+      const payload = await serverApi("updateLine")(
+        open.id,
+        coerceLine(args),
+        opts?.signal,
+      );
+      const report = adoptReportPayload(payload);
+      const line = report.lines.find((entry) => entry.id === args.line_id);
+      return ok(`Line ${args.line_id} updated.\n${lineVerdictText(erp, line)}`);
     },
   };
 
@@ -361,9 +386,11 @@ export function buildDefs(erp, hooks = {}) {
       required: ["line_id"],
     },
     annotations: { readOnlyHint: false },
-    execute: ({ line_id }, opts, source) => {
-      erp.removeLine(line_id, source);
-      return ok(`Line ${line_id} removed.\n${reportStatusLine(erp)}`);
+    execute: async (args, opts) => {
+      const open = erp.openReportOrNull();
+      const payload = await serverApi("removeLine")(open.id, args, opts?.signal);
+      adoptReportPayload(payload);
+      return ok(`Line ${args.line_id} removed.\n${reportStatusLine(erp)}`);
     },
   };
 
@@ -373,7 +400,9 @@ export function buildDefs(erp, hooks = {}) {
       "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: () => {
+    execute: async (args, opts) => {
+      const payload = await serverApi("listReceipts")(opts?.signal);
+      erp.adoptServerReceipts(payload.receipts);
       const rows = erp.state.receipts
         .filter((r) => !r.archived)
         .map((r) => `${r.id} ${r.filename} · ${(r.size / 1024).toFixed(1)}KB · sha256 ${r.sha256.slice(0, 12)}… · ${r.linkedLineId ? `backs ${r.linkedLineId}` : "unlinked"}${r.duplicateOf ? ` · byte-identical to ${r.duplicateOf}` : ""}`);
@@ -391,9 +420,12 @@ export function buildDefs(erp, hooks = {}) {
       required: ["line_id", "receipt_id"],
     },
     annotations: { readOnlyHint: false },
-    execute: ({ line_id, receipt_id }, opts, source) => {
-      const { line } = erp.linkReceipt(line_id, receipt_id, source);
-      return ok(`Receipt ${receipt_id} now backs ${line_id}.\n${lineVerdictText(erp, line)}`);
+    execute: async (args, opts) => {
+      const open = erp.openReportOrNull();
+      const payload = await serverApi("linkReceipt")(open.id, args, opts?.signal);
+      const report = adoptReportPayload(payload);
+      const line = report.lines.find((entry) => entry.id === args.line_id);
+      return ok(`Receipt ${args.receipt_id} now backs ${args.line_id}.\n${lineVerdictText(erp, line)}`);
     },
   };
 
@@ -403,23 +435,31 @@ export function buildDefs(erp, hooks = {}) {
       "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
-    execute: () => ok(fullVerdictText(erp)),
+    execute: async (args, opts) => {
+      const open = erp.openReportOrNull();
+      const payload = await serverApi("validateReport")(open.id, opts?.signal);
+      adoptReportPayload(payload);
+      return ok(fullVerdictText(erp));
+    },
   };
 
   const submit_expense_report = {
     name: "submit_expense_report",
     description:
-      `Submit the open expense report to the approver. This suspends while the employee reviews the report next to the attached receipt images and signs it in the page; it returns the signed confirmation, or the employee's reason for sending it back. Submission is the employee's act — this tool only requests it.`,
+      `Request submission of the open expense report. The first call opens the page review and returns {status:"awaiting_signature",ticket}; after the employee clicks Sign or Send back, call this tool again to read the server decision and finish or refuse submission. Submission is the employee's act — this tool only requests it.`,
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: false },
-    execute: async (args, opts, source) => {
-      const r = erp.openReportOrNull();
+    execute: async (args, opts) => {
+      let r = erp.openReportOrNull();
       if (!r) return ok("No report is open.");
+      const validated = await serverApi("validateReport")(r.id, opts?.signal);
+      r = adoptReportPayload(validated);
       const vd = erp.verdict(r.id); // double lock: re-verify at execution time
       if (!vd.clean || r.status !== "draft" || !r.lines.length)
         return ok(`Refused: the report is not clean right now (${vd.blocking} blocking violation(s)). The submit door only exists while every check passes.\n${fullVerdictText(erp)}`);
       const summary = {
         reportId: r.id, title: r.title, project: r.project,
+        personaId: erp.session().id,
         totalUsd: vd.totalUsd, warnings: vd.warnings,
         approver: erp.session().approver,
         lines: r.lines.map((l) => ({
@@ -428,6 +468,12 @@ export function buildDefs(erp, hooks = {}) {
         })),
       };
       const decision = await hooks.requestSignature(summary, opts?.signal);
+      if (decision?.status === "awaiting_signature") {
+        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket }));
+      }
+      if (decision?.status === "submission_in_progress") {
+        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket }));
+      }
       if (!decision?.signed)
         return ok(`The employee reviewed the report and sent it back${decision?.reason ? `: “${decision.reason}”` : "."} The draft stays editable — adjust it and try again.`);
 
@@ -437,26 +483,35 @@ export function buildDefs(erp, hooks = {}) {
 
       let committed;
       try {
-        committed = typeof decision.commitReport === "function"
-          ? await decision.commitReport(r.id, decision.request_id, opts?.signal)
-          : await getApiJson(`/api/reports/${encodeURIComponent(r.id)}/commit`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ report_id: r.id, request_id: decision.request_id }),
-            signal: opts?.signal,
-          });
+        committed = await serverApi("commitReport")(r.id, decision.request_id, opts?.signal);
       } catch (error) {
         if (error?.name === "AbortError") throw error;
-        return ok(`The server could not finish submission: ${sentence(error?.message, "the commit request failed")} The draft stays editable; check the connection before retrying.`);
+        const message = `The server could not finish submission: ${sentence(error?.message, "the commit request failed")} The signed request is retained; call submit_expense_report again to retry.`;
+        decision.settle?.({ status: "retryable", message });
+        return ok(message);
       }
 
-      if (!committed.ok) return ok(commitRefusalText(committed.status, committed.body));
+      if (!committed.ok) {
+        const message = commitRefusalText(committed.status, committed.body);
+        decision.settle?.({ status: "retryable", message });
+        return ok(message);
+      }
       const result = committed.body;
       if (result?.schema !== "outpocket.commit_result/1" || result.status !== "committed") {
-        return ok(result?.status === "rejected"
+        const message = result?.status === "rejected"
           ? commitRefusalText(result.http_status ?? committed.status, result)
-          : "The server returned an unexpected commit response. The page did not mark the draft submitted; refresh it from the server before taking another action.");
+          : "The server returned an unexpected commit response. The page did not mark the draft submitted; refresh it from the server before taking another action.";
+        decision.settle?.({ status: "retryable", message });
+        return ok(message);
       }
+
+      decision.settle?.({
+        status: "committed",
+        confirmation: result.confirmation ?? null,
+        message: result.confirmation
+          ? `Submitted. Confirmation ${result.confirmation}.`
+          : "Submitted. Refresh the report to read the server confirmation.",
+      });
 
       const provenance = result.artifact?.provenance_summary;
       if (!result.confirmation || !result.chain_entry?.at || !result.chain_entry?.actor ||
@@ -464,7 +519,16 @@ export function buildDefs(erp, hooks = {}) {
         return ok("The server committed the report but returned an incomplete result. Refresh the page to read the committed report and its day-book entry.");
       }
 
-      erp.applyCommitResult(r.id, result);
+      try {
+        const fresh = await serverApi("getReport")(r.id, opts?.signal);
+        adoptReportPayload(fresh);
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        return ok(
+          `Signed and submitted. Confirmation ${result.confirmation}, but the page could not refresh the committed report: ` +
+          `${sentence(error?.message, "the read-back failed")} Refresh the page before taking another action.`,
+        );
+      }
       return ok(
         `Signed and submitted. Confirmation ${result.confirmation}; server revision ${result.committed_revision}. ` +
         `Provenance: ${provenance.agent_fields}/${provenance.total_fields} field(s) filled via agent tools, ` +
@@ -483,7 +547,7 @@ export function buildDefs(erp, hooks = {}) {
     execute: async (args, opts) => {
       let response;
       try {
-        response = await getApiJson("/api/daybook", { method: "GET", signal: opts?.signal });
+        response = await serverApi("dayBook")(opts?.signal);
       } catch (error) {
         if (error?.name === "AbortError") throw error;
         return ok(`The server day book could not be read: ${sentence(error?.message, "the request failed")}`);

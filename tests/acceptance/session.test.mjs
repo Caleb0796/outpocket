@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHttpServer } from "../../server/index.mjs";
+import { createErp, PERSONAS as ERP_PERSONAS } from "../../src/erp.js";
+import { buildDefs } from "../../src/page/tools/defs.js";
 
 async function withServer(fn) {
   const server = createHttpServer();
@@ -106,6 +108,49 @@ test("the persona ids match the frozen enum in erp/contracts/eval-case.schema.js
   assert.ok(personaEnum, "eval-case.schema.json must define a persona enum");
   assert.deepEqual([...personaEnum].sort(), ["chen", "none", "ruiz"]);
 });
+
+test("canonical JSON, ERP, static login cards, and get_session_scope agree on each persona identity", async () => {
+  const canonicalPath = new URL("../../server/personas.json", import.meta.url);
+  const htmlPath = new URL("../../src/page/index.html", import.meta.url);
+  const canonical = JSON.parse(readFileSync(canonicalPath, "utf8")).personas.map(identityFields);
+  const erpIdentities = ERP_PERSONAS.map(identityFields);
+  assert.deepEqual(erpIdentities, canonical, "ERP PERSONAS drifted from server/personas.json");
+
+  const html = readFileSync(htmlPath, "utf8");
+  const cardIdentities = canonical.map((persona) => identityFromCard(html, persona));
+  assert.deepEqual(cardIdentities, canonical, "static login cards drifted from server/personas.json");
+
+  for (const persona of canonical) {
+    const erp = createErp();
+    erp.signIn(persona.id);
+    const result = await buildDefs(erp).get_session_scope.execute();
+    const text = result?.content?.[0]?.text ?? "";
+    assert.ok(text.includes(persona.name), `${persona.id} scope omitted canonical name`);
+    assert.ok(text.includes(persona.title), `${persona.id} scope omitted canonical title`);
+    assert.ok(text.includes(`role ${persona.role}`), `${persona.id} scope omitted canonical role`);
+  }
+});
+
+function identityFields(persona) {
+  return {
+    id: persona.id,
+    role: persona.role,
+    name: persona.name,
+    title: persona.title,
+  };
+}
+
+function identityFromCard(html, persona) {
+  const escapedId = persona.id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedRole = persona.role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const card = new RegExp(
+    `<li\\s+data-persona="${escapedId}"\\s+data-role="${escapedRole}">([\\s\\S]*?)<\\/li>`,
+  ).exec(html)?.[1];
+  assert.ok(card, `static login card missing for ${persona.id}`);
+  const name = /<span class="name">([^<]+)<\/span>/.exec(card)?.[1];
+  const title = /<div class="title"[^>]*>([^<]+)<\/div>/.exec(card)?.[1];
+  return { id: persona.id, role: persona.role, name, title };
+}
 
 // The schema nests `persona` several levels deep under $defs; walk the whole
 // document rather than hard-coding the path, so a future reshuffle of the

@@ -36,16 +36,10 @@ function freshReportId() {
 }
 
 function openBody(reportId) {
-  const ex = clone(SCHEMA.examples[0]);
   return {
     report_id: reportId,
-    revision: ex.revision,
-    policy_version: ex.policy_version,
-    policy_digest: ex.snapshot.policy_digest,
-    report: { ...ex.snapshot.report, id: reportId },
-    verdict: ex.snapshot.verdict,
-    worst_case: ex.worst_case,
-    violation_history_count: ex.violation_history_count,
+    worst_case: "Submitting makes this report final.",
+    violation_history_count: 0,
   };
 }
 
@@ -84,9 +78,29 @@ async function getJson(base, path, cookie) {
   return { status: res.status, body: json };
 }
 
+async function createDraft(base, cookie) {
+  const created = await postJson(base, "/api/reports", cookie, {
+    title: "Chain fixture",
+    project: "FALCON",
+  });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const reportId = created.body.report_id;
+  const added = await postJson(base, `/api/reports/${reportId}/lines`, cookie, {
+    date: "2026-08-20",
+    merchant: "Heron Cafeteria",
+    category: "meals",
+    amount_cents: 1820,
+    currency: "USD",
+    attendees: 1,
+    description: "Lunch",
+  });
+  assert.equal(added.status, 201, JSON.stringify(added.body));
+  return reportId;
+}
+
 /** Drives one full open -> respond(signed) -> commit cycle for a fresh report. Returns the commit result. */
 async function signAndCommitOnce(base, gate, cookie, sid) {
-  const reportId = freshReportId();
+  const reportId = await createDraft(base, cookie);
   const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
   assert.equal(opened.status, 200, JSON.stringify(opened.body));
   const sr = opened.body.sign_request;
@@ -238,12 +252,8 @@ test("S7 x D-118: a commit refused by E_POLICY_DIGEST_MOVED appends NOTHING to t
 
     // Open a SECOND sign request signed under the real policy, then swap
     // the served policy out from under it before committing.
-    const reportId = freshReportId();
-    const opened = await postJson(base, "/api/sign", cookie, {
-      ...openBody(reportId),
-      policy_version: realPolicy.version,
-      policy_digest: realPolicy.digest,
-    });
+    const reportId = await createDraft(base, cookie);
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(opened.status, 200, JSON.stringify(opened.body));
     const sr = opened.body.sign_request;
     const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
@@ -267,41 +277,36 @@ test("S7 x D-118: a commit refused by E_POLICY_DIGEST_MOVED appends NOTHING to t
   });
 });
 
-test("S7 x D-118: a commit refused by E_SNAPSHOT_MISMATCH also appends NOTHING to the day book", async () => {
-  let liveReport = null; // null -> S6's recon SKIPS; set it to force a mismatch
-  const gate = createSignGate({ getLiveReport: () => liveReport });
-  await withApp(gate, async (base) => {
-    const cookie = await login(base, "chen");
-    const sid = cookie.split("=")[1];
-
-    await signAndCommitOnce(base, gate, cookie, sid);
-    const before = (await getJson(base, "/api/daybook", cookie)).body.entries;
-    assert.equal(before.length, 1);
-
-    const reportId = freshReportId();
-    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
-    assert.equal(opened.status, 200);
-    const sr = opened.body.sign_request;
-    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
-    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, {
-      schema: "outpocket.sign_respond_request/1", request_id: sr.request_id, decision: "signed", reason: null,
-      method: "click", acknowledged_digest: sr.snapshot_digest, acknowledged_revision: sr.revision, confirm_token: confirmToken,
-    });
-    assert.equal(responded.status, 200);
-
-    // A live report that disagrees with what was signed.
-    liveReport = { ...sr.snapshot.report, title: "TAMPERED" };
-
-    const refused = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
-      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
-    });
-    assert.equal(refused.status, 409);
-    assert.equal(refused.body.error, "E_SNAPSHOT_MISMATCH");
-
-    const after = (await getJson(base, "/api/daybook", cookie)).body.entries;
-    assert.equal(after.length, before.length, "E_SNAPSHOT_MISMATCH must not append a chain entry either");
-    assert.deepEqual(after, before);
+test("S7 x D-118: a commit refused by E_SNAPSHOT_MISMATCH appends NOTHING to the gate's day book", () => {
+  const reportId = freshReportId();
+  let liveReport = { ...clone(SCHEMA.examples[0].snapshot.report), id: reportId, owner: "chen", status: "draft" };
+  const gate = createSignGate({
+    getLiveReport: () => liveReport,
+    prepareReportCommit: () => () => {},
   });
+  const { signRequest: sr } = gate.open({
+    sessionId: "chain-session",
+    personaId: "chen",
+    personaName: "Chen Xiao",
+    reportId,
+  });
+  gate.respond({
+    requestId: sr.request_id,
+    sessionId: "chain-session",
+    decision: "signed",
+    reason: null,
+    method: "click",
+    acknowledgedDigest: sr.snapshot_digest,
+    acknowledgedRevision: sr.revision,
+    confirmToken: gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: "chain-session" }),
+  });
+  liveReport = { ...liveReport, title: "TAMPERED" };
+
+  assert.throws(
+    () => gate.commit({ requestId: sr.request_id, reportId, sessionId: "chain-session" }),
+    (error) => error.code === "E_SNAPSHOT_MISMATCH" && error.http === 409,
+  );
+  assert.deepEqual(gate.chain.list(), []);
 });
 
 test("a digest failure in chain preparation leaves seq, head and entries untouched", () => {
@@ -318,37 +323,38 @@ test("a digest failure in chain preparation leaves seq, head and entries untouch
   assert.equal(first.prev, GENESIS_DIGEST);
 });
 
-test("a report that becomes blocking before commit returns 422 E_NOT_CLEAN and appends nothing", async () => {
-  let liveReport = null;
-  const gate = createSignGate({ getLiveReport: () => liveReport });
-  await withApp(gate, async (base) => {
-    const cookie = await login(base, "chen");
-    const sid = cookie.split("=")[1];
-    const reportId = freshReportId();
-    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
-    assert.equal(opened.status, 200);
-    const sr = opened.body.sign_request;
-    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
-    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, {
-      schema: "outpocket.sign_respond_request/1", request_id: sr.request_id, decision: "signed", reason: null,
-      method: "click", acknowledged_digest: sr.snapshot_digest, acknowledged_revision: sr.revision, confirm_token: confirmToken,
-    });
-    assert.equal(responded.status, 200);
-
-    liveReport = clone(sr.snapshot.report);
-    liveReport.lines[0].amount_cents = 5_000_000;
-    liveReport.lines[0].usd_cents = 1;
-    liveReport.total_usd_cents = 1 + liveReport.lines[1].usd_cents;
-
-    const refused = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
-      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
-    });
-    assert.equal(refused.status, 422);
-    assert.deepEqual(refused.body, {
-      error: "E_NOT_CLEAN",
-      message: `report ${reportId} has 1 blocking policy violation(s)`,
-    });
-    assert.deepEqual(gate.chain.list(), []);
-    assert.equal(gate.chain.currentHead(), GENESIS_DIGEST);
+test("a report that becomes blocking before commit returns 422 E_NOT_CLEAN and appends nothing", () => {
+  const reportId = freshReportId();
+  let liveReport = { ...clone(SCHEMA.examples[0].snapshot.report), id: reportId, owner: "chen", status: "draft" };
+  const gate = createSignGate({
+    getLiveReport: () => liveReport,
+    prepareReportCommit: () => () => {},
   });
+  const { signRequest: sr } = gate.open({
+    sessionId: "blocking-session",
+    personaId: "chen",
+    personaName: "Chen Xiao",
+    reportId,
+  });
+  gate.respond({
+    requestId: sr.request_id,
+    sessionId: "blocking-session",
+    decision: "signed",
+    reason: null,
+    method: "click",
+    acknowledgedDigest: sr.snapshot_digest,
+    acknowledgedRevision: sr.revision,
+    confirmToken: gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: "blocking-session" }),
+  });
+  liveReport = clone(liveReport);
+  liveReport.lines[0].amount_cents = 5_000_000;
+  liveReport.lines[0].usd_cents = 5_000_000;
+  liveReport.total_usd_cents = liveReport.lines.reduce((sum, line) => sum + line.usd_cents, 0);
+
+  assert.throws(
+    () => gate.commit({ requestId: sr.request_id, reportId, sessionId: "blocking-session" }),
+    (error) => error.code === "E_NOT_CLEAN" && error.http === 422,
+  );
+  assert.deepEqual(gate.chain.list(), []);
+  assert.equal(gate.chain.currentHead(), GENESIS_DIGEST);
 });

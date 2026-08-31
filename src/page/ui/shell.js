@@ -35,13 +35,11 @@ const el = {
   regions: Array.from(document.querySelectorAll("[data-region]")),
 };
 
-/**
- * Display names for the two seeded logins, mirroring server/personas.json.
- * That file is the record the README's `login:` lines are generated from
- * (node G2); this map exists only so the shell can print a human name without
- * a second round trip. The ids and roles it keys on come from the server.
- */
-const DISPLAY_NAMES = { chen: "Chen Xiao", ruiz: "Elena Ruiz" };
+const displayNames = Object.fromEntries(
+  Array.from(document.querySelectorAll("[data-persona]"))
+    .map((card) => [card.dataset.persona, card.querySelector(".name")?.textContent?.trim()])
+    .filter(([, name]) => Boolean(name)),
+);
 
 /** Subscribers registered by later nodes; called on every session change. */
 const listeners = new Set();
@@ -69,7 +67,7 @@ function render() {
   if (el.identity) el.identity.hidden = !signedIn;
 
   if (signedIn) {
-    if (el.sessionName) el.sessionName.textContent = DISPLAY_NAMES[session.persona] ?? session.persona;
+    if (el.sessionName) el.sessionName.textContent = displayNames[session.persona] ?? session.persona;
     if (el.sessionPersona) el.sessionPersona.textContent = session.persona;
     if (el.sessionRole) el.sessionRole.textContent = session.role;
     showError("");

@@ -51,18 +51,12 @@ function freshReportId() {
   return `RP-TEST-${nextReportId++}`;
 }
 
-/** A fresh, valid open-sign body, from erp/contracts/signature.schema.json examples[0]. */
+/** The public sign-open body. Report content and policy claims are server-owned. */
 function openBody(reportId, overrides = {}) {
-  const ex = clone(SCHEMA.examples[0]);
   return {
     report_id: reportId,
-    revision: ex.revision,
-    policy_version: ex.policy_version,
-    policy_digest: ex.snapshot.policy_digest,
-    report: { ...ex.snapshot.report, id: reportId },
-    verdict: ex.snapshot.verdict,
-    worst_case: ex.worst_case,
-    violation_history_count: ex.violation_history_count,
+    worst_case: "Submitting this report makes the expense record final.",
+    violation_history_count: 0,
     ...overrides,
   };
 }
@@ -116,6 +110,26 @@ async function getJson(base, path, cookie) {
   return { status: res.status, body: json };
 }
 
+async function createDraft(base, cookie, { amountCents = 1820 } = {}) {
+  const created = await postJson(base, "/api/reports", cookie, {
+    title: "Sign gate fixture",
+    project: "FALCON",
+  });
+  assert.equal(created.status, 201, `report creation must succeed: ${JSON.stringify(created.body)}`);
+  const reportId = created.body.report_id;
+  const added = await postJson(base, `/api/reports/${reportId}/lines`, cookie, {
+    date: "2026-08-20",
+    merchant: "Heron Cafeteria",
+    category: "meals",
+    amount_cents: amountCents,
+    currency: "USD",
+    attendees: 1,
+    description: "Lunch",
+  });
+  assert.equal(added.status, 201, `line creation must succeed: ${JSON.stringify(added.body)}`);
+  return { reportId, report: added.body.report };
+}
+
 function respondBody(sr, { decision, reason = null, confirmToken }) {
   const body = {
     schema: "outpocket.sign_respond_request/1",
@@ -131,9 +145,10 @@ function respondBody(sr, { decision, reason = null, confirmToken }) {
 }
 
 /** Opens a sign request as `chen`, over raw HTTP. Returns everything a test typically needs. */
-async function openAsChen(base, gate, reportId = freshReportId()) {
+async function openAsChen(base, gate, reportId) {
   const cookie = await login(base, "chen");
   const sid = cookieToSid(cookie);
+  if (reportId === undefined) ({ reportId } = await createDraft(base, cookie));
   const { status, body } = await postJson(base, "/api/sign", cookie, openBody(reportId));
   assert.equal(status, 200, `open must succeed: ${JSON.stringify(body)}`);
   const sr = body.sign_request;
@@ -171,7 +186,7 @@ test("handshake mode: execute() resolves within 2s carrying exactly {status:'awa
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
     const bridge = createSignBridge({ baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } });
-    const reportId = freshReportId();
+    const { reportId } = await createDraft(base, cookie);
 
     const t0 = Date.now();
     const result = await bridge.beginSign(openBody(reportId));
@@ -210,7 +225,7 @@ test("suspend mode: execute() stays unresolved while the record is open, and res
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
     const sid = cookieToSid(cookie);
-    const reportId = freshReportId();
+    const { reportId } = await createDraft(base, cookie);
     const bridge = createSignBridge({ baseUrl: base, mode: SIGN_MODE.SUSPEND, pollIntervalMs: 25, headers: { Cookie: cookie } });
 
     const pending = bridge.beginSign(openBody(reportId));
@@ -249,8 +264,19 @@ test("N-15 neg-commit-without-human: a synthesised sign_response POSTed straight
       signed_by: "attacker",
       at: "2020-01-01T00:00:00.000Z",
     });
-    assert.equal(forged.status, 409);
+    assert.equal(forged.status, 400);
     assert.deepEqual(forged.body, {
+      error: "E_BAD_REQUEST",
+      message: "commit request has unknown field(s): signature, signed_by, at",
+    });
+
+    const unsigned = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      schema: "outpocket.commit_request/1",
+      request_id: sr.request_id,
+      report_id: reportId,
+    });
+    assert.equal(unsigned.status, 409);
+    assert.deepEqual(unsigned.body, {
       error: "E_NOT_SIGNED",
       message: "sign request is open, not answered+signed",
     });
@@ -492,17 +518,18 @@ test("losing or omitting the ticket cannot mutate or answer the record", async (
 // connection pool, not just that one response looked right. Per D-100: also
 // prove the validator isn't stuck shut by immediately sending a genuinely
 // well-formed body afterward and requiring it to succeed.
-test("a malformed POST /api/sign returns 400 with a named code, the server survives, and a well-formed request still works right after", async () => {
+test("a malformed POST /api/sign returns 400, authority claims are rejected, and an ID-only request still works right after", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
-    const reportId = freshReportId();
-
-    // L1's exact repro: only report_id, everything else undefined.
-    const malformed = await postJson(base, "/api/sign", cookie, { report_id: reportId });
+    const malformed = await postJson(base, "/api/sign", cookie, {});
     assert.equal(malformed.status, 400, `expected 400, the server must not crash on this: ${JSON.stringify(malformed)}`);
     assert.equal(malformed.body.error, "E_BAD_SIGN_REQUEST");
-    assert.match(malformed.body.message, /report\b/);
+    assert.match(malformed.body.message, /report_id/);
+
+    const unknown = await postJson(base, "/api/sign", cookie, openBody(freshReportId()));
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.body.error, "E_REPORT_NOT_FOUND");
 
     // D-90: prove the server is ALIVE, not merely that one response looked
     // right — a real request, over a real connection, must still resolve.
@@ -519,78 +546,69 @@ test("a malformed POST /api/sign returns 400 with a named code, the server survi
     const meRes = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
     assert.equal(meRes.status, 200, "GET /api/me must still succeed — the process is alive, not merely accepting TCP connections");
 
-    const missingReport = openBody(freshReportId());
-    delete missingReport.report;
-    const noReport = await postJson(base, "/api/sign", cookie, missingReport);
-    assert.equal(noReport.status, 400);
-    assert.equal(noReport.body.error, "E_BAD_SIGN_REQUEST");
+    const claimedDraft = await createDraft(base, cookie);
+    const claimed = await postJson(base, "/api/sign", cookie, openBody(claimedDraft.reportId, {
+      report: claimedDraft.report,
+      revision: 999,
+      policy_version: "1900-01.9",
+      policy_digest: `sha256:${"f".repeat(64)}`,
+      verdict: { blocking: 0, violations: [], warning: 0 },
+    }));
+    assert.equal(claimed.status, 400);
+    assert.equal(claimed.body.error, "E_BAD_SIGN_REQUEST");
+    assert.match(claimed.body.message, /client authority field/);
 
-    // These fields are legacy compatibility noise now. Omitting all of them
-    // must still produce a request whose values came from the server.
-    const noAuthorityClaims = openBody(freshReportId());
-    for (const field of ["revision", "policy_version", "policy_digest", "verdict"]) delete noAuthorityClaims[field];
-    const serverOwned = await postJson(base, "/api/sign", cookie, noAuthorityClaims);
+    const serverDraft = await createDraft(base, cookie);
+    const serverOwned = await postJson(base, "/api/sign", cookie, openBody(serverDraft.reportId));
     assert.equal(serverOwned.status, 200, JSON.stringify(serverOwned.body));
-    assert.equal(serverOwned.body.sign_request.revision, 0);
+    assert.equal(serverOwned.body.sign_request.revision, serverDraft.report.revision);
     assert.equal(serverOwned.body.sign_request.snapshot.policy_version, REAL_POLICY_VERSION);
     assert.equal(serverOwned.body.sign_request.snapshot.policy_digest, REAL_POLICY_DIGEST);
     assert.deepEqual(serverOwned.body.sign_request.snapshot.verdict, { blocking: 0, violations: [], warning: 0 });
 
     // D-100: the validator is not stuck shut — a genuinely well-formed body
     // sent immediately after all of the above still opens a real record.
-    const wellFormed = await postJson(base, "/api/sign", cookie, openBody(freshReportId()));
+    const wellFormedDraft = await createDraft(base, cookie);
+    const wellFormed = await postJson(base, "/api/sign", cookie, openBody(wellFormedDraft.reportId));
     assert.equal(wellFormed.status, 200, `a well-formed request must still succeed: ${JSON.stringify(wellFormed)}`);
     assert.match(wellFormed.body.sign_request.request_id, REQUEST_ID_RE);
 
-    // Legacy null claims are ignored too; they do not become null in the
-    // server-built snapshot.
-    const nullPolicy = await postJson(base, "/api/sign", cookie, openBody(freshReportId(), { policy_version: null, policy_digest: null }));
-    assert.equal(nullPolicy.status, 200, `null policy fields must still be accepted: ${JSON.stringify(nullPolicy)}`);
-    assert.equal(nullPolicy.body.sign_request.snapshot.policy_version, REAL_POLICY_VERSION);
-    assert.equal(nullPolicy.body.sign_request.snapshot.policy_digest, REAL_POLICY_DIGEST);
+    const nullDraft = await createDraft(base, cookie);
+    const nullPolicy = await postJson(base, "/api/sign", cookie, openBody(nullDraft.reportId, { policy_version: null, policy_digest: null }));
+    assert.equal(nullPolicy.status, 400);
+    assert.equal(nullPolicy.body.error, "E_BAD_SIGN_REQUEST");
   });
 });
 
-test("POST /api/sign ignores client verdict, policy identity and revision in both directions", async () => {
+test("POST /api/sign rejects client verdict, policy identity, report and revision fields", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
-    const reportId = freshReportId();
+    const { reportId, report } = await createDraft(base, cookie);
     const body = openBody(reportId, {
+      report,
       revision: 999,
       policy_version: "1900-01.9",
       policy_digest: `sha256:${"f".repeat(64)}`,
       verdict: { blocking: 999, violations: [], warning: 999 },
     });
-    body.report.revision = 999;
-
     const opened = await postJson(base, "/api/sign", cookie, body);
-    assert.equal(opened.status, 200, JSON.stringify(opened.body));
-    const sr = opened.body.sign_request;
-    assert.equal(sr.revision, 0);
-    assert.equal(sr.snapshot.report.revision, 0);
-    assert.equal(sr.snapshot.policy_version, REAL_POLICY_VERSION);
-    assert.equal(sr.snapshot.policy_digest, REAL_POLICY_DIGEST);
-    assert.deepEqual(sr.snapshot.verdict, { blocking: 0, violations: [], warning: 0 });
+    assert.equal(opened.status, 400, JSON.stringify(opened.body));
+    assert.equal(opened.body.error, "E_BAD_SIGN_REQUEST");
+    assert.match(opened.body.message, /report, revision, policy_version, policy_digest, verdict/);
   });
 });
 
-test("POST /api/sign rejects a $50,000 meal with 422 E_NOT_CLEAN even when the client claims clean", async () => {
+test("POST /api/sign rejects a server-stored $50,000 meal with 422 E_NOT_CLEAN", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
-    const reportId = freshReportId();
-    const body = openBody(reportId);
-    body.report.lines[0].amount_cents = 5_000_000;
-    body.report.lines[0].usd_cents = 1;
-    body.report.total_usd_cents = 1 + body.report.lines[1].usd_cents;
-    body.verdict = { blocking: 0, violations: [], warning: 0 };
-
-    const refused = await postJson(base, "/api/sign", cookie, body);
+    const { reportId } = await createDraft(base, cookie, { amountCents: 5_000_000 });
+    const refused = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(refused.status, 422);
     assert.deepEqual(refused.body, {
       error: "E_NOT_CLEAN",
-      message: `report ${reportId} has 1 blocking policy violation(s)`,
+      message: `report ${reportId} has 3 blocking policy violation(s)`,
     });
     assert.equal(gate.peekOpenRequestId(reportId, { sessionId: cookieToSid(cookie) }), null);
     assert.equal(gate.locks.isLocked(reportId), false);
@@ -599,17 +617,22 @@ test("POST /api/sign rejects a $50,000 meal with 422 E_NOT_CLEAN even when the c
 });
 
 test("a snapshot digest construction failure leaves no request, lock or chain state", () => {
+  const reportId = freshReportId();
+  const report = clone(SCHEMA.examples[0].snapshot.report);
+  report.id = reportId;
+  report.owner = "chen";
+  report.status = "draft";
   const gate = createSignGate({
     evaluateVerdict: () => ({ blocking: 0, violations: [undefined], warning: 0 }),
+    getLiveReport: (id) => id === reportId ? report : null,
+    prepareReportCommit: () => () => {},
   });
-  const reportId = freshReportId();
   assert.throws(
     () => gate.open({
       sessionId: "session-digest-failure",
       personaId: "chen",
       personaName: "Chen Xiao",
       reportId,
-      report: openBody(reportId).report,
       worstCase: "No mutation should publish.",
       violationHistoryCount: 0,
     }),
@@ -620,21 +643,19 @@ test("a snapshot digest construction failure leaves no request, lock or chain st
   assert.deepEqual(gate.chain.list(), []);
 });
 
-test("a legacy report without line provenance is projected before signing and commits without a post-append 500", async () => {
+test("the server supplies complete line provenance before signing and commit", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     const cookie = await login(base, "chen");
     const sid = cookieToSid(cookie);
-    const reportId = freshReportId();
-    const body = openBody(reportId);
-    for (const line of body.report.lines) delete line.provenance;
-
-    const opened = await postJson(base, "/api/sign", cookie, body);
+    const { reportId } = await createDraft(base, cookie);
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
     assert.equal(opened.status, 200, JSON.stringify(opened.body));
     const sr = opened.body.sign_request;
     for (const line of sr.snapshot.report.lines) {
       assert.equal(Object.keys(line.provenance).length, 10);
-      assert.ok(Object.values(line.provenance).every((source) => source === "unset"));
+      assert.equal(Object.values(line.provenance).filter((source) => source === "agent").length, 7);
+      assert.equal(Object.values(line.provenance).filter((source) => source === "unset").length, 3);
     }
     const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
     const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, respondBody(sr, { decision: "signed", confirmToken }));
@@ -644,7 +665,7 @@ test("a legacy report without line provenance is projected before signing and co
     });
     assert.equal(committed.status, 200, JSON.stringify(committed.body));
     assert.deepEqual(committed.body.artifact.provenance_summary, {
-      agent_fields: 0, human_fields: 0, seed_fields: 0, total_fields: 20,
+      agent_fields: 7, human_fields: 0, seed_fields: 0, total_fields: 10,
     });
     assert.equal(gate.chain.list().length, 1);
   });
@@ -665,12 +686,12 @@ const REAL_POLICY_DIGEST = ocfDigest("outpocket/policy/1", POLICY_DOCUMENT);
 const MOVED_POLICY_DIGEST = `sha256:${"1".repeat(64)}`;
 
 /** Drives open -> respond(signed) -> commit, with an injectable getServedPolicy. Returns the commit's {status, body}. */
-async function signAndCommit(base, gate, { openOverrides = {}, servedAtCommit } = {}) {
-  const reportId = freshReportId();
+async function signAndCommit(base, gate, { servedAtCommit } = {}) {
   const cookie = await login(base, "chen");
   const sid = cookieToSid(cookie);
+  const { reportId } = await createDraft(base, cookie);
 
-  const opened = await postJson(base, "/api/sign", cookie, openBody(reportId, openOverrides));
+  const opened = await postJson(base, "/api/sign", cookie, openBody(reportId));
   assert.equal(opened.status, 200, `open must succeed: ${JSON.stringify(opened.body)}`);
   const sr = opened.body.sign_request;
   const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
@@ -695,9 +716,7 @@ function makeGateWithMutableServedPolicy(initial) {
 test("D-118 / D-108 binding half: a LEGITIMATE commit still succeeds when the served policy is unchanged", async () => {
   const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
   await withApp(gate, async (base) => {
-    const committed = await signAndCommit(base, gate, {
-      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
-    });
+    const committed = await signAndCommit(base, gate);
     assert.equal(committed.status, 200, `a legitimate, policy-unmoved commit must still succeed: ${JSON.stringify(committed.body)}`);
     assert.equal(committed.body.status, "committed");
   });
@@ -707,7 +726,6 @@ test("D-118: a same-version CONTENT swap between sign and commit is refused 409 
   const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
   await withApp(gate, async (base) => {
     const committed = await signAndCommit(base, gate, {
-      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
       // the swap: same version, different digest, discovered only at commit.
       servedAtCommit: { version: REAL_POLICY_VERSION, digest: MOVED_POLICY_DIGEST },
     });
@@ -722,7 +740,6 @@ test("D-118: a policy VERSION change between sign and commit is refused 409 E_PO
   const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
   await withApp(gate, async (base) => {
     const committed = await signAndCommit(base, gate, {
-      openOverrides: { policy_version: REAL_POLICY_VERSION, policy_digest: REAL_POLICY_DIGEST },
       servedAtCommit: { version: "2026-09.1", digest: MOVED_POLICY_DIGEST },
     });
     assert.equal(committed.status, 409, JSON.stringify(committed.body));
@@ -732,24 +749,28 @@ test("D-118: a policy VERSION change between sign and commit is refused 409 E_PO
   });
 });
 
-test("D-118: null client policy fields are ignored and the unchanged served policy still commits", async () => {
+test("D-118: null client policy fields are rejected instead of becoming signing authority", async () => {
   const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
   await withApp(gate, async (base) => {
-    const committed = await signAndCommit(base, gate, {
-      openOverrides: { policy_version: null, policy_digest: null },
-    });
-    assert.equal(committed.status, 200, `ignored null policy fields must not affect commit: ${JSON.stringify(committed.body)}`);
-    assert.equal(committed.body.status, "committed");
+    const cookie = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookie);
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId, { policy_version: null, policy_digest: null }));
+    assert.equal(opened.status, 400);
+    assert.equal(opened.body.error, "E_BAD_SIGN_REQUEST");
   });
 });
 
-test("D-118: the default gate binds SERVED_POLICY and ignores an arbitrary client policy digest", async () => {
+test("D-118: the default gate rejects an arbitrary client policy digest", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
-    const committed = await signAndCommit(base, gate, {
-      openOverrides: { policy_version: "1900-01.9", policy_digest: `sha256:${"f".repeat(64)}` },
-    });
-    assert.equal(committed.status, 200, JSON.stringify(committed.body));
+    const cookie = await login(base, "chen");
+    const { reportId } = await createDraft(base, cookie);
+    const opened = await postJson(base, "/api/sign", cookie, openBody(reportId, {
+      policy_version: "1900-01.9",
+      policy_digest: `sha256:${"f".repeat(64)}`,
+    }));
+    assert.equal(opened.status, 400, JSON.stringify(opened.body));
+    assert.equal(opened.body.error, "E_BAD_SIGN_REQUEST");
   });
 });
 

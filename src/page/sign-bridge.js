@@ -46,7 +46,7 @@ export const DEFAULT_SIGN_MODE = SIGN_MODE.HANDSHAKE;
 const POLL_INTERVAL_MS = 300;
 
 /**
- * createSignBridge(opts) -> { beginSign, continueSign, commitReport, openForDialog }
+ * createSignBridge(opts) -> { beginSign, continueSign, openForDialog }
  *
  * opts.fetchImpl: fetch-compatible function (default global fetch). Injected
  *   so tests can run against a plain Node http.Server without a browser.
@@ -84,9 +84,9 @@ export function createSignBridge({
   /**
    * beginSign(openBody, signal) -> Promise<{status:'awaiting_signature', ticket} | sign_response>
    *
-   * openBody: {report_id, revision, policy_version, policy_digest, report,
-   *   verdict, worst_case, violation_history_count} — the exact shape
-   *   POST /api/sign expects (server/sign.mjs `open`).
+   * openBody: {report_id, worst_case, violation_history_count}. The latter
+   * two fields are presentation metadata; all authority fields are loaded
+   * by the server from report_id.
    *
    * In HANDSHAKE mode this resolves as soon as the server has opened the
    * record — the caller must present `ticket` to continueSign() to learn
@@ -140,23 +140,6 @@ export function createSignBridge({
     return res.body;
   }
 
-  /**
-   * commitReport(reportId, requestId, signal) -> Promise<{ok,status,body}>
-   *
-   * This stays on the same bridge as the sign calls because the injected base
-   * URL and Cookie header are part of that transport. The real Node acceptance
-   * path supplies both values here; a relative fetch moved into defs.js would
-   * discard them at the last step. Non-2xx responses are returned intact so
-   * submit_expense_report can turn 409/422/423 into tool text rather than losing
-   * the server's code and message in a throw.
-   */
-  async function commitReport(reportId, requestId, signal) {
-    return postJson(`/api/reports/${encodeURIComponent(reportId)}/commit`, {
-      report_id: reportId,
-      request_id: requestId,
-    }, signal);
-  }
-
   async function getJson(path, signal) {
     const res = await fetchImpl(`${baseUrl}${path}`, { headers, credentials: "include", signal });
     const json = await res.json();
@@ -196,5 +179,5 @@ export function createSignBridge({
     return { requestId: signRequest.request_id, signRequest, ticket, confirmToken: tokenRes.body.confirm_token };
   }
 
-  return { beginSign, continueSign, commitReport, openForDialog };
+  return { beginSign, continueSign, openForDialog };
 }
