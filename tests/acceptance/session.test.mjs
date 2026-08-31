@@ -5,8 +5,8 @@ import { createHttpServer } from "../../server/index.mjs";
 import { createErp, PERSONAS as ERP_PERSONAS } from "../../src/erp.js";
 import { buildDefs } from "../../src/page/tools/defs.js";
 
-async function withServer(fn) {
-  const server = createHttpServer();
+async function withServer(fn, options) {
+  const server = createHttpServer(options);
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
@@ -37,6 +37,20 @@ test("POST /api/login sets a Set-Cookie with HttpOnly and SameSite=Lax", async (
   });
 });
 
+test("production login uses a __Host- cookie with Secure and no Domain attribute", async () => {
+  await withServer(async (base) => {
+    const res = await login(base, "chen");
+    assert.equal(res.status, 200);
+    const setCookie = res.headers.get("set-cookie");
+    assert.match(setCookie, /^__Host-outpocket_sid=[0-9a-f]+/);
+    assert.match(setCookie, /; Secure/i);
+    assert.match(setCookie, /; HttpOnly/i);
+    assert.match(setCookie, /; SameSite=Lax/i);
+    assert.match(setCookie, /; Path=\/(?:;|$)/i);
+    assert.doesNotMatch(setCookie, /; Domain=/i);
+  }, { secureCookies: true });
+});
+
 test("GET /api/me with the login cookie returns the persona", async () => {
   await withServer(async (base) => {
     const loginRes = await login(base, "chen");
@@ -56,10 +70,13 @@ test("GET /api/me without a cookie returns 401", async () => {
   });
 });
 
-test("GET /api/me with a garbage cookie returns 401 — it never crashes or trusts an unknown sid", async () => {
+test("GET /api/me with garbage or malformed cookies returns 401 instead of crashing", async () => {
   await withServer(async (base) => {
-    const res = await fetch(`${base}/api/me`, { headers: { Cookie: "sid=not-a-real-session" } });
-    assert.equal(res.status, 401);
+    for (const cookie of ["sid=not-a-real-session", "sid=%", "sid=%E0%A4%A"]) {
+      const res = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
+      assert.equal(res.status, 401, cookie);
+      assert.deepEqual(await res.json(), { error: "E_NO_SESSION" });
+    }
   });
 });
 

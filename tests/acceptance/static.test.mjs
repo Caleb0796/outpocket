@@ -161,3 +161,26 @@ test("the default served root is src/ (D-66) — GET / serves page/index.html an
     assert.equal(policy.status, 200, "../../policy.js must resolve inside the widened root");
   });
 });
+
+test("security and cache headers cover HTML, static assets, API errors, HEAD, and JSON 404s", async () => {
+  await withServer(undefined, async (base) => {
+    const responses = [
+      await fetch(`${base}/`),
+      await fetch(`${base}/page/skin.css`),
+      await fetch(`${base}/api/me`),
+      await fetch(`${base}/missing`),
+      await fetch(`${base}/page/skin.css`, { method: "HEAD" }),
+    ];
+
+    for (const response of responses) {
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(response.headers.get("x-frame-options"), "DENY");
+      assert.equal(
+        response.headers.get("content-security-policy"),
+        "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+      );
+    }
+  });
+});

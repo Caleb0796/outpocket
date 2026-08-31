@@ -647,3 +647,39 @@ test("mounted dialog opens modally, blocks Escape, then closes and restores focu
   assert.equal(mountedDoc.region.querySelector("[data-sign-result]").textContent, DECLINED_RECORDED_TEXT);
   assert.equal(mountedDoc.doc.activeElement, trigger);
 });
+
+test("mounted dialog cycles Tab focus between its decision controls", async () => {
+  const mountedDoc = fakeDocWithSignRegion();
+  const fetchImpl = spyFetch([{ status: 200, payload: { version: "2026.08.1" } }]);
+  const root = mountSignDialog({
+    doc: mountedDoc.doc,
+    signRequest: REPORT_A,
+    confirmToken: TOKEN,
+    fetchImpl,
+  });
+  await root.policyVersionReady;
+  const confirm = root.querySelector("[data-sign-confirm]");
+  const decline = root.querySelector("[data-sign-decline]");
+
+  let prevented = false;
+  decline.focus();
+  root.dispatchEvent({
+    type: "keydown",
+    key: "Tab",
+    shiftKey: false,
+    preventDefault: () => { prevented = true; },
+  });
+  assert.equal(prevented, true);
+  assert.equal(mountedDoc.doc.activeElement, confirm);
+
+  prevented = false;
+  confirm.focus();
+  root.dispatchEvent({
+    type: "keydown",
+    key: "Tab",
+    shiftKey: true,
+    preventDefault: () => { prevented = true; },
+  });
+  assert.equal(prevented, true);
+  assert.equal(mountedDoc.doc.activeElement, decline);
+});

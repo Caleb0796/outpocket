@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateLine, toCents, toUsdCents, policyForAgent, LIMITS, POLICY_VERSION } from "../src/policy.js";
+import { validateLine, toCents, toUsdCents, policyForAgent, LIMITS, POLICY_VERSION, parseDate } from "../src/policy.js";
 import { makeWorld } from "./helpers.mjs";
 
 const NOW = new Date(2026, 7, 28, 10, 0, 0);
@@ -19,9 +19,15 @@ const codes = (vs) => vs.map((v) => v.code);
 test("money conversion is integer-exact", () => {
   assert.equal(toCents(186.4), 18640);
   assert.equal(toCents(0.1 + 0.2), 30);
+  assert.equal(toCents(1.005), 101);
+  assert.equal(toCents(10.075), 1008);
   assert.equal(toCents(-5), null);
+  assert.equal(toCents(Number.MAX_SAFE_INTEGER), null);
   assert.equal(toCents("186.40"), null);
   assert.equal(toUsdCents(3800, "EUR"), 4142); // 38.00 EUR @ 1.09
+  assert.equal(toUsdCents(25, "CNY"), 4); // 3.5 cents rounds half up
+  assert.equal(toUsdCents(Number.MAX_SAFE_INTEGER, "EUR"), null);
+  assert.equal(toUsdCents(Number.MAX_SAFE_INTEGER + 1, "USD"), null);
   assert.equal(toUsdCents(1000, "AUD"), null);
 });
 
@@ -37,6 +43,12 @@ test("date window: future and stale block, recent passes", () => {
   assert.ok(codes(validateLine(mkLine({ date: "2026-09-05" }), ctx)).includes("DATE_FUTURE"));
   assert.ok(codes(validateLine(mkLine({ date: "2026-04-01" }), ctx)).includes("DATE_STALE"));
   assert.ok(!codes(validateLine(mkLine({ date: "2026-08-25" }), ctx)).some((c) => c.startsWith("DATE")));
+});
+
+test("calendar dates reject impossible days instead of normalizing them", () => {
+  assert.equal(parseDate("2026-02-30"), null);
+  assert.ok(codes(validateLine(mkLine({ date: "2026-02-30" }), ctx)).includes("MISSING_FIELD"));
+  assert.ok(parseDate("2024-02-29") instanceof Date);
 });
 
 test("meal cap scales with attendees", () => {

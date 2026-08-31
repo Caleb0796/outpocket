@@ -139,6 +139,130 @@ function comparableServerReport(report) {
   };
 }
 
+test("line routes reject impossible calendar dates without mutating the report", async () => {
+  await withEmployeeApp(async ({ base, cookie }) => {
+    const api = createApiClient({ baseUrl: base, headers: { Cookie: cookie } });
+    const created = await api.createReport({ title: "Calendar boundary", project: "FALCON" });
+    const before = await api.getReport(created.report.id);
+    const rejected = await requestJson(base, `/api/reports/${created.report.id}/lines`, cookie, {
+      method: "POST",
+      body: {
+        date: "2026-02-30",
+        merchant: "Impossible Date Co",
+        category: "transport",
+        amount_cents: 2000,
+        currency: "USD",
+      },
+    });
+
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error, "E_BAD_REQUEST");
+    assert.match(rejected.body.message, /valid calendar date/);
+    assert.deepEqual(await api.getReport(created.report.id), before);
+  });
+});
+
+test("line routes reject non-safe integers without partially inserting a line", async () => {
+  await withEmployeeApp(async ({ base, cookie }) => {
+    const api = createApiClient({ baseUrl: base, headers: { Cookie: cookie } });
+    const created = await api.createReport({ title: "Integer boundary", project: "FALCON" });
+    const before = await api.getReport(created.report.id);
+    const rejected = await requestJson(base, `/api/reports/${created.report.id}/lines`, cookie, {
+      method: "POST",
+      body: {
+        date: "2026-08-20",
+        merchant: "Unsafe Integer Probe",
+        category: "airfare",
+        amount_cents: Number.MAX_SAFE_INTEGER + 1,
+        currency: "USD",
+      },
+    });
+
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error, "E_BAD_REQUEST");
+    assert.match(rejected.body.message, /safe integer/);
+    assert.deepEqual(await api.getReport(created.report.id), before);
+  });
+});
+
+test("line routes reject unsafe currency conversions and report totals before mutation", async () => {
+  await withEmployeeApp(async ({ base, cookie }) => {
+    const api = createApiClient({ baseUrl: base, headers: { Cookie: cookie } });
+    const created = await api.createReport({ title: "Currency overflow boundary", project: "FALCON" });
+    const reportId = created.report.id;
+    const empty = await api.getReport(reportId);
+    const rejectedConversion = await requestJson(base, `/api/reports/${reportId}/lines`, cookie, {
+      method: "POST",
+      body: {
+        date: "2026-08-20",
+        merchant: "Unsafe EUR conversion",
+        category: "airfare",
+        amount_cents: Number.MAX_SAFE_INTEGER,
+        currency: "EUR",
+      },
+    });
+    assert.equal(rejectedConversion.status, 400);
+    assert.match(rejectedConversion.body.message, /safe integer range/);
+    assert.deepEqual(await api.getReport(reportId), empty);
+
+    const maximum = await requestJson(base, `/api/reports/${reportId}/lines`, cookie, {
+      method: "POST",
+      body: {
+        date: "2026-08-20",
+        merchant: "Maximum safe USD",
+        category: "airfare",
+        amount_cents: Number.MAX_SAFE_INTEGER,
+        currency: "USD",
+      },
+    });
+    assert.equal(maximum.status, 201);
+    const beforeRejectedMutations = await api.getReport(reportId);
+    const lineId = beforeRejectedMutations.report.lines[0].id;
+
+    const rejectedCurrencyPatch = await requestJson(base, `/api/reports/${reportId}/lines/${lineId}`, cookie, {
+      method: "PATCH",
+      body: { currency: "EUR" },
+    });
+    assert.equal(rejectedCurrencyPatch.status, 400);
+    assert.match(rejectedCurrencyPatch.body.message, /safe integer range/);
+    assert.deepEqual(await api.getReport(reportId), beforeRejectedMutations);
+
+    const rejectedTotal = await requestJson(base, `/api/reports/${reportId}/lines`, cookie, {
+      method: "POST",
+      body: {
+        date: "2026-08-20",
+        merchant: "Report total overflow",
+        category: "airfare",
+        amount_cents: 1,
+        currency: "USD",
+      },
+    });
+    assert.equal(rejectedTotal.status, 400);
+    assert.match(rejectedTotal.body.message, /safe integer range/);
+    assert.deepEqual(await api.getReport(reportId), beforeRejectedMutations);
+  });
+});
+
+test("receipt metadata rejects empty files before they can satisfy evidence rules", async () => {
+  await withEmployeeApp(async ({ base, cookie }) => {
+    const api = createApiClient({ baseUrl: base, headers: { Cookie: cookie } });
+    const before = await api.listReceipts();
+    const rejected = await requestJson(base, "/api/ui/receipts", cookie, {
+      method: "POST",
+      body: {
+        filename: "empty.pdf",
+        size: 0,
+        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      },
+    });
+
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.body.error, "E_BAD_REQUEST");
+    assert.match(rejected.body.message, /positive safe integer size/);
+    assert.deepEqual(await api.listReceipts(), before);
+  });
+});
+
 async function assertCacheMatchesServer(erp, api, expectedRevision) {
   const cached = erp.openReportOrNull();
   const payload = await api.getReport(cached.id);

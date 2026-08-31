@@ -27,7 +27,7 @@ import {
 import { LockError } from "./locks.mjs";
 import { createReportStore, LINE_FIELDS, StoreError } from "./store.mjs";
 import { verifyChain } from "./chain.mjs";
-import { CATEGORIES, FX, toUsdCents } from "../src/policy.js";
+import { CATEGORIES, FX, parseDate, toUsdCents } from "../src/policy.js";
 import { PERSONAS as ERP_PERSONAS } from "../src/erp.js";
 
 // S5's persona display names, read from F1's own file (server/personas.json)
@@ -65,6 +65,14 @@ const MIME_TYPES = {
   ".ico": "image/x-icon",
   ".txt": "text/plain; charset=utf-8",
 };
+
+const RESPONSE_HEADERS = Object.freeze({
+  "Cache-Control": "no-store",
+  "Content-Security-Policy": "base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+});
 
 function makeStaticHandler(pageRoot) {
   const root = pageRoot.endsWith(sep) ? pageRoot : pageRoot + sep;
@@ -137,7 +145,12 @@ function parseCookies(header) {
     if (i === -1) continue;
     const k = part.slice(0, i).trim();
     const v = part.slice(i + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
+    if (!k) continue;
+    try {
+      out[k] = decodeURIComponent(v);
+    } catch {
+      continue;
+    }
   }
   return out;
 }
@@ -164,8 +177,16 @@ function sendJson(res, status, body) {
  * Kept as a factory (rather than module-level state) so tests can spin up
  * independent servers with independent sessions in the same process.
  */
-export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSignGate } = {}) {
+export function createApp({
+  pageRoot = DEFAULT_PAGE_ROOT,
+  signGate: providedSignGate,
+  secureCookies = process.env.RENDER === "true" || process.env.NODE_ENV === "production",
+} = {}) {
   const sessions = new Map(); // sid -> persona id
+  const sessionCookieName = secureCookies ? "__Host-outpocket_sid" : "sid";
+  const sessionCookieAttributes = secureCookies
+    ? "Secure; HttpOnly; SameSite=Lax; Path=/"
+    : "HttpOnly; SameSite=Lax; Path=/";
   const reportStore = createReportStore();
   reportStore.seed(seedState());
   const stateDigestHandler = createStateDigestHandler(() => reportStore.stateProjection());
@@ -238,7 +259,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
   }
 
   function sessionFromRequest(req) {
-    const sid = parseCookies(req.headers.cookie).sid;
+    const sid = parseCookies(req.headers.cookie)[sessionCookieName];
     if (!sid) return null;
     const personaId = sessions.get(sid);
     return personaId ? { sid, personaId, ...PERSONAS[personaId] } : null;
@@ -295,8 +316,8 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
 
     const fields = {};
     if (Object.hasOwn(body, "date")) {
-      if (typeof body.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
-        throw new StoreError("E_BAD_REQUEST", 400, "date must be YYYY-MM-DD");
+      if (!parseDate(body.date)) {
+        throw new StoreError("E_BAD_REQUEST", 400, "date must be a valid calendar date in YYYY-MM-DD form");
       }
       fields.date = body.date;
     }
@@ -314,8 +335,8 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       fields.category = category;
     }
     if (Object.hasOwn(body, "amount_cents")) {
-      if (!Number.isInteger(body.amount_cents) || body.amount_cents <= 0) {
-        throw new StoreError("E_BAD_REQUEST", 400, "amount_cents must be a positive integer");
+      if (!Number.isSafeInteger(body.amount_cents) || body.amount_cents <= 0) {
+        throw new StoreError("E_BAD_REQUEST", 400, "amount_cents must be a positive safe integer");
       }
       fields.amount = body.amount_cents;
     }
@@ -330,8 +351,8 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
     }
     for (const field of ["attendees", "nights"]) {
       if (!Object.hasOwn(body, field)) continue;
-      if (body[field] !== null && (!Number.isInteger(body[field]) || body[field] < 1)) {
-        throw new StoreError("E_BAD_REQUEST", 400, `${field} must be null or an integer at least 1`);
+      if (body[field] !== null && (!Number.isSafeInteger(body[field]) || body[field] < 1)) {
+        throw new StoreError("E_BAD_REQUEST", 400, `${field} must be null or a safe integer at least 1`);
       }
       fields[field] = body[field];
     }
@@ -351,13 +372,34 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         }
         const itemExtra = unexpectedFields(item, ["label", "amount_cents"]);
         if (itemExtra.length || typeof item.label !== "string" || !item.label.trim()
-            || !Number.isInteger(item.amount_cents) || item.amount_cents <= 0) {
-          throw new StoreError("E_BAD_REQUEST", 400, `itemization[${index}] needs exactly label and positive amount_cents`);
+            || !Number.isSafeInteger(item.amount_cents) || item.amount_cents <= 0) {
+          throw new StoreError("E_BAD_REQUEST", 400, `itemization[${index}] needs exactly label and positive safe integer amount_cents`);
         }
         return { label: item.label.trim(), amount_cents: item.amount_cents };
       });
     }
     return fields;
+  }
+
+  function assertSafeMoneyMutation(report, fields, lineId = null) {
+    const current = lineId ? report.lines.find((line) => line.id === lineId) : null;
+    const amountCents = Object.hasOwn(fields, "amount") ? fields.amount : current?.amount_cents;
+    const currency = Object.hasOwn(fields, "currency") ? fields.currency : current?.currency;
+    const usdCents = toUsdCents(amountCents, currency);
+    if (!Number.isSafeInteger(usdCents)) {
+      throw new StoreError("E_BAD_REQUEST", 400,
+        "line amount and report total must stay within the safe integer range after currency conversion");
+    }
+    let total = usdCents;
+    for (const line of report.lines) {
+      if (line.id === lineId) continue;
+      if (!Number.isSafeInteger(line.usd_cents)
+          || !Number.isSafeInteger(total + line.usd_cents)) {
+        throw new StoreError("E_BAD_REQUEST", 400,
+          "line amount and report total must stay within the safe integer range after currency conversion");
+      }
+      total += line.usd_cents;
+    }
   }
 
   // S12's lock: while a sign request is open for report_id, every one of
@@ -410,7 +452,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       }
       const sid = randomBytes(24).toString("hex");
       sessions.set(sid, personaId);
-      res.setHeader("Set-Cookie", `sid=${sid}; HttpOnly; SameSite=Lax; Path=/`);
+      res.setHeader("Set-Cookie", `${sessionCookieName}=${sid}; ${sessionCookieAttributes}`);
       return sendJson(res, 200, PERSONAS[personaId]);
     }
 
@@ -489,11 +531,11 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
       if (!body || typeof body !== "object" || Array.isArray(body)
           || extra.length
           || typeof body.filename !== "string" || !body.filename.trim()
-          || !Number.isInteger(body.size) || body.size < 0
+          || !Number.isSafeInteger(body.size) || body.size < 1
           || typeof body.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(body.sha256)) {
         return sendJson(res, 400, {
           error: "E_BAD_REQUEST",
-          message: "receipt metadata must contain exactly a non-empty filename, non-negative integer size, and lowercase SHA-256",
+          message: "receipt metadata must contain exactly a non-empty filename, positive safe integer size, and lowercase SHA-256",
         });
       }
       const receipt = reportStore.addReceipt({
@@ -567,6 +609,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         const body = await readJsonBody(req);
         try {
           const patch = parseLineFields(body, { partial: true });
+          assertSafeMoneyMutation(report, patch, line.id);
           reportStore.updateLine(report.id, line.id, patch, humanWrite(session));
           const payload = reportPayload(report.id);
           return sendJson(res, 200, {
@@ -616,8 +659,8 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "worst_case must be a non-empty string" });
       }
       if (body.violation_history_count !== undefined
-          && (!Number.isInteger(body.violation_history_count) || body.violation_history_count < 0)) {
-        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "violation_history_count must be a non-negative integer" });
+          && (!Number.isSafeInteger(body.violation_history_count) || body.violation_history_count < 0)) {
+        return sendJson(res, 400, { error: "E_BAD_SIGN_REQUEST", message: "violation_history_count must be a non-negative safe integer" });
       }
       try {
         const { signRequest, ticket } = signGate.open({
@@ -825,6 +868,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         const body = await readJsonBody(req);
         try {
           const fields = parseLineFields(body);
+          assertSafeMoneyMutation(report, fields);
           const storedLine = reportStore.addLine(report.id, fields, agentWrite("add_expense_line"));
           const payload = reportPayload(report.id);
           return sendJson(res, 201, {
@@ -876,6 +920,7 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
         const body = await readJsonBody(req);
         try {
           const patch = parseLineFields(body, { partial: true });
+          assertSafeMoneyMutation(report, patch, line.id);
           reportStore.updateLine(report.id, line.id, patch, agentWrite("update_expense_line"));
           const payload = reportPayload(report.id);
           return sendJson(res, 200, {
@@ -968,6 +1013,9 @@ export function createApp({ pageRoot = DEFAULT_PAGE_ROOT, signGate: providedSign
   // fix). This is the general one: whatever the NEXT unvalidated route
   // turns out to be, it gets a 500 here instead of killing the server.
   return async function handle(req, res) {
+    for (const [name, value] of Object.entries(RESPONSE_HEADERS)) {
+      res.setHeader(name, value);
+    }
     try {
       await routeRequest(req, res);
     } catch (err) {

@@ -561,6 +561,29 @@ function closeAcceptedDialog(root, { doc, decision, message }) {
   previousFocus?.focus?.();
 }
 
+function keepFocusInDialog(root, doc) {
+  root.addEventListener?.("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const heading = root.querySelector(".sign-heading");
+    const controls = Array.from(root.querySelectorAll?.("button") ?? [])
+      .filter((control) => !control.hasAttribute?.("disabled"));
+    if (controls.length === 0) {
+      event.preventDefault?.();
+      heading?.focus?.();
+      return;
+    }
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (!event.shiftKey && doc.activeElement === last) {
+      event.preventDefault?.();
+      first.focus?.();
+    } else if (event.shiftKey && (doc.activeElement === first || doc.activeElement === heading)) {
+      event.preventDefault?.();
+      last.focus?.();
+    }
+  });
+}
+
 /** Mount into the shell's sign region. */
 export function mountSignDialog({
   doc = globalThis.document,
@@ -583,6 +606,7 @@ export function mountSignDialog({
     event.preventDefault?.();
     setStatus(root, "Choose Sign this report or Send back instead to finish this review.", { kind: "refused" });
   });
+  keepFocusInDialog(root, doc);
 
   if (typeof root.showModal === "function") root.showModal();
   else root.setAttribute("open", "");

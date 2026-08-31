@@ -60,13 +60,16 @@ const NON_REIMBURSABLE_LABELS = [
 
 export function toCents(amount) {
   if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) return null;
-  return Math.round(amount * 100);
+  const scaled = amount * 100;
+  const cents = Math.round(scaled + Number.EPSILON * Math.abs(scaled));
+  return Number.isSafeInteger(cents) ? cents : null;
 }
 
 export function toUsdCents(cents, currency) {
   const micros = FX[currency];
-  if (micros === undefined) return null;
-  return Math.round((cents * micros) / 1_000_000);
+  if (micros === undefined || !Number.isSafeInteger(cents) || cents < 0) return null;
+  const rounded = (BigInt(cents) * BigInt(micros) + 500_000n) / 1_000_000n;
+  return rounded <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rounded) : null;
 }
 
 export function fmtUsd(cents) {
@@ -86,8 +89,13 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function parseDate(s) {
   if (typeof s !== "string" || !DATE_RE.test(s)) return null;
+  const [year, month, day] = s.split("-").map(Number);
   const d = new Date(`${s}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())
+      || d.getFullYear() !== year
+      || d.getMonth() !== month - 1
+      || d.getDate() !== day) return null;
+  return d;
 }
 
 function daysFrom(date, now) {
