@@ -22,6 +22,11 @@
 // in code, and the server checks them again underneath.
 //
 // Annotations are exactly two: readOnlyHint and untrustedContentHint. Nothing else.
+// The second is intentionally selective rather than copied onto every read: report
+// titles, merchants, receipt filenames, validation detail and day-book labels can
+// contain employee-authored text, while sign-in scope and the compact policy come
+// from server-owned records. Keeping those two classes distinct is useful to a
+// caller; a blanket annotation would erase the distinction it is meant to express.
 
 import { CATEGORIES, FX, fmtUsd, fmtMoney, policyForAgent } from "../../policy.js";
 
@@ -91,6 +96,54 @@ function fullVerdictText(erp) {
   return `${body}\n${reportStatusLine(erp)}`;
 }
 
+function errorFrom(body) {
+  if (typeof body?.error === "string") return { code: body.error, message: body.message };
+  if (body?.error && typeof body.error === "object") {
+    return { code: body.error.code, message: body.error.message ?? body.message };
+  }
+  return { code: null, message: body?.message };
+}
+
+function sentence(text, fallback) {
+  const value = typeof text === "string" && text.trim() ? text.trim() : fallback;
+  return /[.!?]$/.test(value) ? value : `${value}.`;
+}
+
+function commitRefusalText(status, body) {
+  const { code, message } = errorFrom(body);
+  const named = code ? ` [${code}]` : "";
+  if (status === 422 || code === "E_NOT_CLEAN") {
+    return `The server rechecked the report and refused submission${named}: ` +
+      `${sentence(message, "blocking policy violations remain")} The draft stays editable; validate it again before retrying.`;
+  }
+  if (status === 423) {
+    return `The server refused submission${named} because this report is locked by a signing operation: ` +
+      `${sentence(message, "the report is busy")} The draft stays editable; wait for that operation to finish before retrying.`;
+  }
+  if (status === 409) {
+    return `The server refused submission${named} because the signing state or signed snapshot no longer matches: ` +
+      `${sentence(message, "the signed state is stale")} The draft stays editable; start a fresh review before retrying.`;
+  }
+  return `The server refused submission${named}: ${sentence(message, `HTTP ${status}`)} The draft stays editable.`;
+}
+
+function verificationText(verification) {
+  if (verification?.ok === true || verification === true) return "verified";
+  if (verification?.ok === false) {
+    const where = Number.isInteger(verification.brokenAtIndex) ? ` at index ${verification.brokenAtIndex}` : "";
+    return `failed${where}: ${verification.reason ?? "the server reported a broken link"}`;
+  }
+  if (verification === false) return "failed";
+  if (typeof verification === "string" && verification) return verification;
+  return "not reported";
+}
+
+function chainEntryText(entry) {
+  const detail = entry.detail ? ` — ${entry.detail}` : "";
+  return `#${entry.seq} ${entry.at} [${entry.kind}/${entry.source}] ${entry.actor}: ${entry.label}${detail}\n` +
+    `  prev ${entry.prev}\n  sha256 ${entry.entry_digest}`;
+}
+
 export const TEXT = { violationText, reportStatusLine, lineText, lineVerdictText, fullVerdictText };
 
 // ── the sixteen definitions ────────────────────────────────────
@@ -99,6 +152,17 @@ export const TEXT = { violationText, reportStatusLine, lineText, lineVerdictText
 export function buildDefs(erp, hooks = {}) {
   const S = { type: "string" };
   const session = erp.session();
+
+  async function getApiJson(path, init) {
+    const fetchImpl = hooks.fetchImpl ?? globalThis.fetch;
+    if (typeof fetchImpl !== "function") throw new Error("No fetch implementation is available for the server API.");
+    const response = await fetchImpl(`${hooks.baseUrl ?? ""}${path}`, {
+      credentials: "include",
+      ...init,
+    });
+    const body = await response.json();
+    return { ok: response.ok, status: response.status, body };
+  }
 
   const get_signin_status = {
     name: "get_signin_status",
@@ -143,7 +207,7 @@ export function buildDefs(erp, hooks = {}) {
     description:
       "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => {
       const rows = erp.listReports().map((r) => `${r.id} “${r.title}” · ${r.project} · ${r.status} · ${r.lines} line(s) · ${fmtUsd(r.totalUsd)}`);
       return ok(rows.length ? rows.join("\n") : "No reports yet.");
@@ -162,6 +226,7 @@ export function buildDefs(erp, hooks = {}) {
       },
       required: ["title", "project"],
     },
+    annotations: { readOnlyHint: false },
     execute: ({ title, project }, opts, source) => {
       const r = erp.createReport({ title, project }, source);
       return ok(`Draft ${r.id} created and opened for project ${r.project}.\n${reportStatusLine(erp)}`);
@@ -177,6 +242,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: { report_id: { ...S, description: "e.g. RP-1018" } },
       required: ["report_id"],
     },
+    annotations: { readOnlyHint: false },
     execute: ({ report_id }, opts, source) => {
       erp.openReport(report_id, source);
       return ok(reportStatusLine(erp));
@@ -188,7 +254,7 @@ export function buildDefs(erp, hooks = {}) {
     description:
       "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => {
       const r = erp.openReportOrNull();
       if (!r) return ok("No report is open.");
@@ -209,7 +275,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: { report_id: { ...S, description: "e.g. RP-1018" } },
       required: ["report_id"],
     },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: ({ report_id }) => {
       // The browser parses inputSchema but does not enforce it, so check here.
       const id = typeof report_id === "string" ? report_id.trim() : "";
@@ -263,6 +329,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: lineProps,
       required: ["date", "merchant", "category", "amount"],
     },
+    annotations: { readOnlyHint: false },
     execute: (args, opts, source) => {
       const { line } = erp.addLine(coerceLine(args), source);
       return ok(`Line ${line.id} added: ${line.merchant} · ${line.category} · ${fmtMoney(line.amountCents ?? 0, line.currency)}.\n${lineVerdictText(erp, line)}`);
@@ -278,6 +345,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: { line_id: { ...S, description: "e.g. ln_3" }, ...lineProps },
       required: ["line_id"],
     },
+    annotations: { readOnlyHint: false },
     execute: ({ line_id, ...patch }, opts, source) => {
       const { line } = erp.updateLine(line_id, coerceLine(patch), source);
       return ok(`Line ${line_id} updated.\n${lineVerdictText(erp, line)}`);
@@ -292,6 +360,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: { line_id: S },
       required: ["line_id"],
     },
+    annotations: { readOnlyHint: false },
     execute: ({ line_id }, opts, source) => {
       erp.removeLine(line_id, source);
       return ok(`Line ${line_id} removed.\n${reportStatusLine(erp)}`);
@@ -303,7 +372,7 @@ export function buildDefs(erp, hooks = {}) {
     description:
       "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => {
       const rows = erp.state.receipts
         .filter((r) => !r.archived)
@@ -321,6 +390,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: { line_id: S, receipt_id: { ...S, description: "From list_receipts, e.g. rc_2" } },
       required: ["line_id", "receipt_id"],
     },
+    annotations: { readOnlyHint: false },
     execute: ({ line_id, receipt_id }, opts, source) => {
       const { line } = erp.linkReceipt(line_id, receipt_id, source);
       return ok(`Receipt ${receipt_id} now backs ${line_id}.\n${lineVerdictText(erp, line)}`);
@@ -332,7 +402,7 @@ export function buildDefs(erp, hooks = {}) {
     description:
       "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => ok(fullVerdictText(erp)),
   };
 
@@ -341,6 +411,7 @@ export function buildDefs(erp, hooks = {}) {
     description:
       `Submit the open expense report to the approver. This suspends while the employee reviews the report next to the attached receipt images and signs it in the page; it returns the signed confirmation, or the employee's reason for sending it back. Submission is the employee's act — this tool only requests it.`,
     inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: false },
     execute: async (args, opts, source) => {
       const r = erp.openReportOrNull();
       if (!r) return ok("No report is open.");
@@ -359,24 +430,77 @@ export function buildDefs(erp, hooks = {}) {
       const decision = await hooks.requestSignature(summary, opts?.signal);
       if (!decision?.signed)
         return ok(`The employee reviewed the report and sent it back${decision?.reason ? `: “${decision.reason}”` : "."} The draft stays editable — adjust it and try again.`);
-      const { confirmation, artifact } = erp.submitOpenReport({ signedBy: erp.session().name, method: "signature-click" }, source);
+
+      if (!decision.request_id) {
+        return ok("The server recorded the signing response without returning its request id, so the report was not committed. The draft stays editable; start a fresh review before retrying.");
+      }
+
+      let committed;
+      try {
+        committed = typeof decision.commitReport === "function"
+          ? await decision.commitReport(r.id, decision.request_id, opts?.signal)
+          : await getApiJson(`/api/reports/${encodeURIComponent(r.id)}/commit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ report_id: r.id, request_id: decision.request_id }),
+            signal: opts?.signal,
+          });
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        return ok(`The server could not finish submission: ${sentence(error?.message, "the commit request failed")} The draft stays editable; check the connection before retrying.`);
+      }
+
+      if (!committed.ok) return ok(commitRefusalText(committed.status, committed.body));
+      const result = committed.body;
+      if (result?.schema !== "outpocket.commit_result/1" || result.status !== "committed") {
+        return ok(result?.status === "rejected"
+          ? commitRefusalText(result.http_status ?? committed.status, result)
+          : "The server returned an unexpected commit response. The page did not mark the draft submitted; refresh it from the server before taking another action.");
+      }
+
+      const provenance = result.artifact?.provenance_summary;
+      if (!result.confirmation || !result.chain_entry?.at || !result.chain_entry?.actor ||
+          !result.artifact?.chain_head || !provenance) {
+        return ok("The server committed the report but returned an incomplete result. Refresh the page to read the committed report and its day-book entry.");
+      }
+
+      erp.applyCommitResult(r.id, result);
       return ok(
-        `Signed and submitted. Confirmation ${confirmation}; routed to ${summary.approver}. ` +
-        `Provenance: ${artifact.provenance.agentLines}/${artifact.provenance.totalLines} line(s) filled via agent tools, ` +
-        `${artifact.provenance.humanEditedLines} human-edited; signature by ${artifact.signature.signedBy}. ` +
-        `A structured artifact (policy ${artifact.policyVersion}, line provenance, receipt hashes, day-book digest) is stored on the report.`);
+        `Signed and submitted. Confirmation ${result.confirmation}; server revision ${result.committed_revision}. ` +
+        `Provenance: ${provenance.agent_fields}/${provenance.total_fields} field(s) filled via agent tools, ` +
+        `${provenance.human_fields} human-filled, ${provenance.seed_fields} seeded. ` +
+        `Commit actor ${result.chain_entry.actor}; policy ${result.artifact.policy_version}; ` +
+        `SHA-256 day-book head ${result.artifact.chain_head}.`);
     },
   };
 
   const get_day_book = {
     name: "get_day_book",
     description:
-      "Read the day book: the append-only log of everything that happened in this session — tool calls by agents, sign-ins, receipt attachments, signatures. Auditor sessions read it; nothing in any session can edit it.",
+      "Read the server day book: SHA-256 hash-chain entries for committed reports, plus the server's chain head and verification result. Auditor sessions read it; this call does not edit it.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true },
-    execute: () => {
-      const rows = erp.state.dayBook.slice(-18).map((e) => `${e.ts.slice(11, 19)} [${e.kind}/${e.source}] ${e.actor}: ${e.label}${e.detail ? ` — ${e.detail}` : ""}`);
-      return ok(rows.length ? rows.join("\n") : "The day book is empty.");
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
+    execute: async (args, opts) => {
+      let response;
+      try {
+        response = await getApiJson("/api/daybook", { method: "GET", signal: opts?.signal });
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        return ok(`The server day book could not be read: ${sentence(error?.message, "the request failed")}`);
+      }
+      if (!response.ok) {
+        const { code, message } = errorFrom(response.body);
+        return ok(`The server refused the day-book read${code ? ` [${code}]` : ""}: ${sentence(message, `HTTP ${response.status}`)}`);
+      }
+
+      const entries = Array.isArray(response.body?.entries) ? response.body.entries : [];
+      const shown = entries.slice(-6);
+      const omitted = entries.length - shown.length;
+      const header = `Chain verification: ${verificationText(response.body?.verification)}. ` +
+        `Head: ${response.body?.head ?? "(empty chain)"}.`;
+      if (!shown.length) return ok(`${header}\nThe server day book has no entries.`);
+      const note = omitted ? `Showing the last ${shown.length} of ${entries.length} entries.\n` : "";
+      return ok(`${header}\n${note}${shown.map(chainEntryText).join("\n")}`);
     },
   };
 

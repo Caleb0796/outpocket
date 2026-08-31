@@ -250,8 +250,10 @@ test("N-15 neg-commit-without-human: a synthesised sign_response POSTed straight
       at: "2020-01-01T00:00:00.000Z",
     });
     assert.equal(forged.status, 409);
-    assert.equal(forged.body.error.code, "E_NOT_SIGNED");
-    assert.equal(forged.body.status, "rejected");
+    assert.deepEqual(forged.body, {
+      error: "E_NOT_SIGNED",
+      message: "sign request is open, not answered+signed",
+    });
 
     // Prove the forged fields had zero effect: the record can still be
     // answered legitimately, and the REAL signed_by/at are the session's own
@@ -479,14 +481,10 @@ test("losing or omitting the ticket cannot mutate or answer the record", async (
 });
 
 // ── a malformed POST /api/sign used to take the whole process down ─────────
-// L1's find, verified locally before this fix: {"report_id":"RP-1017"} alone
-// left `report`/`verdict` undefined; server/sign.mjs's open() built a
-// snapshot around them and called digest() (src/canonical.js), which
-// correctly refuses to serialize `undefined` (E_CANON_TYPE) — and NOTHING
-// caught the throw, so it escaped the request handler as an unhandled
-// rejection and Node terminated the whole process. On a live host that is a
-// 502 and every in-memory session wiped (S1: sessions are a plain Map), not
-// a cosmetic 500.
+// L1's original body left report and the former client verdict undefined;
+// digest() then rejected the snapshot. The verdict no longer comes from the
+// body, but a missing report must still stop before canonicalisation and the
+// process must still answer the next request.
 //
 // Per D-90: a test that only checks the malformed call's own status code
 // passes against a server that answered 400 and then died on the very next
@@ -504,10 +502,7 @@ test("a malformed POST /api/sign returns 400 with a named code, the server survi
     const malformed = await postJson(base, "/api/sign", cookie, { report_id: reportId });
     assert.equal(malformed.status, 400, `expected 400, the server must not crash on this: ${JSON.stringify(malformed)}`);
     assert.equal(malformed.body.error, "E_BAD_SIGN_REQUEST");
-    assert.match(malformed.body.message, /policy_version/);
-    assert.match(malformed.body.message, /policy_digest/);
     assert.match(malformed.body.message, /report\b/);
-    assert.match(malformed.body.message, /verdict/);
 
     // D-90: prove the server is ALIVE, not merely that one response looked
     // right — a real request, over a real connection, must still resolve.
@@ -524,15 +519,22 @@ test("a malformed POST /api/sign returns 400 with a named code, the server survi
     const meRes = await fetch(`${base}/api/me`, { headers: { Cookie: cookie } });
     assert.equal(meRes.status, 200, "GET /api/me must still succeed — the process is alive, not merely accepting TCP connections");
 
-    // Various other ways to leave the snapshot fields undefined — each one
-    // must 400, none may crash the process.
-    for (const missing of ["policy_version", "policy_digest", "report", "verdict"]) {
-      const body = openBody(freshReportId());
-      delete body[missing];
-      const res = await postJson(base, "/api/sign", cookie, body);
-      assert.equal(res.status, 400, `missing ${missing} must 400, not crash: ${JSON.stringify(res)}`);
-      assert.equal(res.body.error, "E_BAD_SIGN_REQUEST");
-    }
+    const missingReport = openBody(freshReportId());
+    delete missingReport.report;
+    const noReport = await postJson(base, "/api/sign", cookie, missingReport);
+    assert.equal(noReport.status, 400);
+    assert.equal(noReport.body.error, "E_BAD_SIGN_REQUEST");
+
+    // These fields are legacy compatibility noise now. Omitting all of them
+    // must still produce a request whose values came from the server.
+    const noAuthorityClaims = openBody(freshReportId());
+    for (const field of ["revision", "policy_version", "policy_digest", "verdict"]) delete noAuthorityClaims[field];
+    const serverOwned = await postJson(base, "/api/sign", cookie, noAuthorityClaims);
+    assert.equal(serverOwned.status, 200, JSON.stringify(serverOwned.body));
+    assert.equal(serverOwned.body.sign_request.revision, 0);
+    assert.equal(serverOwned.body.sign_request.snapshot.policy_version, REAL_POLICY_VERSION);
+    assert.equal(serverOwned.body.sign_request.snapshot.policy_digest, REAL_POLICY_DIGEST);
+    assert.deepEqual(serverOwned.body.sign_request.snapshot.verdict, { blocking: 0, violations: [], warning: 0 });
 
     // D-100: the validator is not stuck shut — a genuinely well-formed body
     // sent immediately after all of the above still opens a real record.
@@ -540,13 +542,111 @@ test("a malformed POST /api/sign returns 400 with a named code, the server survi
     assert.equal(wellFormed.status, 200, `a well-formed request must still succeed: ${JSON.stringify(wellFormed)}`);
     assert.match(wellFormed.body.sign_request.request_id, REQUEST_ID_RE);
 
-    // AND null is explicitly NOT rejected — canon() serializes null fine,
-    // and src/page/sign-install.js's buildOpenBody legitimately sends
-    // policy_version/policy_digest as null when no live policy object is
-    // available. A validator that rejected null here would break that real
-    // caller while fixing nothing the crash needed fixed.
+    // Legacy null claims are ignored too; they do not become null in the
+    // server-built snapshot.
     const nullPolicy = await postJson(base, "/api/sign", cookie, openBody(freshReportId(), { policy_version: null, policy_digest: null }));
     assert.equal(nullPolicy.status, 200, `null policy fields must still be accepted: ${JSON.stringify(nullPolicy)}`);
+    assert.equal(nullPolicy.body.sign_request.snapshot.policy_version, REAL_POLICY_VERSION);
+    assert.equal(nullPolicy.body.sign_request.snapshot.policy_digest, REAL_POLICY_DIGEST);
+  });
+});
+
+test("POST /api/sign ignores client verdict, policy identity and revision in both directions", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const reportId = freshReportId();
+    const body = openBody(reportId, {
+      revision: 999,
+      policy_version: "1900-01.9",
+      policy_digest: `sha256:${"f".repeat(64)}`,
+      verdict: { blocking: 999, violations: [], warning: 999 },
+    });
+    body.report.revision = 999;
+
+    const opened = await postJson(base, "/api/sign", cookie, body);
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    const sr = opened.body.sign_request;
+    assert.equal(sr.revision, 0);
+    assert.equal(sr.snapshot.report.revision, 0);
+    assert.equal(sr.snapshot.policy_version, REAL_POLICY_VERSION);
+    assert.equal(sr.snapshot.policy_digest, REAL_POLICY_DIGEST);
+    assert.deepEqual(sr.snapshot.verdict, { blocking: 0, violations: [], warning: 0 });
+  });
+});
+
+test("POST /api/sign rejects a $50,000 meal with 422 E_NOT_CLEAN even when the client claims clean", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const reportId = freshReportId();
+    const body = openBody(reportId);
+    body.report.lines[0].amount_cents = 5_000_000;
+    body.report.lines[0].usd_cents = 1;
+    body.report.total_usd_cents = 1 + body.report.lines[1].usd_cents;
+    body.verdict = { blocking: 0, violations: [], warning: 0 };
+
+    const refused = await postJson(base, "/api/sign", cookie, body);
+    assert.equal(refused.status, 422);
+    assert.deepEqual(refused.body, {
+      error: "E_NOT_CLEAN",
+      message: `report ${reportId} has 1 blocking policy violation(s)`,
+    });
+    assert.equal(gate.peekOpenRequestId(reportId, { sessionId: cookieToSid(cookie) }), null);
+    assert.equal(gate.locks.isLocked(reportId), false);
+    assert.deepEqual(gate.chain.list(), []);
+  });
+});
+
+test("a snapshot digest construction failure leaves no request, lock or chain state", () => {
+  const gate = createSignGate({
+    evaluateVerdict: () => ({ blocking: 0, violations: [undefined], warning: 0 }),
+  });
+  const reportId = freshReportId();
+  assert.throws(
+    () => gate.open({
+      sessionId: "session-digest-failure",
+      personaId: "chen",
+      personaName: "Chen Xiao",
+      reportId,
+      report: openBody(reportId).report,
+      worstCase: "No mutation should publish.",
+      violationHistoryCount: 0,
+    }),
+    /E_CANON_TYPE/,
+  );
+  assert.equal(gate.peekOpenRequestId(reportId, { sessionId: "session-digest-failure" }), null);
+  assert.equal(gate.locks.isLocked(reportId), false);
+  assert.deepEqual(gate.chain.list(), []);
+});
+
+test("a legacy report without line provenance is projected before signing and commits without a post-append 500", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const cookie = await login(base, "chen");
+    const sid = cookieToSid(cookie);
+    const reportId = freshReportId();
+    const body = openBody(reportId);
+    for (const line of body.report.lines) delete line.provenance;
+
+    const opened = await postJson(base, "/api/sign", cookie, body);
+    assert.equal(opened.status, 200, JSON.stringify(opened.body));
+    const sr = opened.body.sign_request;
+    for (const line of sr.snapshot.report.lines) {
+      assert.equal(Object.keys(line.provenance).length, 10);
+      assert.ok(Object.values(line.provenance).every((source) => source === "unset"));
+    }
+    const confirmToken = gate.peekConfirmTokenForDialog(sr.request_id, { sessionId: sid });
+    const responded = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, respondBody(sr, { decision: "signed", confirmToken }));
+    assert.equal(responded.status, 200);
+    const committed = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId,
+    });
+    assert.equal(committed.status, 200, JSON.stringify(committed.body));
+    assert.deepEqual(committed.body.artifact.provenance_summary, {
+      agent_fields: 0, human_fields: 0, seed_fields: 0, total_fields: 20,
+    });
+    assert.equal(gate.chain.list().length, 1);
   });
 });
 
@@ -612,10 +712,9 @@ test("D-118: a same-version CONTENT swap between sign and commit is refused 409 
       servedAtCommit: { version: REAL_POLICY_VERSION, digest: MOVED_POLICY_DIGEST },
     });
     assert.equal(committed.status, 409, `expected 409, the exact attack x-policyBinding.theAttack describes: ${JSON.stringify(committed.body)}`);
-    assert.equal(committed.body.error.code, "E_POLICY_DIGEST_MOVED");
-    assert.equal(committed.body.error.signed_policy_digest, REAL_POLICY_DIGEST);
-    assert.equal(committed.body.error.served_policy_digest, MOVED_POLICY_DIGEST);
-    assert.equal(committed.body.status, "rejected");
+    assert.equal(committed.body.error, "E_POLICY_DIGEST_MOVED");
+    assert.match(committed.body.message, /policy content moved/);
+    assert.deepEqual(Object.keys(committed.body).sort(), ["error", "message"]);
   });
 });
 
@@ -627,32 +726,29 @@ test("D-118: a policy VERSION change between sign and commit is refused 409 E_PO
       servedAtCommit: { version: "2026-09.1", digest: MOVED_POLICY_DIGEST },
     });
     assert.equal(committed.status, 409, JSON.stringify(committed.body));
-    assert.equal(committed.body.error.code, "E_POLICY_VERSION_MOVED", "version-name changes get their own code, not DIGEST_MOVED, even though the digest also differs");
-    assert.equal(committed.body.error.signed_policy_version, REAL_POLICY_VERSION);
-    assert.equal(committed.body.error.served_policy_version, "2026-09.1");
+    assert.equal(committed.body.error, "E_POLICY_VERSION_MOVED", "version-name changes get their own code, not DIGEST_MOVED, even though the digest also differs");
+    assert.match(committed.body.message, /policy version moved/);
+    assert.deepEqual(Object.keys(committed.body).sort(), ["error", "message"]);
   });
 });
 
-test("D-118: null policy_version/policy_digest at sign time (no claim made — src/page/sign-install.js's real shape) is NOT treated as 'moved'", async () => {
-  // The exact false-positive trap: a caller that never claimed a policy
-  // identity (sign-install.js's buildOpenBody sends null with no live
-  // policy object) must not be refused for a policy identity it never
-  // asserted, even though the server DOES have a real, different-looking
-  // served policy at commit time.
+test("D-118: null client policy fields are ignored and the unchanged served policy still commits", async () => {
   const gate = makeGateWithMutableServedPolicy({ version: REAL_POLICY_VERSION, digest: REAL_POLICY_DIGEST });
   await withApp(gate, async (base) => {
     const committed = await signAndCommit(base, gate, {
       openOverrides: { policy_version: null, policy_digest: null },
     });
-    assert.equal(committed.status, 200, `null policy claims must not be refused as 'moved': ${JSON.stringify(committed.body)}`);
+    assert.equal(committed.status, 200, `ignored null policy fields must not affect commit: ${JSON.stringify(committed.body)}`);
     assert.equal(committed.body.status, "committed");
   });
 });
 
-test("D-118: with getServedPolicy unset (default), an arbitrary policy_digest unrelated to any real policy still commits — no regression for every pre-existing test", async () => {
-  const gate = createSignGate(); // no getServedPolicy — the default, same as every OTHER test in this file
+test("D-118: the default gate binds SERVED_POLICY and ignores an arbitrary client policy digest", async () => {
+  const gate = createSignGate();
   await withApp(gate, async (base) => {
-    const committed = await signAndCommit(base, gate, {}); // openBody()'s own schema-example policy_digest, never checked against anything real
+    const committed = await signAndCommit(base, gate, {
+      openOverrides: { policy_version: "1900-01.9", policy_digest: `sha256:${"f".repeat(64)}` },
+    });
     assert.equal(committed.status, 200, JSON.stringify(committed.body));
   });
 });

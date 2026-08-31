@@ -1,5 +1,5 @@
 {
-  "app_commit": "5ba890a73a81cac617b0e778f0fd5d65a74b00c5",
+  "app_commit": "5eb88218b76f09a6e7d5f862d1e6f4d44938a384",
   "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
   "policy_version": "2026-08.1",
   "schema": "outpocket.tool_export/1",
@@ -19,7 +19,7 @@
         "verdict": "n_a"
       },
       "state_id": "S0-anon",
-      "surface_digest": "sha256:f06bcc69e91399f550951ed1e7627b4999ba946884ec79503fc33aa8b2254d53",
+      "surface_digest": "sha256:3e675e98304cefad40df07a31cc542460d9bca696cc6b44c4fd5f68e11efc3c8",
       "tools": [
         {
           "annotations": {
@@ -34,7 +34,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {
@@ -68,7 +69,7 @@
         "verdict": "n_a"
       },
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:dddbdfd1bc404351540552bb5d16f91a701b2fbe8fba7d7872984e7fd2deea96",
+      "surface_digest": "sha256:fd9c1b7ab4608a3c4b0c7ebf7e94789a7e081e37b3b81617b973427f6dc4363c",
       "tools": [
         {
           "annotations": {
@@ -94,7 +95,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
           "inputSchema": {
@@ -104,6 +106,9 @@
           "name": "list_expense_reports"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -125,6 +130,9 @@
           "name": "create_expense_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
             "properties": {
@@ -142,7 +150,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {
@@ -176,7 +185,7 @@
         "verdict": "clean"
       },
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:e251898e471645517d481d803bbb3e39f02aad8bdf72228e5e9a916276cf10f4",
+      "surface_digest": "sha256:2c8690085e0970ad6f26f2858758a728060a7536dfeebcd0e0b1f2ad3156d1c4",
       "tools": [
         {
           "annotations": {
@@ -202,7 +211,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
           "inputSchema": {
@@ -212,6 +222,9 @@
           "name": "list_expense_reports"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -233,6 +246,9 @@
           "name": "create_expense_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
             "properties": {
@@ -250,7 +266,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
           "inputSchema": {
@@ -260,6 +277,9 @@
           "name": "get_open_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
           "inputSchema": {
             "properties": {
@@ -342,6 +362,9 @@
           "name": "add_expense_line"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
           "inputSchema": {
             "properties": {
@@ -425,6 +448,9 @@
           "name": "update_expense_line"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
           "inputSchema": {
             "properties": {
@@ -441,7 +467,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
           "inputSchema": {
@@ -451,6 +478,9 @@
           "name": "list_receipts"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -472,7 +502,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
           "inputSchema": {
@@ -482,6 +513,9 @@
           "name": "validate_expense_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Submit the open expense report to the approver. This suspends while the employee reviews the report next to the attached receipt images and signs it in the page; it returns the signed confirmation, or the employee's reason for sending it back. Submission is the employee's act — this tool only requests it.",
           "inputSchema": {
             "properties": {},
@@ -491,7 +525,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {
@@ -525,7 +560,7 @@
         "verdict": "dirty"
       },
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:1ffd45cd481d33e72d580d00aa41c01e5c097955924c941cd26ea9b22fc7bc79",
+      "surface_digest": "sha256:14fb3627b8e13fff86f129a316090687f7199cb31eafc34dabb4144777f74eaa",
       "tools": [
         {
           "annotations": {
@@ -551,7 +586,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
           "inputSchema": {
@@ -561,6 +597,9 @@
           "name": "list_expense_reports"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -582,6 +621,9 @@
           "name": "create_expense_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
             "properties": {
@@ -599,7 +641,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
           "inputSchema": {
@@ -609,6 +652,9 @@
           "name": "get_open_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
           "inputSchema": {
             "properties": {
@@ -691,6 +737,9 @@
           "name": "add_expense_line"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
           "inputSchema": {
             "properties": {
@@ -774,6 +823,9 @@
           "name": "update_expense_line"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
           "inputSchema": {
             "properties": {
@@ -790,7 +842,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List the receipt files the employee has attached in the page: id, filename, size, SHA-256 prefix, and whether each already backs a line. Receipt files stay in the employee's browser; tools only ever see this metadata.",
           "inputSchema": {
@@ -800,6 +853,9 @@
           "name": "list_receipts"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -821,7 +877,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
           "inputSchema": {
@@ -832,7 +889,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {
@@ -866,7 +924,7 @@
         "verdict": "n_a"
       },
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:8cc5df1c8f86a1826d907a59c06367f09cea8aacc1039f157340239880242578",
+      "surface_digest": "sha256:2d390e9e66c0b0a849091d8d6d45deda08cc79b422b974a47f41c191c799309c",
       "tools": [
         {
           "annotations": {
@@ -892,7 +950,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
           "inputSchema": {
@@ -902,6 +961,9 @@
           "name": "list_expense_reports"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
             "properties": {
@@ -923,6 +985,9 @@
           "name": "create_expense_report"
         },
         {
+          "annotations": {
+            "readOnlyHint": false
+          },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
             "properties": {
@@ -940,7 +1005,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
           "inputSchema": {
@@ -951,7 +1017,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {
@@ -972,11 +1039,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1748,
-        "estimated_tokens": 573,
+        "description_bytes": 1718,
+        "estimated_tokens": 565,
         "schema_bytes": 430,
         "tool_count": 7,
-        "total_bytes": 2290
+        "total_bytes": 2260
       },
       "label": "Auditor signed in; every tool on this surface is read-only",
       "preconditions": {
@@ -985,7 +1052,7 @@
         "verdict": "n_a"
       },
       "state_id": "S5-aud",
-      "surface_digest": "sha256:10950a36c3356afd2c87e57d24834ff055d9a39219647282f3018443ba635520",
+      "surface_digest": "sha256:952b4ed646d4dedc71db957b81bf3915bf06a9429967a72334abe25b6aca69dc",
       "tools": [
         {
           "annotations": {
@@ -1011,7 +1078,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "List this session's expense reports with id, title, project, status (draft or submitted), line count and USD total.",
           "inputSchema": {
@@ -1022,7 +1090,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Read one expense report by id: header, status, every line with amounts, receipt links and provenance, totals, and the blocking and warning counts. A pure read — it does not open the report in the page and writes nothing, so the page keeps showing whatever it was showing. Ids come from list_expense_reports.",
           "inputSchema": {
@@ -1041,7 +1110,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
           "inputSchema": {
@@ -1052,9 +1122,10 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
-          "description": "Read the day book: the append-only log of everything that happened in this session — tool calls by agents, sign-ins, receipt attachments, signatures. Auditor sessions read it; nothing in any session can edit it.",
+          "description": "Read the server day book: SHA-256 hash-chain entries for committed reports, plus the server's chain head and verification result. Auditor sessions read it; this call does not edit it.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -1063,7 +1134,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": true
+            "readOnlyHint": true,
+            "untrustedContentHint": true
           },
           "description": "Explain why a named tool is not on this page's tool surface right now, and what would bring it back. Returns the same violation envelope the expense rules use: a code, a severity, the field at issue, a one-sentence fix, and candidate tools taken from the surface as it currently stands. Tools that are present are reported as present.",
           "inputSchema": {

@@ -30,7 +30,7 @@ export const CHAIN_DIGEST_PREFIX = "outpocket/chain/1";
 export const GENESIS_DIGEST = "sha256:" + "0".repeat(64);
 
 /**
- * createChain({now}) -> { append, list, currentHead }
+ * createChain({now}) -> { prepare, appendPrepared, append, list, currentHead }
  *
  * opts.now: () -> Date, injectable clock (default real time).
  */
@@ -40,22 +40,39 @@ export function createChain({ now = () => new Date() } = {}) {
   let seq = 0;
 
   /**
-   * append(fields) -> the new entry (fields + seq, at, prev, entry_digest)
+   * prepare(fields) -> a complete entry without changing seq/head/entries.
    *
-   * `fields` is whatever the caller wants recorded (kind, source, actor,
-   * label, detail, payload_digest, ... — this module does not fix the set,
-   * server/sign.mjs's commit() does). seq/at/prev are added here, in the
-   * SAME synchronous statement as the digest computation, so there is no
-   * window in which an entry exists without its digest or vice versa.
+   * Digesting used to happen after `seq += 1`, so a canonicalisation error
+   * advanced the private counter even though no entry existed. The split is
+   * intentional: server/sign.mjs also needs the complete entry in order to
+   * build its whole commit response before publishing anything. Rewinding a
+   * failed append was rejected because it would make every new derived field
+   * another rollback site; preparing once and publishing once keeps failure
+   * on the read-only side of the state transition.
    */
-  function append(fields) {
-    seq += 1;
-    const entryWithoutDigest = { seq, at: now().toISOString(), ...fields, prev: head };
+  function prepare(fields) {
+    const nextSeq = seq + 1;
+    const entryWithoutDigest = { seq: nextSeq, at: now().toISOString(), ...fields, prev: head };
     const entry_digest = digest(CHAIN_DIGEST_PREFIX, entryWithoutDigest);
-    const entry = { ...entryWithoutDigest, entry_digest };
+    return { ...entryWithoutDigest, entry_digest };
+  }
+
+  /** Publish one prepared entry, after rechecking it against the current head. */
+  function appendPrepared(entry) {
+    const { entry_digest, ...entryWithoutDigest } = entry;
+    const recomputed = digest(CHAIN_DIGEST_PREFIX, entryWithoutDigest);
+    if (entry.seq !== seq + 1 || entry.prev !== head || recomputed !== entry_digest) {
+      throw new Error("prepared chain entry is stale or its digest does not match");
+    }
     entries.push(entry);
     head = entry_digest;
+    seq = entry.seq;
     return entry;
+  }
+
+  /** append(fields) -> the new entry (fields + seq, at, prev, entry_digest). */
+  function append(fields) {
+    return appendPrepared(prepare(fields));
   }
 
   /** list() -> the full day book, in append order. A copy — callers cannot mutate history. */
@@ -67,7 +84,7 @@ export function createChain({ now = () => new Date() } = {}) {
     return head;
   }
 
-  return { append, list, currentHead };
+  return { prepare, appendPrepared, append, list, currentHead };
 }
 
 /**

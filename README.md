@@ -1,63 +1,166 @@
 # outpocket
 
-A WebMCP expense-reimbursement desk. The employee's own agent works inside the
-employee's own authenticated session — no second front door, no second identity
-system, no new credential holder.
+**A WebMCP expense desk where an agent prepares and corrects a reimbursement
+inside the employee's already-authenticated page session, while the employee
+keeps control of sign-in, receipt attachment, review, and signature.**
 
-> **Status: live.** Deployed at
-> [outpocket.onrender.com](https://outpocket.onrender.com). The build plan and
-> node-by-node progress record live in [`erp/`](erp/).
+[Live app](https://outpocket.onrender.com/) ·
+[Seeded moving demo](https://outpocket.onrender.com/?demo=1&seed=7) ·
+[Five-minute judge guide](docs/JUDGE-GUIDE.md) ·
+[Devpost draft](docs/DEVPOST.md) ·
+[MIT license](LICENSE)
 
-## What this is
+> **Fastest judge path:** open
+> **[the seed-7 demo](https://outpocket.onrender.com/?demo=1&seed=7)**. The page
+> labels the run, signs in through its own chen persona control, and drives a
+> repeatable filing from the 6-tool employee home surface to a 14-tool clean
+> draft. It stops before submission because the signature remains a human act.
 
-`outpocket` is a web application that registers a *state-dependent* set of
-WebMCP tools on the page the employee is already logged into. A third-party
-agent (ChatGPT's built-in browser, or Chrome with WebMCP enabled) picks those
-tools up and drives the reimbursement flow — but the boundary is enforced on
-the server, per request, against the session the human already holds.
+The catalogue contains **17 distinct tools across 6 registration states**. The
+page adds and revokes tools as the session, open report, and validation verdict
+change; the revised list reaches the agent on its next turn. The set of write
+tools is computed in every state from each tool's `readOnlyHint`, never from a
+separate hard-coded list.
 
-Reimbursement is high-risk and carries personal responsibility. That is the
-reason the human stays on the page rather than being replaced by a backend
-integration.
+**Demo personas:** `chen` is the employee and `ruiz` is auditor Elena Ruiz; both
+are one click with no password. **Known open limit:** the signature flow can
+bind a response to the authenticated session and presented snapshot, but it
+cannot prove a person clicked—the full disclosure is below.
 
-## Demo credentials
+## Copy this prompt
 
-Two demo logins, no password — signing in is a one-click persona pick,
-enforced server-side by the session cookie (see
-[`erp/contracts/session.contract.md`](erp/contracts/session.contract.md)).
-Exactly these two, matching the frozen persona enum:
+Sign in as chen, connect an agent to the page, and paste:
 
-| Name | Role | Login |
-| --- | --- | --- |
-| Chen Xiao | employee | `login: chen` |
-| Elena Ruiz | auditor | `login: ruiz` |
+```text
+Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, business purpose "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
+```
 
-## Opening the app
+That walk starts at S1, creates an open draft at S2, and ends at S3 with
+`submit_expense_report` present. The page's surface inspector makes the 6 → 13
+→ 14 transition visible while the agent works.
 
-Judges can drive `outpocket` two ways:
+## Who this is for, and why WebMCP
 
-1. **ChatGPT desktop built-in browser** — open the deployed URL directly. The
-   built-in browser exposes `document.modelContext` to the page with no
-   flags required.
-2. **Local Chrome** — launch Chrome with the WebMCP testing flag, then
-   navigate to the deployed URL:
+Outpocket is for employees who have paid a company expense themselves and for
+the finance teams that must review the resulting claim. Today the employee
+usually retypes receipt data into a form, or the company builds a second API,
+RPA, or integration-layer path. A custom connector—or a platform such as Truto,
+Merge, Paragon, or Nango—can automate the workflow, but it commonly introduces
+a credential path separate from the employee's current login.
 
-   ```
-   google-chrome --enable-features=WebMCPTesting
-   ```
+WebMCP changes where the work happens. After the employee signs in, the agent
+uses tools registered by that page and same-origin requests carry the existing
+session. No intermediary needs a separate long-lived API token. The employee
+and agent can now work on the same live report: the agent handles transcription,
+policy lookup, and repair loops; the employee attaches the receipt files,
+reviews the exact snapshot, and decides whether to sign.
+
+Expense reimbursement is personal: the employee is out of pocket and remains
+responsible for the claim. That is why this project does not aim for unattended
+submission.
+
+## Open the app
+
+### ChatGPT's built-in browser
+
+Open the [live app](https://outpocket.onrender.com/) directly. The ChatGPT
+desktop built-in browser needs no Chrome flag.
+
+### Chrome 149+
+
+Use the launch line for your platform, then open the live app:
+
+```text
+Linux:   google-chrome --enable-features=WebMCP
+macOS:   open -a "Google Chrome" --args --enable-features=WebMCP
+Windows: chrome.exe --enable-features=WebMCP
+```
+
+Alternatively, visit `chrome://flags/#enable-webmcp-testing`, choose
+**Enabled**, and restart Chrome.
+
+In DevTools, this feature check must return `true`:
+
+```js
+'modelContext' in document
+```
+
+The supported entry point is `document.modelContext`.
+
+## Demo personas
+
+Both are one-click personas with no password. Their server-issued session
+cookie determines the role used for every request.
+
+| Name | Role | Login | What to inspect |
+| --- | --- | --- | --- |
+| Chen Xiao | employee | `login: chen` | Create, correct, validate, review, and submit a report |
+| Elena Ruiz | auditor | `login: ruiz` | Read submitted reports and the day book; no write tools |
+
+## The surface is the workflow menu
+
+| Registration state | Tool count | Visible change |
+| --- | ---: | --- |
+| Signed out | 2 | Sign-in status and an explanation for absent tools |
+| Employee, no report open | 6 | Report discovery and creation become available |
+| Employee, draft has blocking findings | 13 | Editing, receipt linking, and validation are available |
+| Employee, clean draft | 14 | `submit_expense_report` joins the next agent turn |
+| Employee, submitted report | 7 | Editing and submission leave the menu |
+| Auditor | 7 | Every registered tool is read-only |
+
+The changing menu guides the agent, but it is not the authorization check.
+Every write is authorized again by the server against the current session, and
+the commit route independently recomputes the verdict. A report with blocking
+findings is refused with HTTP 422 `E_NOT_CLEAN` even if a caller bypasses the
+page.
+
+## What the signature adds—and what it does not
+
+The client already applies its own website-access and confirmation policies.
+Outpocket adds a narrower mechanism: the sign request carries a canonical digest
+of the exact report and policy snapshot shown for review, and the server
+re-canonicalizes current state before commit. An edit after review therefore
+does not match the signed snapshot.
+
+This is **not proof that a person clicked**. A caller that holds the authenticated
+session and can read the token placed in the rendered dialog can skip the human
+review and issue `POST /api/sign/{id}/respond` itself. We have not measured that
+DOM-read ability for the evaluated client, but the vector remains open for any
+caller that has it. The token raises the cost; it does not establish personhood.
+Because signer identity comes from the real session and time comes from the
+server, the day book can accurately attribute an account and timestamp to an
+event that did not happen—and that record is indistinguishable there from a
+genuine click.
+
+Tool definitions and tool results are also treated as untrusted content by the
+client. No permission depends on persuasive tool text: session authorization,
+validation, request state, and digest comparison all run below the registered
+description.
+
+## Other current limits
+
+- The deployment is one Node.js process with in-memory sessions, reports, sign
+  requests, and day-book state. A page reload survives; a process restart does
+  not. There is no multi-instance coordination or durable database yet.
+- Receipt bytes stay in the browser. The server receives receipt metadata and a
+  SHA-256 value computed in the browser; it does not receive or independently
+  validate the attachment bytes. The chain therefore covers the recorded
+  metadata and digest, not proof that the server saw the file.
+- Challenge judges may evaluate the submission materials without running the
+  project. The [judge guide](docs/JUDGE-GUIDE.md) therefore maps each visible
+  claim to source, tests, evaluations, and captured evidence.
 
 ## Repository layout
 
 | Path | Contents |
 | --- | --- |
-| `erp/` | Build plan: work graph, agent-team charters, contracts, eval design, risk register |
-| `src/` | Application source |
-| `tests/` | Test suite |
-
-## Related repositories
-
-- `webmcp-dev-kit` — reusable WebMCP building blocks extracted from this product
-- `webmcp-eval-kit` — evaluation harness used to grade this product
+| `src/` | Expense policy, canonicalization, page UI, tool definitions, and state compiler |
+| `server/` | Session authorization, report routes, signature state, server-side re-canonicalization, and day-book chain |
+| `tests/` | Unit and acceptance tests, including real-HTTP role checks |
+| `evals/` | Expected surfaces, negative cases, blind review, and mutation results |
+| `evidence/` | Captured browser, deployment, and rehearsal observations |
+| `erp/contracts/` | Frozen schemas and interface contracts used by the implementation and evaluations |
+| `docs/` | Judge walkthrough and submission copy |
 
 ## License
 

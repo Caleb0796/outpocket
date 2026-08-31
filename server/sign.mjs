@@ -56,10 +56,13 @@
 //     below is counted honestly from the snapshot's own provenance map
 //     (already present on every line), not fabricated.
 import { randomBytes } from "node:crypto";
-import { canon, digest } from "../src/canonical.js";
+import { digest } from "../src/canonical.js";
+import { PERSONAS as ERP_PERSONAS } from "../src/erp.js";
+import { toUsdCents, validateReport } from "../src/policy.js";
 import { createReportLocks } from "./locks.mjs";
 import { reconcile, SNAPSHOT_DIGEST_PREFIX } from "./recanon.mjs";
 import { createChain, CHAIN_DIGEST_PREFIX, GENESIS_DIGEST } from "./chain.mjs";
+import { SERVED_POLICY } from "./routes/policy.mjs";
 
 export { SNAPSHOT_DIGEST_PREFIX, CHAIN_DIGEST_PREFIX, GENESIS_DIGEST };
 
@@ -127,6 +130,9 @@ function toSignResponse(rec) {
 function countProvenance(snapshot) {
   const counts = { agent_fields: 0, human_fields: 0, seed_fields: 0, total_fields: 0 };
   for (const line of snapshot.report.lines) {
+    if (!line.provenance || typeof line.provenance !== "object" || Array.isArray(line.provenance)) {
+      throw new SignError("E_SNAPSHOT_MISMATCH", 409, `signed line ${line.id} is missing its provenance map`);
+    }
     for (const source of Object.values(line.provenance)) {
       counts.total_fields++;
       if (source === "agent") counts.agent_fields++;
@@ -137,6 +143,133 @@ function countProvenance(snapshot) {
     }
   }
   return counts;
+}
+
+const PROVENANCE_FIELDS = Object.freeze([
+  "amount", "attendees", "category", "currency", "date",
+  "description", "itemization", "merchant", "nights", "receipt_id",
+]);
+const PROVENANCE_SOURCES = new Set(["agent", "human", "seed", "unset"]);
+
+// validateReport() consumes the browser ERP's normalized camelCase line
+// shape, while the signed contract and HTTP store use snake_case integer
+// cents. This adapter is deliberately only a projection: every rule and
+// threshold still runs in src/policy.js. Rewriting the caps beside the
+// server routes was rejected because two copies could disagree while both
+// continued returning plausible verdicts.
+function toPolicyReport(report) {
+  const receipts = new Map();
+  const lines = report.lines.map((line) => {
+    const amountCents = Number.isInteger(line.amount_cents) && line.amount_cents > 0 ? line.amount_cents : null;
+    const currency = typeof line.currency === "string" ? line.currency : null;
+    const receiptId = typeof line.receipt_id === "string" && line.receipt_id ? line.receipt_id : null;
+    if (receiptId && typeof line.receipt_sha256 === "string" && line.receipt_sha256) {
+      receipts.set(receiptId, { id: receiptId, filename: receiptId, sha256: line.receipt_sha256 });
+    }
+    return {
+      id: line.id,
+      date: line.date,
+      merchant: line.merchant,
+      category: line.category,
+      amountCents,
+      currency,
+      usdCents: amountCents === null ? null : toUsdCents(amountCents, currency),
+      attendees: line.attendees ?? undefined,
+      nights: line.nights ?? undefined,
+      itemization: Array.isArray(line.itemization)
+        ? line.itemization.map((item) => ({ label: item.label, amountCents: item.amount_cents }))
+        : undefined,
+      description: line.description ?? undefined,
+      receiptId,
+    };
+  });
+  return {
+    report: { id: report.id, project: report.project, lines },
+    receiptById: (receiptId) => receipts.get(receiptId),
+  };
+}
+
+function authoritativeReport(report, { reportId, personaId, revision }) {
+  if (!report || typeof report !== "object" || Array.isArray(report) || !Array.isArray(report.lines)) {
+    throw new SignError("E_BAD_SIGN_REQUEST", 400, "report must be an object with a lines array");
+  }
+  const lines = report.lines.map((line, index) => {
+    if (!line || typeof line !== "object" || Array.isArray(line)) {
+      throw new SignError("E_BAD_SIGN_REQUEST", 400, `report.lines[${index}] must be an object`);
+    }
+    const currency = typeof line.currency === "string" ? line.currency : null;
+    const amountCents = Number.isInteger(line.amount_cents)
+      ? line.amount_cents
+      : Number.isInteger(line.amountCents) ? line.amountCents : null;
+    const usdCents = amountCents === null ? null : toUsdCents(amountCents, currency);
+    const provenance = {};
+    for (const field of PROVENANCE_FIELDS) {
+      const source = line.provenance?.[field];
+      provenance[field] = PROVENANCE_SOURCES.has(source) ? source : "unset";
+    }
+    const itemization = Array.isArray(line.itemization)
+      ? line.itemization.map((item) => ({
+          amount_cents: Number.isInteger(item?.amount_cents) ? item.amount_cents : item?.amountCents,
+          label: item?.label,
+        }))
+      : null;
+    return {
+      amount_cents: amountCents,
+      attendees: Number.isInteger(line.attendees) ? line.attendees : null,
+      category: typeof line.category === "string" ? line.category : null,
+      currency,
+      date: typeof line.date === "string" ? line.date : null,
+      description: typeof line.description === "string" ? line.description : null,
+      id: typeof line.id === "string" ? line.id : `line_${index + 1}`,
+      itemization,
+      merchant: typeof line.merchant === "string" ? line.merchant : null,
+      nights: Number.isInteger(line.nights) ? line.nights : null,
+      provenance,
+      receipt_id: typeof line.receipt_id === "string" ? line.receipt_id : line.receiptId ?? null,
+      receipt_sha256: typeof line.receipt_sha256 === "string" ? line.receipt_sha256 : null,
+      usd_cents: usdCents,
+    };
+  });
+  return {
+    id: reportId,
+    lines,
+    owner: personaId,
+    project: typeof report.project === "string" ? report.project : "",
+    revision,
+    status: report.status === "submitted" ? "submitted" : "draft",
+    title: typeof report.title === "string" ? report.title : "",
+    total_usd_cents: lines.reduce((total, line) => total + (line.usd_cents ?? 0), 0),
+  };
+}
+
+/** Evaluate the signed verdict with the policy identity this server serves. */
+export function evaluateServerVerdict(report, { personaId, personaName, servedPolicy, now }) {
+  if (
+    !servedPolicy
+    || typeof servedPolicy.version !== "string"
+    || typeof servedPolicy.digest !== "string"
+  ) {
+    throw new SignError("E_POLICY_LOCK_FAILED", 503, "the server has no verified policy available for signing");
+  }
+  const adapted = toPolicyReport(report);
+  const persona = ERP_PERSONAS.find((entry) => entry.id === personaId);
+  const result = validateReport(
+    adapted.report,
+    { name: personaName, projects: persona?.projects ?? [] },
+    { now: now(), receiptById: adapted.receiptById },
+  );
+  const violations = result.reportViolations.map((violation) => ({
+    code: violation.code,
+    field: violation.field,
+    line_id: null,
+    severity: violation.severity,
+  }));
+  for (const line of adapted.report.lines) {
+    for (const violation of result.lineViolations.get(line.id) ?? []) {
+      violations.push({ code: violation.code, field: violation.field, line_id: line.id, severity: violation.severity });
+    }
+  }
+  return { blocking: result.blocking, violations, warning: result.warnings };
 }
 
 /**
@@ -157,11 +290,9 @@ function countProvenance(snapshot) {
  *   test must also inject the same `locks` instance, built with the same
  *   `now`, or the two modules disagree about what "expired" means.
  * opts.getLiveReport: (reportId) -> report | null. S6's hook into live
- *   report state (S2's store). Defaults to `() => null` — every commit
- *   then behaves exactly as it did before S6 existed (recon.skipped, no
- *   check performed), which is what every synthetic-report_id test in this
- *   repo relies on. The real server (server/index.mjs) wires this to its
- *   own findReport().
+ *   report state (S2/S8's store). Defaults to `() => null`; commit then
+ *   re-evaluates the stored signed report, while the real server wires this
+ *   to its fresh report projection so content changes are compared too.
  * opts.chain: S7's real hash chain (server/chain.mjs). Defaults to a fresh
  *   createChain({now}) sharing THIS gate's clock. commit() appends to it —
  *   this REPLACES the earlier single-process, in-memory chain_entry
@@ -170,22 +301,23 @@ function countProvenance(snapshot) {
  *   real server's GET /api/daybook) can list() it.
  * opts.getServedPolicy: () -> {version, digest} | null. D-118
  *   (x-policyBinding.theFix(a)): the policy this server is ACTUALLY
- *   serving right now. Defaults to `() => null` — SKIPPED, same discipline
- *   as getLiveReport, so every existing test that signs with an arbitrary
- *   policy_version/policy_digest unrelated to any real served document
- *   keeps passing. The real server wires this to routes/policy.mjs's
- *   SERVED_POLICY.
+ *   serving right now. Defaults to routes/policy.mjs's verified
+ *   SERVED_POLICY; a client claim is never an input to this option.
+ * opts.policyNow: policy clock, separate from the injectable state-machine
+ *   clock. Tests that advance expiry across months must not silently move
+ *   receipt dates across the filing window at the same time.
+ * opts.evaluateVerdict: the server policy adapter above, injectable only for
+ *   focused failure-atomicity tests. Production uses evaluateServerVerdict.
  *
  * ORDERING INSIDE commit(), decided at the merge of these two nodes
  * (S7 and D-118, independently branched off the same baseline, both
  * touching commit()): policy identity is checked FIRST (a moved policy is
  * the more fundamental fact — the rules themselves changed, not merely
- * the report), THEN S6's report re-canonicalisation, and ONLY IF BOTH PASS
- * does chain.append() run. A refused commit — whichever check refused it —
- * MUST NOT append a chain entry: the day book would otherwise record a
- * commit that did not happen. tests/acceptance/chain.test.mjs and
- * sign-state.test.mjs both assert this explicitly post-merge, not merely
- * as an accident of source order.
+ * the report), THEN the fresh cleanliness check and S6 report/verdict
+ * re-canonicalisation. Only after those pass are provenance, the chain
+ * candidate and the complete response prepared; publication is last.
+ * tests/acceptance/chain.test.mjs and sign-state.test.mjs assert each
+ * refusal leaves the day book unchanged.
  */
 export function createSignGate({
   now = () => new Date(),
@@ -194,7 +326,9 @@ export function createSignGate({
   locks = createReportLocks({ now }),
   getLiveReport = () => null,
   chain = createChain({ now }),
-  getServedPolicy = () => null,
+  getServedPolicy = () => SERVED_POLICY,
+  policyNow = () => new Date(),
+  evaluateVerdict = evaluateServerVerdict,
 } = {}) {
   const records = new Map(); // request_id -> record
   const byTicket = new Map(); // ticket -> request_id
@@ -227,48 +361,35 @@ export function createSignGate({
   }
 
   /**
-   * open({sessionId, personaId, personaName, reportId, revision,
-   *       policyVersion, policyDigest, report, verdict, worstCase,
+   * open({sessionId, personaId, personaName, reportId, report, worstCase,
    *       violationHistoryCount}) -> { signRequest, ticket }
    *
-   * report and verdict are supplied by the caller in the exact shapes
-   * $defs.snapshot.report and $defs.snapshot.verdict describe — this module
-   * does not own report storage or policy evaluation (S2/S3's concerns); it
-   * owns the sign-request state machine built over them.
+   * The caller supplies report content, but the gate owns every authority
+   * field around it: revision, owner, policy identity, converted USD totals
+   * and verdict. Legacy clients may still send those names to the HTTP route;
+   * server/index.mjs deliberately never forwards them here.
    */
   function open({
     sessionId,
     personaId,
     personaName,
     reportId,
-    revision: claimedRevision,
-    policyVersion,
-    policyDigest,
     report,
-    verdict,
     worstCase,
     violationHistoryCount,
   }) {
     // Validate BEFORE anything reaches digest() — src/canonical.js correctly
     // refuses to serialize `undefined` (E_CANON_TYPE) rather than silently
-    // coercing it, and a malformed body used to leave report/verdict
-    // undefined here, throw from inside digest(), and escape uncaught: the
+    // coercing it, and a malformed body used to leave report undefined here,
+    // throw from inside digest(), and escape uncaught: the
     // whole process died on one bad POST /api/sign, taking every in-memory
-    // session with it. This checks EXACTLY the fields that end up inside
-    // the digested snapshot ({policy_digest, policy_version, report,
-    // verdict} — see below) for the ONE thing canon() cannot serialize.
-    // Deliberately not a stricter shape check: `null` is a valid OCF-1
-    // value and several real callers (e.g. src/page/sign-install.js's
-    // buildOpenBody with no live policy object) legitimately send
-    // policy_version/policy_digest as null — narrowing to `undefined` only
-    // is what matches canon()'s actual failure mode, no more. See
-    // server/index.mjs's top-level handler guard for the general backstop.
+    // session with it. This boundary check covers the two request values the
+    // gate still needs; policy identity and verdict are absent because they
+    // no longer come from a request body at all. authoritativeReport() below
+    // performs the deeper report-shape projection before digesting.
     const problems = [];
     if (reportId === undefined) problems.push("report_id");
-    if (policyVersion === undefined) problems.push("policy_version");
-    if (policyDigest === undefined) problems.push("policy_digest");
     if (report === undefined) problems.push("report");
-    if (verdict === undefined) problems.push("verdict");
     if (problems.length > 0) {
       throw new SignError("E_BAD_SIGN_REQUEST", 400, `missing field(s): ${problems.join(", ")}`);
     }
@@ -285,32 +406,40 @@ export function createSignGate({
       }
     }
 
+    // Check an externally supplied lock instance before doing policy work.
+    // This preserves the failure-atomic property of a rejected acquire: no
+    // request id, digest, token or map entry is produced for a report another
+    // holder already owns.
+    locks.assertUnlocked(reportId);
+
+    const servedPolicy = getServedPolicy();
+    const revision = locks.currentRevision(reportId);
+    const signedReport = authoritativeReport(report, { reportId, personaId, revision });
+    const verdict = evaluateVerdict(signedReport, {
+      personaId,
+      personaName,
+      servedPolicy,
+      now: policyNow,
+    });
+    if (verdict.blocking > 0) {
+      throw new SignError(
+        "E_NOT_CLEAN",
+        422,
+        `report ${reportId} has ${verdict.blocking} blocking policy violation(s)`,
+      );
+    }
+
     const requestId = newRequestId();
     const createdAt = now();
     const expiresAt = new Date(createdAt.getTime() + ttlMs);
 
-    // S12: the revision carried in the sign request is the server's own
-    // count (locks.getRevision), not whatever the caller happened to send —
-    // `claimedRevision` is trusted only the first time this report_id is
-    // ever seen (there is nothing yet to disagree with it).
-    const revision = locks.getRevision(reportId, claimedRevision);
-
-    // S12: acquire the report lock in the SAME synchronous step as the
-    // snapshot below — no `await` sits between this line and the one that
-    // builds `snapshot`, so no other request can observe a state where one
-    // exists without the other. Throws 423 E_SIGN_IN_PROGRESS if some other
-    // holder already has this report_id locked (should not happen given the
-    // openByReport check above, since both are released together, but this
-    // is the real, load-bearing check — the one above is not).
-    locks.acquire(reportId, requestId, expiresAt.toISOString());
-
     const snapshot = {
       kind: "outpocket.snapshot",
       ocf: 1,
-      policy_digest: policyDigest,
-      policy_version: policyVersion,
+      policy_digest: servedPolicy.digest,
+      policy_version: servedPolicy.version,
       request_id: requestId,
-      report,
+      report: signedReport,
       verdict,
     };
     const snapshotDigest = digest(SNAPSHOT_DIGEST_PREFIX, snapshot);
@@ -324,11 +453,11 @@ export function createSignGate({
       persona_id: personaId,
       persona_name: personaName,
       revision,
-      policy_version: policyVersion,
+      policy_version: servedPolicy.version,
       snapshot,
       snapshot_digest: snapshotDigest,
-      worst_case: worstCase,
-      violation_history_count: violationHistoryCount,
+      worst_case: typeof worstCase === "string" && worstCase ? worstCase : "Signing submits this expense report under the current policy.",
+      violation_history_count: Number.isInteger(violationHistoryCount) && violationHistoryCount >= 0 ? violationHistoryCount : 0,
       created_at: createdAt.toISOString(),
       expires_at: expiresAt.toISOString(),
       confirm_token: confirmToken,
@@ -343,6 +472,13 @@ export function createSignGate({
       acknowledged_revision: null,
     };
 
+    // S12: every value that can fail canonicalisation or construction is
+    // complete before the lock changes. Acquiring immediately before the
+    // three Map publications still has no `await` window, while a bad deep
+    // field can no longer strand a lock for a request that was never stored.
+    // The earlier placement before digest() was rejected after reproducing
+    // exactly that orphan-lock failure with an undefined verdict member.
+    locks.acquire(reportId, requestId, expiresAt.toISOString());
     records.set(requestId, rec);
     byTicket.set(ticket, requestId);
     openByReport.set(reportId, requestId);
@@ -480,11 +616,12 @@ export function createSignGate({
   /**
    * commit({requestId, reportId, sessionId}) -> $defs.commit_result
    *
-   * Trusts its own stored record. Does NOT re-canonicalise or rebuild the
-   * snapshot from live state (S6) and does NOT persist to a real day book
-   * (S7) — see NOT THIS NODE above. The chain_entry and provenance_summary
-   * below are computed honestly from data this record already holds, scoped
-   * to this gate instance, not claimed as S6/S7/S8's properties.
+   * Re-reads live report state, re-evaluates the served policy and prepares
+   * every derived result before publishing the chain entry or terminal sign
+   * state. There is no cleanup path here by design: an error before publish
+   * leaves every mutable component untouched, and the final synchronous
+   * publish contains only Map/array assignments that have already had their
+   * digest and response inputs computed.
    */
   function commit({ requestId, reportId, sessionId }) {
     if (!REQUEST_ID_RE.test(requestId)) throw new SignError("E_SIGN_REQUEST_UNKNOWN", 404, "malformed request_id");
@@ -514,46 +651,61 @@ export function createSignGate({
     // re-canonicalisation below — if what moved is the policy itself, that
     // is the more fundamental fact and gets its own, more specific code
     // rather than surfacing as an undifferentiated snapshot mismatch.
-    // servedPolicy is null when getServedPolicy is unset (default,
-    // preserving every existing test's arbitrary policy_version/
-    // policy_digest) or when the server's own load-time lock check failed
-    // (routes/policy.mjs's SERVED_POLICY) — either way there is nothing to
-    // compare against, so this SKIPS rather than refuses: null must never
-    // read as "moved", or a server refusing to serve any policy would also
-    // refuse every commit for an unrelated reason.
-    // null is a valid, legitimate claim here too (src/page/sign-install.js's
-    // buildOpenBody sends policy_version/policy_digest as null when no live
-    // policy object was available at sign time — same fact S1's own crash
-    // fix already had to respect for these exact two fields at open()).
-    // null means "no claim was made", not "the policy moved" — comparing it
-    // against a real served value and refusing on the mismatch would be
-    // exactly the false-positive direction D-108 is pointing at: a
-    // legitimate commit from a caller that never claimed a policy identity
-    // would be refused for a policy identity it never asserted.
+    // A missing served policy is not a client opt-out. Open bound a verified
+    // server identity into the snapshot, so commit either sees a verified
+    // identity again or stops before it interprets the report.
     const servedPolicy = getServedPolicy();
-    if (servedPolicy) {
-      if (rec.snapshot.policy_version !== null && servedPolicy.version !== rec.snapshot.policy_version) {
-        throw new SignError(
-          "E_POLICY_VERSION_MOVED",
-          409,
-          `policy version moved between sign and commit: signed under '${rec.snapshot.policy_version}', server now serves '${servedPolicy.version}'`,
-          { signed_policy_version: rec.snapshot.policy_version, served_policy_version: servedPolicy.version },
-        );
-      }
-      if (rec.snapshot.policy_digest !== null && servedPolicy.digest !== rec.snapshot.policy_digest) {
-        throw new SignError(
-          "E_POLICY_DIGEST_MOVED",
-          409,
-          `policy content moved under the same version between sign and commit: signed digest ${rec.snapshot.policy_digest}, server now serves ${servedPolicy.digest}`,
-          { signed_policy_digest: rec.snapshot.policy_digest, served_policy_digest: servedPolicy.digest },
-        );
-      }
+    if (
+      !servedPolicy
+      || typeof servedPolicy.version !== "string"
+      || typeof servedPolicy.digest !== "string"
+    ) {
+      throw new SignError("E_POLICY_LOCK_FAILED", 503, "the server has no verified policy available for commit");
+    }
+    if (servedPolicy.version !== rec.snapshot.policy_version) {
+      throw new SignError(
+        "E_POLICY_VERSION_MOVED",
+        409,
+        `policy version moved between sign and commit: signed under '${rec.snapshot.policy_version}', server now serves '${servedPolicy.version}'`,
+        { signed_policy_version: rec.snapshot.policy_version, served_policy_version: servedPolicy.version },
+      );
+    }
+    if (servedPolicy.digest !== rec.snapshot.policy_digest) {
+      throw new SignError(
+        "E_POLICY_DIGEST_MOVED",
+        409,
+        `policy content moved under the same version between sign and commit: signed digest ${rec.snapshot.policy_digest}, server now serves ${servedPolicy.digest}`,
+        { signed_policy_digest: rec.snapshot.policy_digest, served_policy_digest: servedPolicy.digest },
+      );
     }
 
-    // S6: re-canonicalise against LIVE state before treating anything as
-    // committed. GIVEN a single server instance, synchronous with no await
+    // The fallback covers synthetic tests and pre-store callers only. A real
+    // HTTP report always resolves through getLiveReport, and both paths still
+    // pass through the same server-owned projection and policy evaluation.
+    const liveSource = getLiveReport(rec.report_id) ?? rec.snapshot.report;
+    const liveReport = authoritativeReport(liveSource, {
+      reportId: rec.report_id,
+      personaId: rec.persona_id,
+      revision: locks.currentRevision(rec.report_id),
+    });
+    const liveVerdict = evaluateVerdict(liveReport, {
+      personaId: rec.persona_id,
+      personaName: rec.persona_name,
+      servedPolicy,
+      now: policyNow,
+    });
+    if (liveVerdict.blocking > 0) {
+      throw new SignError(
+        "E_NOT_CLEAN",
+        422,
+        `report ${rec.report_id} has ${liveVerdict.blocking} blocking policy violation(s)`,
+      );
+    }
+
+    // S6: report and verdict are rebuilt together before treating anything
+    // as committed. GIVEN a single server instance, synchronous with no await
     // between the fetch and the comparison — true by construction.
-    const recon = reconcile(rec.snapshot, getLiveReport(rec.report_id));
+    const recon = reconcile(rec.snapshot, liveReport, liveVerdict);
     if (!recon.ok) {
       throw new SignError(
         "E_SNAPSHOT_MISMATCH",
@@ -563,13 +715,14 @@ export function createSignGate({
       );
     }
 
-    confirmCounter += 1;
-    const confirmation = `CH-${String(confirmCounter).padStart(4, "0")}`;
+    const provenanceSummary = countProvenance(rec.snapshot);
+    const nextConfirmCounter = confirmCounter + 1;
+    const confirmation = `CH-${String(nextConfirmCounter).padStart(4, "0")}`;
     // S7: append to the REAL day book. `source` is 'human' here because
     // this event is the human's act of signing and submitting — the one
     // field an attacker would move, and the one server/chain.mjs's own
     // digest formula covers along with everything else in the entry.
-    const chainEntry = chain.append({
+    const chainEntry = chain.prepare({
       kind: "commit",
       source: "human",
       actor: rec.signed_by,
@@ -578,12 +731,7 @@ export function createSignGate({
       payload_digest: rec.snapshot_digest,
       recomputed_digest: recon.recomputedDigest ?? rec.snapshot_digest,
     });
-
-    rec.state = "committed";
-    releaseReport(rec.report_id, rec.request_id);
-    locks.release(rec.report_id, rec.request_id); // S12: commit frees the report lock
-
-    return {
+    const result = {
       schema: "outpocket.commit_result/1",
       status: "committed",
       http_status: 200,
@@ -595,10 +743,21 @@ export function createSignGate({
         policy_digest: rec.snapshot.policy_digest,
         snapshot_digest: rec.snapshot_digest,
         chain_head: chainEntry.entry_digest,
-        provenance_summary: countProvenance(rec.snapshot),
+        provenance_summary: provenanceSummary,
         violation_history: [],
       },
     };
+
+    // Publication begins only after the complete result above exists. None
+    // of the code below canonicalises data or builds provenance/response
+    // objects, so a construction error cannot leave a committed chain entry
+    // paired with an HTTP failure.
+    chain.appendPrepared(chainEntry);
+    confirmCounter = nextConfirmCounter;
+    rec.state = "committed";
+    releaseReport(rec.report_id, rec.request_id);
+    locks.release(rec.report_id, rec.request_id); // S12: commit frees the report lock
+    return result;
   }
 
   // `locks` is exposed so a real write route (S2/S4, not this node) shares

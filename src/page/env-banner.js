@@ -102,7 +102,7 @@ export function bannerNodes(env) {
     nodes.push({
       tag: "span",
       attrs: { "data-warn": "chrome-lt-153" },
-      text: `Chromium ${env.chromiumMajor} is below 153 — revocation does not interrupt a suspended execute on this engine.`,
+      text: `Chromium ${env.chromiumMajor}: this page works normally. Before Chromium 153, revocation does not interrupt an already-suspended execute.`,
       children: [],
     });
   }

@@ -31,10 +31,11 @@
 // tool's execute() calls) are UNCHANGED, still exactly {status, ticket} or
 // the server's own sign_response. openForDialog() exists for a DIFFERENT
 // caller — src/page/sign-install.js's dialogPort, which mounts F4's dialog
-// and whose own return value (approved/declined) never echoes requestId,
-// signRequest or confirmToken back out to the agent. Confirm_token still
-// reaches it via GET /api/sign/{request_id}/confirm-token, a session-scoped
-// route that is not, and must never become, a registered tool.
+// and whose own return value passes request_id back only to the submit tool
+// that must address the matching commit. The full signRequest and confirmToken
+// still stop at the dialog seam. Confirm_token reaches it via GET
+// /api/sign/{request_id}/confirm-token, a session-scoped route that is not,
+// and must never become, a registered tool.
 
 export const SIGN_MODE = Object.freeze({ HANDSHAKE: "handshake", SUSPEND: "suspend" });
 
@@ -45,7 +46,7 @@ export const DEFAULT_SIGN_MODE = SIGN_MODE.HANDSHAKE;
 const POLL_INTERVAL_MS = 300;
 
 /**
- * createSignBridge(opts) -> { beginSign, continueSign }
+ * createSignBridge(opts) -> { beginSign, continueSign, commitReport, openForDialog }
  *
  * opts.fetchImpl: fetch-compatible function (default global fetch). Injected
  *   so tests can run against a plain Node http.Server without a browser.
@@ -139,6 +140,23 @@ export function createSignBridge({
     return res.body;
   }
 
+  /**
+   * commitReport(reportId, requestId, signal) -> Promise<{ok,status,body}>
+   *
+   * This stays on the same bridge as the sign calls because the injected base
+   * URL and Cookie header are part of that transport. The real Node acceptance
+   * path supplies both values here; a relative fetch moved into defs.js would
+   * discard them at the last step. Non-2xx responses are returned intact so
+   * submit_expense_report can turn 409/422/423 into tool text rather than losing
+   * the server's code and message in a throw.
+   */
+  async function commitReport(reportId, requestId, signal) {
+    return postJson(`/api/reports/${encodeURIComponent(reportId)}/commit`, {
+      report_id: reportId,
+      request_id: requestId,
+    }, signal);
+  }
+
   async function getJson(path, signal) {
     const res = await fetchImpl(`${baseUrl}${path}`, { headers, credentials: "include", signal });
     const json = await res.json();
@@ -154,11 +172,10 @@ export function createSignBridge({
    * — unlike beginSign, which deliberately withholds everything except
    * {status, ticket} per R-13/R-44 — it also returns the full signRequest
    * and fetches confirm_token from the new session-scoped, non-tool route
-   * (GET /api/sign/{request_id}/confirm-token). Safe ONLY because nothing
-   * that calls this may let requestId/signRequest/confirmToken flow back
-   * out to whatever the agent sees — the ticket alone is what's agent-
-   * visible-safe to echo further. NEVER wire this into a tool's execute()
-   * or into anything whose return value reaches one.
+   * (GET /api/sign/{request_id}/confirm-token). The caller may hand only the
+   * requestId back to submit_expense_report for the matching commit. It must not
+   * return signRequest or confirmToken in tool text or any other agent-visible
+   * value.
    */
   async function openForDialog(openBody, signal) {
     const opened = await postJson("/api/sign", openBody, signal);
@@ -179,5 +196,5 @@ export function createSignBridge({
     return { requestId: signRequest.request_id, signRequest, ticket, confirmToken: tokenRes.body.confirm_token };
   }
 
-  return { beginSign, continueSign, openForDialog };
+  return { beginSign, continueSign, commitReport, openForDialog };
 }

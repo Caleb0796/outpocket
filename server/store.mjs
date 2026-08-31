@@ -11,12 +11,12 @@
 // ledger's `value_digest` are two projections of the SAME writes, never
 // two independent sources of truth.
 //
-// SCOPE: this is a standalone module, not wired into server/index.mjs's
-// existing S2 write routes (server/index.mjs's `state.reports` is a
-// separate, simpler, already-shipped store — S2 does not list S8 as an
-// input, and S8 does not list S2). Rewiring S2's already-tested HTTP
-// routes onto this store is a follow-up for whichever node does that
-// integration, not this one — see this node's PIT for the explicit call.
+// server/index.mjs wires every report-field HTTP mutation through this
+// module. Its compact report array remains the signed-content projection,
+// while this store owns field authorship and the richer ledger returned by
+// GET /api/reports/:id. Keeping those as two projections was chosen because
+// the signed contract needs scalar fields while the editor needs
+// {value,source,ts,actor}; both are written in the same route statement.
 //
 // x-fieldSets (erp/contracts/provenance.schema.json): every field here
 // always has exactly one current provenance record.
@@ -30,13 +30,14 @@ import { createProvenanceLedger } from "./provenance.mjs";
 
 /**
  * createReportStore({now}) -> {
- *   createReport, addLine, updateLine, getReport, getLine, listReports,
- *   dayBook,
+ *   createReport, seedReport, addLine, updateLine, removeLine,
+ *   getReport, getLine, listReports, dayBook, dayBookForReport,
  * }
  */
 export function createReportStore({ now = () => new Date() } = {}) {
   const ledger = createProvenanceLedger({ now });
   const reports = new Map(); // report_id -> internal report record
+  const lineOwners = new Map(); // line_id -> report_id, retained after deletion for ledger reads
   let reportSeq = 1017; // matches server/seed.mjs's counter convention
   let lineSeq = 0;
 
@@ -69,17 +70,61 @@ export function createReportStore({ now = () => new Date() } = {}) {
     return { id: internal.id, fields: internal.fields };
   }
 
+  function insertReport(id, { title, project }, { source, actor, tool = null, revision = 0, status = "draft" }) {
+    if (reports.has(id)) throw new RangeError(`report already exists: ${id}`);
+    const fields = initFields("report", id, REPORT_FIELDS, revision);
+    const internal = { id, status, fields, lines: new Map() };
+    reports.set(id, internal);
+    if (title !== undefined) setField("report", id, fields, "title", title, { source, actor, tool, revision });
+    if (project !== undefined) setField("report", id, fields, "project", project, { source, actor, tool, revision });
+    return internal;
+  }
+
+  function insertLine(report, lineId, lineData, { source, actor, tool = null, revision }) {
+    if (report.lines.has(lineId)) throw new RangeError(`line already exists: ${lineId}`);
+    const fields = initFields("line", lineId, LINE_FIELDS, revision);
+    const internal = { id: lineId, fields };
+    report.lines.set(lineId, internal);
+    lineOwners.set(lineId, report.id);
+    for (const field of LINE_FIELDS) {
+      if (lineData[field] !== undefined) {
+        setField("line", lineId, fields, field, lineData[field], { source, actor, tool, revision });
+      }
+    }
+    return internal;
+  }
+
   /**
    * createReport({title, project}, {source, actor, tool, revision}) -> report view
    */
   function createReport({ title, project }, { source, actor, tool = null, revision = 0 }) {
     reportSeq += 1;
     const id = `RP-${reportSeq}`;
-    const fields = initFields("report", id, REPORT_FIELDS, revision);
-    const internal = { id, status: "draft", fields, lines: new Map() };
-    reports.set(id, internal);
-    if (title !== undefined) setField("report", id, fields, "title", title, { source, actor, tool, revision });
-    if (project !== undefined) setField("report", id, fields, "project", project, { source, actor, tool, revision });
+    const internal = insertReport(id, { title, project }, { source, actor, tool, revision });
+    return reportView(internal);
+  }
+
+  /** Seed an existing report id without consuming the next generated id. */
+  function seedReport(report, { revision = 0 } = {}) {
+    const internal = insertReport(
+      report.id,
+      { title: report.title, project: report.project },
+      { source: "seed", actor: "system", revision, status: report.status ?? "draft" },
+    );
+    for (const line of report.lines ?? []) {
+      insertLine(internal, line.id, {
+        amount: line.amount_cents ?? line.amountCents,
+        attendees: line.attendees,
+        category: line.category,
+        currency: line.currency,
+        date: line.date,
+        description: line.description,
+        itemization: line.itemization,
+        merchant: line.merchant,
+        nights: line.nights,
+        receipt_id: line.receipt_id ?? line.receiptId,
+      }, { source: "seed", actor: "system", revision });
+    }
     return reportView(internal);
   }
 
@@ -98,14 +143,7 @@ export function createReportStore({ now = () => new Date() } = {}) {
     const report = requireReport(reportId);
     lineSeq += 1;
     const lineId = `ln_${lineSeq}`;
-    const fields = initFields("line", lineId, LINE_FIELDS, revision);
-    const internal = { id: lineId, fields };
-    report.lines.set(lineId, internal);
-    for (const field of LINE_FIELDS) {
-      if (lineData[field] !== undefined) {
-        setField("line", lineId, fields, field, lineData[field], { source, actor, tool, revision });
-      }
-    }
+    const internal = insertLine(report, lineId, lineData, { source, actor, tool, revision });
     return lineView(internal);
   }
 
@@ -129,6 +167,12 @@ export function createReportStore({ now = () => new Date() } = {}) {
     return lineView(internal);
   }
 
+  /** Remove a live line while retaining its append-only ledger history. */
+  function removeLine(reportId, lineId) {
+    const report = requireReport(reportId);
+    if (!report.lines.delete(lineId)) throw new RangeError(`no such line: ${lineId}`);
+  }
+
   function getReport(reportId) {
     const internal = reports.get(reportId);
     return internal ? reportView(internal) : null;
@@ -149,5 +193,13 @@ export function createReportStore({ now = () => new Date() } = {}) {
     return ledger.ledger();
   }
 
-  return { createReport, addLine, updateLine, getReport, getLine, listReports, dayBook };
+  /** Include removed-line history: deleting a live row never deletes its prior writes. */
+  function dayBookForReport(reportId) {
+    return ledger.ledger().filter(
+      (entry) => (entry.entity === "report" && entry.entity_id === reportId)
+        || (entry.entity === "line" && lineOwners.get(entry.entity_id) === reportId),
+    );
+  }
+
+  return { createReport, seedReport, addLine, updateLine, removeLine, getReport, getLine, listReports, dayBook, dayBookForReport };
 }

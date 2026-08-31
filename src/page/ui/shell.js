@@ -1,6 +1,6 @@
-// src/page/ui/shell.js — node F1 (lane F, owner UX): the application shell.
+// src/page/ui/shell.js — the application shell.
 //
-// Session interface: erp/contracts/session.contract.md (node S1, owner I3).
+// Session interface: erp/contracts/session.contract.md.
 // The contract is the authority here, not server/index.mjs. Three facts from
 // it drive every line below:
 //
@@ -10,8 +10,8 @@
 //   2. `GET /api/me` answers 200 {persona, role} or 401 E_NO_SESSION, and it is
 //      the ONLY persona check anything may rely on. This shell therefore never
 //      caches a role in page state and re-reads /api/me after every login: the
-//      server's answer is the session, and a page-held copy of it is exactly
-//      the client-authored shortcut node S2 exists to close.
+//      server's answer is the session. A page-held copy would restore the
+//      client-authored shortcut the session contract exists to close.
 //   3. The `sid` cookie is HttpOnly. Page JavaScript cannot read it, so
 //      `document.cookie` is never consulted; "am I signed in?" is a request,
 //      not a variable.
@@ -75,9 +75,13 @@ function render() {
     showError("");
   }
 
-  // Regions belong to later nodes; the shell only decides whether the slot is
-  // on screen at all, and never writes into one.
-  for (const region of el.regions) region.hidden = !signedIn;
+  // The signed-out surface is deliberately visible: its two tools explain what
+  // an agent can do before a session exists. The other panels depend on a
+  // signed-in report or receipt store, so their visibility still follows the
+  // session. The shell decides visibility only and never writes into a region.
+  for (const region of el.regions) {
+    region.hidden = !signedIn && region.getAttribute("data-region") !== "surface";
+  }
 
   document.body.dataset.sessionState = signedIn ? session.persona : "none";
 

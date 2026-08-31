@@ -37,7 +37,7 @@ export class RecanonMismatchError extends Error {
 }
 
 /**
- * reconcile(signedSnapshot, liveReport) -> {
+ * reconcile(signedSnapshot, liveReport, liveVerdict) -> {
  *   ok, skipped, recomputedDigest, signedDigest,
  * }
  *
@@ -45,30 +45,28 @@ export class RecanonMismatchError extends Error {
  *   (server/sign.mjs's `rec.snapshot` — {kind, ocf, policy_digest,
  *   policy_version, request_id, report, verdict}).
  * liveReport: the CURRENT report for this report_id, fetched fresh from
- *   live server state (S2's store) at commit time — or null/undefined if
- *   this report_id has no live-state entry (a synthetic/test report_id
- *   that never went through a real write route). `skipped: true` in that
- *   case: there is nothing to re-derive against, so the caller proceeds
- *   exactly as it did before this node existed. This is an honest
- *   narrowing, not a loophole — every report a real write route can create
- *   DOES have a live-state entry, so the check is live for exactly the
- *   reports it can matter for.
+ *   live server state (S2's store) at commit time. The standalone helper
+ *   retains its null/undefined `skipped: true` result for callers that have
+ *   no projection, while sign.mjs now supplies the signed report as a
+ *   compatibility fallback and therefore always re-derives a real snapshot.
+ * liveVerdict: the verdict freshly evaluated from `liveReport` with the
+ *   policy the server is serving. It travels with the report because both
+ *   fields are inside the signed projection; recomputing only one would let
+ *   this comparison attest a combination the policy engine never produced.
  *
- * Rebuilds a snapshot identical to `signedSnapshot` except for `report`,
- * substituted with `liveReport` — the one field a second request can
- * actually mutate through S2's write routes — and recomputes its OCF-1
- * digest. `ok` is whether that still equals the signed digest. Does NOT
- * recompute `verdict`: that requires the policy engine's full session
- * context (S3), which stays out of this node's scope — a content change
- * is caught either way, since it is `report`, not `verdict`, that a write
- * route can mutate.
+ * Rebuilds a snapshot identical to `signedSnapshot` except for `report` and
+ * `verdict`, then recomputes its OCF-1 digest. Policy evaluation stays in
+ * server/sign.mjs, which owns the persona and served-policy context; this
+ * module only reconciles the two already-derived projections. Passing the
+ * verdict in was chosen over importing policy here so there remains one
+ * place that decides whether a report is clean at open and at commit.
  */
-export function reconcile(signedSnapshot, liveReport) {
+export function reconcile(signedSnapshot, liveReport, liveVerdict) {
   const signedDigest = digest(SNAPSHOT_DIGEST_PREFIX, signedSnapshot);
   if (liveReport == null) {
     return { ok: true, skipped: true, recomputedDigest: null, signedDigest };
   }
-  const recomputedSnapshot = { ...signedSnapshot, report: liveReport };
+  const recomputedSnapshot = { ...signedSnapshot, report: liveReport, verdict: liveVerdict };
   const recomputedDigest = digest(SNAPSHOT_DIGEST_PREFIX, recomputedSnapshot);
   return { ok: recomputedDigest === signedDigest, skipped: false, recomputedDigest, signedDigest };
 }
