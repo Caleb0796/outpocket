@@ -6,3 +6,4 @@ node_modules/
 # Agent-team worktrees and job scratch. Never tracked: a gitlink here makes
 # G3 clone a tree with two dangling submodules it cannot resolve.
 .claude/
+.playwright-mcp/

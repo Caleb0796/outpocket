@@ -68,9 +68,10 @@ Expected sequence:
 1. `get_session_scope` and `get_expense_policy` establish an active project and
    the current policy.
 2. `create_expense_report` opens a draft; the inspector shows 13 tools.
-3. `add_expense_line` adds a below-receipt-threshold transport line.
-4. `validate_expense_report` reports no blocking findings; the inspector shows
-   14 tools and includes `submit_expense_report`.
+3. `add_expense_line` adds and immediately validates a below-receipt-threshold
+   transport line; the inspector moves to 14 tools.
+4. `validate_expense_report` confirms no blocking findings and
+   `submit_expense_report` remains available.
 
 The revised list reaches the agent on its next turn. If it stops after a state
 change, reply: `Continue with the newly available tools.`
@@ -125,8 +126,8 @@ refuses an auditor's direct write request.
   catalogue.
 - One authenticated employee session is reused by the page and its agent; no
   password or API token is passed in the prompt.
-- Validation changes the next set of actions the agent receives, and the server
-  recomputes the verdict again at commit.
+- The fresh validation verdict controls the next set of actions the agent
+  receives, and the server recomputes it again at commit.
 - Submission uses a two-call review handshake: the first call returns an opaque
   awaiting ticket, the page records the human decision, and the second call
   commits the bound snapshot and leaves a linked day-book entry visible to a
