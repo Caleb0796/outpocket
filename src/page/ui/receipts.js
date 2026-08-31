@@ -1,5 +1,4 @@
-// src/page/ui/receipts.js — node F3 (lane F, owner UX):
-// receipt attachment as a human-only channel.
+// src/page/ui/receipts.js — receipt attachment as a human-only channel.
 //
 // THE ASYMMETRY IS THE POINT, AND IT HAS TO READ IN A STILL FRAME.
 // A judge may score this project from text, images and video without ever
@@ -20,8 +19,7 @@
 // PAGE-ENFORCED, NEVER BROWSER-ENFORCED, AND THE WORDING MATTERS.
 // The guarantee this file makes is about the tools THIS PAGE REGISTERS: none of
 // them declares a schema that could carry file content. That is checked
-// mechanically by findBinaryChannelViolations() below, which
-// tests/acceptance/receipt-channel.test.mjs runs over every tool in every
+// mechanically by findBinaryChannelViolations() below over every tool in every
 // canonical state. It is not a restriction the browser imposes on our behalf,
 // and no copy in this module may say that it is.
 //
@@ -139,8 +137,8 @@ const CHANNEL_COPY = Object.freeze({
 
 const ENFORCEMENT_NOTE =
   "Page-enforced: this page decides which tools it registers, and registers none " +
-  "whose inputSchema could carry a file. tests/acceptance/receipt-channel.test.mjs " +
-  "re-checks that over every tool in every canonical state.";
+  "whose input schema could carry a file. The complete tool list is checked in " +
+  "every supported workflow state.";
 
 function el(doc, tag, attrs = {}, text = null) {
   const node = doc.createElement(tag);
@@ -190,7 +188,7 @@ export function renderReceiptChannel(doc, { receipts = [], storeAttached = true 
   label.appendChild(input);
   control.appendChild(label);
   // A control that accepts a file and drops it is worse than a disabled one: it
-  // reads as working. The store is src/page/register.js's ERP (node T2) — the
+  // reads as working. The store is src/page/register.js's ERP — the
   // same one list_receipts reads — and until that module is on the page there is
   // nowhere to put a file that an agent could then name by id.
   if (!storeAttached) {

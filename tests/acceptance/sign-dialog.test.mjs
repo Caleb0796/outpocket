@@ -35,7 +35,8 @@ import Ajv2020 from "ajv/dist/2020.js";  // the frozen contracts are draft 2020-
 
 import {
   renderSignDialog, certificationSentence, certifiedFacts, respondBody,
-  submitDecision, canConfirm, restartSignRequest, ALREADY_ANSWERED_TEXT,
+  submitDecision, canConfirm, restartSignRequest, mountSignDialog,
+  ALREADY_ANSWERED_TEXT, POLICY_UNAVAILABLE_TEXT,
 } from "../../src/page/ui/sign-dialog.js";
 
 // ── the fake document ────────────────────────────────────────────────────────
@@ -98,6 +99,18 @@ class FakeNode {
 }
 
 const fakeDoc = { createElement: (tag) => new FakeNode(tag) };
+
+function fakeDocWithSignRegion() {
+  const region = new FakeNode("section");
+  region.setAttribute("data-region", "sign");
+  return {
+    doc: {
+      createElement: fakeDoc.createElement,
+      querySelector: (selector) => selector === '[data-region="sign"]' ? region : null,
+    },
+    region,
+  };
+}
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
@@ -493,11 +506,54 @@ test("a server refusal shows the SERVER'S OWN message, not our paraphrase of its
     "a retry must not be offered for a refusal we cannot prove left the record open");
 });
 
-test("CONTROL — the success path still renders, so the checks above are not just 'any text'", async () => {
+test("CONTROL — success renders, while mounted policy loading uses the server and fails closed", async () => {
   const fetchImpl = spyFetch([{ status: 200, payload: { state: "answered", decision: "signed" } }]);
   const root = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN, fetchImpl });
   await submitDecision(root, { signRequest: REPORT_A, decision: "signed", fetchImpl, doc: fakeDoc });
   assert.match(statusOf(root), /signed/i);
   assert.ok(!/nothing was signed/i.test(statusOf(root)),
     "the success path must not read like a failure");
+
+  // The mounted page does not trust the version carried by the sign request.
+  // Give the request a deliberately stale value and prove the visible value is
+  // the independent GET response instead.
+  const currentVersion = "2026.09.7";
+  const policyFetch = spyFetch([{ status: 200, payload: { version: currentVersion } }]);
+  const mountedDoc = fakeDocWithSignRegion();
+  const mounted = mountSignDialog({
+    doc: mountedDoc.doc,
+    signRequest: { ...REPORT_A, policy_version: "stale-version" },
+    confirmToken: TOKEN,
+    fetchImpl: policyFetch,
+  });
+  await mounted.policyVersionReady;
+
+  assert.equal(policyFetch.calls[0].url, "/api/policy");
+  const policyNote = mounted.querySelector("[data-sign-policy-note]");
+  assert.equal(policyNote.getAttribute("data-sign-policy-version"), currentVersion);
+  assert.match(policyNote.textContent, new RegExp(currentVersion.replaceAll(".", "\\.")));
+  assert.ok(!policyNote.textContent.includes("stale-version"));
+  assert.equal(canConfirm(mounted), true);
+
+  // A refused policy read leaves the same disclosure visible but makes both
+  // the button and the send path refuse. The GET is the only network call.
+  const unavailableFetch = spyFetch([{ status: 503, payload: { error: "E_UNAVAILABLE" } }]);
+  const unavailableDoc = fakeDocWithSignRegion();
+  const unavailable = mountSignDialog({
+    doc: unavailableDoc.doc,
+    signRequest: REPORT_A,
+    confirmToken: TOKEN,
+    fetchImpl: unavailableFetch,
+  });
+  await unavailable.policyVersionReady;
+
+  assert.match(unavailable.textContent, new RegExp(POLICY_UNAVAILABLE_TEXT.replaceAll(".", "\\."), "i"));
+  assert.equal(canConfirm(unavailable), false);
+  assert.ok(unavailable.querySelector("[data-sign-confirm]").hasAttribute("disabled"));
+  const refused = await submitDecision(unavailable, {
+    signRequest: REPORT_A, decision: "signed", fetchImpl: unavailableFetch, doc: unavailableDoc.doc,
+  });
+  assert.equal(refused.posted, false);
+  assert.equal(refused.refused, "no-policy-version");
+  assert.equal(unavailableFetch.calls.length, 1, "a signature POST escaped after the policy GET failed");
 });

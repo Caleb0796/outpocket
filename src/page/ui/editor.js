@@ -1,5 +1,4 @@
-// src/page/ui/editor.js — node F2 (lane F, owner UX):
-// the report editor, and S8's provenance ledger made visible.
+// src/page/ui/editor.js — the report editor and provenance ledger made visible.
 //
 // ── THE CLAIM THIS PANEL MAKES, AND WHY IT IS THE ONE A JUDGE CAN CHECK ──────
 //
@@ -23,7 +22,7 @@
 //
 // ── WHERE THE DATA COMES FROM, AND WHY NOT FROM HERE ─────────────────────────
 //
-// From server/store.mjs (node S8), where every field is stored as
+// From server/store.mjs, where every field is stored as
 // {value, source, ts, actor} rather than a bare scalar, so provenance is a
 // property of the data structure and not something this file infers. And
 // `data-prev-source` is derived from the LEDGER'S OWN `supersedes` LINK —

@@ -14,10 +14,9 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316181d'/%3E%3Cpath d='M9 21V11h4.6a3.2 3.2 0 010 6.4H12V21z' fill='%23fff'/%3E%3Ccircle cx='22' cy='19.5' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
 
 <!--
-  src/page/index.html — node F1 (lane F, owner UX): the application shell,
-  the login, and the two personas.
+  src/page/index.html — the application shell, the login, and the two personas.
 
-  Session interface: erp/contracts/session.contract.md (node S1, owner I3).
+  Session interface: erp/contracts/session.contract.md.
   That contract, not server/index.mjs, is the authority for the shape below:
     POST /api/login  {"persona":"chen"|"ruiz"}  -> 200 {persona, role} + Set-Cookie sid
     GET  /api/me                                -> 200 {persona, role} | 401 E_NO_SESSION
@@ -94,9 +93,10 @@
          padding: 10px 14px; margin-bottom: 20px; }
   [data-region] { border: 1px dashed #d9dae0; border-radius: 8px; padding: 14px;
          margin-bottom: 14px; background: #fff; }
+  [data-region]:empty { display: none; }
   [data-region] > .slot-label { font-size: 11px; text-transform: uppercase;
          letter-spacing: 0.08em; color: #8b8fa0; }
-  /* Receipts (node F3). The two channels must read as a CONTRAST in a still
+  /* Receipts. The two channels must read as a CONTRAST in a still
      frame, not as two paragraphs that happen to follow each other — a judge may
      score from images alone (docs/STORYBOARD.md SB-09 puts the agent's
      affordance "beside" the human's). Side by side, with the weight on the
@@ -119,7 +119,7 @@
   [data-receipt-enforcement] { font-size: 12px; color: #55596a; margin: 0;
          border-top: 1px solid #eceef3; padding-top: 10px; }
   [data-receipt-store] { font-size: 12px; color: #8a1c1c; margin: 6px 0 0; }
-  /* Signature dialog (node F4). The charter puts the worst-case consequence
+  /* Signature dialog. The charter puts the worst-case consequence
      immediately above the signature line and forbids cutting it for layout, so
      it is the visually dominant element here — not a footnote under a heading.
      SB-10 and SB-11 are both stills; if the consequence does not out-weigh the
@@ -147,7 +147,7 @@
   [data-sign-status] { font-size: 13px; margin: 0; }
   [data-sign-status]:empty { display: none; }
   [data-sign-already-answered] { color: #8a1c1c; font-weight: 600; }
-  /* Surface inspector (node F5). Baseline only — F6's skin.css refines it, but
+  /* Surface inspector. Baseline only — skin.css refines it, but
      this panel is SB-01/SB-02/SB-03 and has to read in a still frame on its
      own, because F6 is a separate node and may not land first. Unstyled, the
      row text ran together ("get_session_scoperead-only"), which is legible to a
@@ -170,7 +170,7 @@
          letter-spacing: 0.06em; color: #8b8fa0; }
   #surface-inspector .inspector-source { margin: 10px 0 0; font-size: 12px; color: #55596a;
          border-top: 1px solid #eceef3; padding-top: 8px; }
-  /* Report editor (node F2). THE PROVENANCE MUST READ AT A GLANCE IN A STILL —
+  /* Report editor. THE PROVENANCE MUST READ AT A GLANCE IN A STILL —
      that is F2's acceptance bar and a FAIL condition, not a nicety. So the
      distinction is carried by TEXT plus weight plus a rule, never by colour
      alone and never by hover: a judge may be looking at a greyscale screenshot. */
@@ -261,18 +261,10 @@
   </section>
 
   <!-- Mount regions. Empty slots owned by later nodes; see the header comment. -->
-  <section data-region="surface" id="surface-inspector" hidden>
-    <span class="slot-label">tool surface — node F5</span>
-  </section>
-  <section data-region="editor" hidden>
-    <span class="slot-label">report editor — node F2</span>
-  </section>
-  <section data-region="receipts" hidden>
-    <span class="slot-label">receipts — node F3</span>
-  </section>
-  <section data-region="sign" hidden>
-    <span class="slot-label">signature — node F4</span>
-  </section>
+  <section data-region="surface" id="surface-inspector" hidden></section>
+  <section data-region="editor" hidden></section>
+  <section data-region="receipts" hidden></section>
+  <section data-region="sign" hidden></section>
 
 </main>
 
@@ -281,7 +273,7 @@
   are deferred and they evaluate in DOCUMENT ORDER.
 
   src/page/ui/shell.js publishes `globalThis.outpocketShell` at module
-  evaluation. src/page/register.js (node T2, seat I2) reads that global in its
+  evaluation. src/page/register.js reads that global in its
   own mount block, ALSO at module evaluation, and subscribes to the session if
   it finds it — falling back to compiling the signed-out surface if it does not.
   It reads the global rather than importing the shell on purpose, so that it
@@ -327,7 +319,7 @@
 
 <!--
   THE onerror IS A GUARD, NOT DECORATION. It was added while src/page/register.js
-  (node T2) was not yet on main and this tag 404'd on every load. T2 HAS SINCE
+  was not yet on main and this tag 404'd on every load. It HAS SINCE
   LANDED and the guard no longer fires, but it stays: a module that goes missing
   or becomes unfetchable is otherwise a bare console error on a project whose
   pitch is that the page is honest about its own state, and no gate catches that
@@ -343,7 +335,7 @@
   "simulated agent" label, which is the more important message when both apply.
 -->
 <script type="module" src="./register.js" onerror="
-  console.error('outpocket: src/page/register.js (node T2) did not load — the tool surface is not registered on this page. Everything else on the page is unaffected.');
+  console.error('outpocket: src/page/register.js did not load — the tool surface is not registered on this page. Everything else on the page is unaffected.');
   var b = document.getElementById('agent-banner');
   if (b &amp;&amp; b.textContent.trim() === '') {
     b.textContent = 'Tool surface not loaded — src/page/register.js is missing, so this page has registered no tools.';
@@ -376,7 +368,7 @@
   rather than only from its own test.
 
   It does not self-render: a sign dialog with no sign request is meaningless.
-  The tag publishes globalThis.outpocketSignDialog; ./sign-install.js (node F7)
+  The tag publishes globalThis.outpocketSignDialog; ./sign-install.js
   is what raises it, when an agent calls submit_expense_report.
 
   CORRECTED, AND THE OLD WORDING IS WHY F7 EXISTS. This comment used to say
@@ -403,7 +395,7 @@
   downgrade rather than a visible failure.
 -->
 <script type="module" src="./sign-install.js" onerror="
-  console.error('outpocket: src/page/sign-install.js (node F7) did not load — submit_expense_report will fall back to register.js\'s safe default and no signature dialog will be raised.');
+  console.error('outpocket: src/page/sign-install.js did not load — submit_expense_report will fall back to register.js\'s safe default and no signature dialog will be raised.');
 "></script>
 <!--
   H4's seeded demo (src/page/demo-mode.js, node I1). `?demo=1&seed=N` drives a

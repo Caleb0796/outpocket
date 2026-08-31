@@ -153,6 +153,7 @@ const DRIVE = {
 /** Read both sides, INDEPENDENTLY. Rows from the DOM, tools from the browser API. */
 const READ_BOTH = `(async () => {
   const rows = document.querySelectorAll('#surface-inspector [data-tool-row]');
+  const region = document.querySelector('[data-region="surface"]');
   const mc = document.modelContext;
   const tools = mc && typeof mc.getTools === 'function' ? await mc.getTools() : null;
   return {
@@ -165,6 +166,8 @@ const READ_BOTH = `(async () => {
     chip: document.querySelector('[data-policy-version]')?.getAttribute('data-policy-version') ?? null,
     chipText: document.querySelector('[data-policy-version]')?.textContent ?? null,
     source: document.querySelector('[data-surface-source]')?.getAttribute('data-surface-source') ?? null,
+    regionHidden: region?.hidden ?? null,
+    regionDisplay: region ? getComputedStyle(region).display : null,
   };
 })()`;
 
@@ -172,8 +175,19 @@ let app, page;
 test.before(async () => { app = await serveApp(); page = await launchChrome(); });
 test.after(async () => { await page?.close(); await app?.close(); });
 
-test("the rendered row count equals document.modelContext.getTools().length in all four employee states", async () => {
+test("the signed-out surface is visible with two rows, then tracks all four employee states", async () => {
   await page.goto(app.origin + "/");
+
+  // S0 is the explanation for why signing in changes the available work. It
+  // must be visible before the persona choice, and its two rendered rows must
+  // still be an independent match for the browser's two exposed tools.
+  const signedOut = await page.evaluate(READ_BOTH);
+  assert.equal(signedOut.state, "S0");
+  assert.equal(signedOut.rowCount, 2, `signed out rendered ${signedOut.rowCount} tool rows instead of 2`);
+  assert.equal(signedOut.toolCount, 2, `signed out exposed ${signedOut.toolCount} tools instead of 2`);
+  assert.deepEqual([...signedOut.rowNames].sort(), [...signedOut.toolNames].sort());
+  assert.equal(signedOut.regionHidden, false, "the signed-out surface region still has its hidden attribute active");
+  assert.notEqual(signedOut.regionDisplay, "none", "the signed-out surface region computes to display:none");
 
   const seen = [];
   for (const id of ["S1", "S2", "S3", "S4"]) {

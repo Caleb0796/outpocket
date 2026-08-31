@@ -1,5 +1,5 @@
-// src/page/ui/sign-dialog.js — node F4 (lane F, owner UX):
-// the confirmation a human sees before they certify an expense report.
+// src/page/ui/sign-dialog.js — the confirmation a human sees before they
+// certify an expense report.
 //
 // ── WHAT THIS DIALOG DOES NOT DO ─────────────────────────────────────────────
 //
@@ -49,6 +49,7 @@
 
 export const RESPOND_SCHEMA = "outpocket.sign_respond_request/1";
 export const ALREADY_ANSWERED_TEXT = "already answered — start a new one";
+export const POLICY_UNAVAILABLE_TEXT = "Policy version unavailable. Nothing was signed.";
 
 /** Format integer cents as USD. */
 function usd(cents) {
@@ -102,6 +103,65 @@ function el(doc, tag, attrs = {}, text = null) {
   return node;
 }
 
+function validPolicyVersion(value) {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function policySummary(revision, version) {
+  const prefix = `revision ${revision ?? "unavailable"} · `;
+  return version ? `${prefix}policy ${version}` : `${prefix}${POLICY_UNAVAILABLE_TEXT}`;
+}
+
+/**
+ * Replace the dialog's policy state without rebuilding it. Rebuilding was
+ * rejected because the confirmation token lives in this exact DOM and the
+ * signature controls may already have listeners attached. Updating one line
+ * and the existing button preserves both while making the fetched result the
+ * value a person actually sees.
+ */
+function applyPolicyVersion(root, { revision, version }) {
+  const policyVersion = validPolicyVersion(version);
+  const note = root?.querySelector?.("[data-sign-policy-note]");
+  if (note) {
+    note.textContent = policySummary(revision, policyVersion);
+    if (policyVersion) note.setAttribute("data-sign-policy-version", policyVersion);
+    else note.removeAttribute("data-sign-policy-version");
+  }
+
+  const confirm = root?.querySelector?.("[data-sign-confirm]");
+  if (!confirm) return policyVersion;
+  if (canConfirm(root)) {
+    confirm.removeAttribute("disabled");
+    confirm.removeAttribute("data-sign-blocked");
+  } else {
+    confirm.setAttribute("disabled", "");
+    confirm.setAttribute("data-sign-blocked",
+      policyVersion ? "no-disclosure" : "no-policy-version");
+  }
+  return policyVersion;
+}
+
+/**
+ * Read the version from the same endpoint as the surface inspector. The sign
+ * request can carry an absent or stale version, so it is useful for the pure
+ * renderer but is not enough for the mounted page. Any HTTP, JSON or transport
+ * failure becomes the explicit unavailable state; no placeholder is promoted
+ * into something a person could mistake for a policy version.
+ */
+async function refreshPolicyVersion(root, { revision, fetchImpl }) {
+  let version = null;
+  try {
+    const res = await fetchImpl("/api/policy", { credentials: "same-origin" });
+    if (res.ok) {
+      const body = await res.json();
+      version = validPolicyVersion(body?.version);
+    }
+  } catch {
+    version = null;
+  }
+  return applyPolicyVersion(root, { revision, version });
+}
+
 /**
  * Build the eight-field body. Exactly eight: the frozen schema is
  * additionalProperties:false and requires all of them, so a ninth is rejected
@@ -132,14 +192,17 @@ export function respondBody({ requestId, decision, reason = null, confirmToken, 
 export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = null } = {}) {
   const root = el(doc, "div", { "data-sign-dialog": "", role: "dialog", "aria-modal": "true" });
   const sentence = certificationSentence(signRequest);
+  const policyVersion = validPolicyVersion(signRequest?.policy_version);
 
   root.appendChild(el(doc, "h2", { class: "sign-heading" }, "Sign this report"));
 
   const digestBox = el(doc, "div", { "data-snapshot-digest": signRequest?.snapshot_digest ?? "" });
   digestBox.appendChild(el(doc, "span", { class: "digest-label" }, "Snapshot digest"));
   digestBox.appendChild(el(doc, "code", {}, signRequest?.snapshot_digest ?? "(none)"));
-  digestBox.appendChild(el(doc, "span", { class: "digest-note" },
-    `revision ${signRequest?.revision ?? "?"} · policy ${signRequest?.policy_version ?? "?"}`));
+  const policyAttrs = { class: "digest-note", "data-sign-policy-note": "" };
+  if (policyVersion) policyAttrs["data-sign-policy-version"] = policyVersion;
+  digestBox.appendChild(el(doc, "span", policyAttrs,
+    policySummary(signRequest?.revision, policyVersion)));
   root.appendChild(digestBox);
 
   // Empty when the facts could not be named. Never a generic sentence.
@@ -159,9 +222,9 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
 
   const controls = el(doc, "div", { class: "sign-controls" });
   const confirm = el(doc, "button", { type: "button", "data-sign-confirm": "" }, "Sign this report");
-  if (!sentence) {
+  if (!sentence || !policyVersion) {
     confirm.setAttribute("disabled", "");
-    confirm.setAttribute("data-sign-blocked", "no-disclosure");
+    confirm.setAttribute("data-sign-blocked", sentence ? "no-policy-version" : "no-disclosure");
   }
   controls.appendChild(confirm);
   controls.appendChild(el(doc, "button", { type: "button", "data-sign-decline": "" }, "Send back instead"));
@@ -235,7 +298,9 @@ function offerRetry(root, doc, onRetry) {
 /** True when the dialog is in a state that may be confirmed. */
 export function canConfirm(root) {
   const worst = root?.querySelector?.("[data-worst-case]");
-  return Boolean(worst && worst.textContent.trim().length > 0);
+  const version = root?.querySelector?.("[data-sign-policy-version]")
+    ?.getAttribute?.("data-sign-policy-version");
+  return Boolean(worst && worst.textContent.trim().length > 0 && validPolicyVersion(version));
 }
 
 /**
@@ -251,7 +316,18 @@ export function canConfirm(root) {
 export async function submitDecision(root, {
   signRequest, decision, reason = null, fetchImpl = globalThis.fetch, doc = globalThis.document,
 } = {}) {
+  // A mounted dialog begins its policy request before it is returned. Waiting
+  // here keeps a forced or scripted click closed even if it bypasses the
+  // disabled button while that request is still unresolved.
+  if (root?.policyVersionReady) await root.policyVersionReady;
+
   if (!canConfirm(root)) {
+    const policyVersion = root?.querySelector?.("[data-sign-policy-version]")
+      ?.getAttribute?.("data-sign-policy-version");
+    if (!validPolicyVersion(policyVersion)) {
+      setStatus(root, POLICY_UNAVAILABLE_TEXT, { kind: "refused" });
+      return { posted: false, refused: "no-policy-version" };
+    }
     return { posted: false, refused: "no-disclosure" };
   }
 
@@ -378,19 +454,32 @@ export async function restartSignRequest({
   return { signRequest: fresh, root: renderSignDialog(doc, { signRequest: fresh, confirmToken: token }), response: payload };
 }
 
-/** Mount into F1's sign region. */
+/** Mount into the shell's sign region. */
 export function mountSignDialog({ doc = globalThis.document, signRequest, confirmToken, fetchImpl = globalThis.fetch } = {}) {
   const region = doc?.querySelector?.('[data-region="sign"]');
   if (!region || !signRequest) return null;
   region.textContent = "";
   const root = renderSignDialog(doc, { signRequest, confirmToken, fetchImpl });
   region.appendChild(root);
+
+  // Keep mount synchronous because the dialog port attaches its own listeners
+  // to the returned root. The button closes during the request, and the submit
+  // path awaits the same promise, so an unavailable version cannot race a POST.
+  const confirm = root.querySelector("[data-sign-confirm]");
+  if (confirm) {
+    confirm.setAttribute("disabled", "");
+    confirm.setAttribute("data-sign-blocked", "policy-loading");
+  }
+  const note = root.querySelector("[data-sign-policy-note]");
+  if (note) note.textContent = `revision ${signRequest.revision ?? "unavailable"} · checking policy version…`;
+  root.policyVersionReady = refreshPolicyVersion(root, { revision: signRequest.revision, fetchImpl });
   return root;
 }
 
 export const signDialog = {
   renderSignDialog, certificationSentence, certifiedFacts, respondBody,
   submitDecision, canConfirm, renderAlreadyAnswered, restartSignRequest, mountSignDialog,
+  POLICY_UNAVAILABLE_TEXT,
 };
 
 if (typeof document !== "undefined" && document.querySelector) {

@@ -1,5 +1,4 @@
-// src/page/ui/inspector.js — node F5 (lane F, owner UX):
-// the live surface inspector and the policy-version chip.
+// src/page/ui/inspector.js — the live surface inspector and policy-version chip.
 //
 // ── WHY THIS PANEL IS WORTH ITS 2 HOURS ─────────────────────────────────────
 //
