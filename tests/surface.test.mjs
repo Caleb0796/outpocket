@@ -3,8 +3,27 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
 import { makeWorld, names, buildCleanReport } from "./helpers.mjs";
-import { DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
+import { createErp } from "../src/erp.js";
+import { createToolset, DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
 import { digest } from "../src/canonical.js";
+
+function makeApiWorld({ requestSignature, fetchImpl }) {
+  const now = () => new Date(2026, 7, 28, 10, 0, 0);
+  const erp = createErp({ now });
+  const toolset = createToolset(erp, { requestSignature, fetchImpl });
+  return {
+    erp,
+    toolset,
+    dates: { cab: "2026-08-20" },
+    dispatch: (name, args, opts = {}) => toolset.call(name, args, { source: "test", ...opts }),
+  };
+}
+
+const jsonResponse = (status, body) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => body,
+});
 
 test("signed out: the surface is the explainer plus the absence register", () => {
   const w = makeWorld();
@@ -124,6 +143,125 @@ test("every tool output in a busy session respects the 1500-char budget", async 
     await w.dispatch(name, {});
   for (const text of w.outputs)
     assert.ok(text.length <= OUTPUT_BUDGET, `output of ${text.slice(0, 40)}… is ${text.length} chars`);
+});
+
+test("submit commits the signed request on the server and renders only server confirmation and provenance", async () => {
+  const requestId = "sg_0123456789abcdef";
+  const chainHead = `sha256:${"a".repeat(64)}`;
+  const commitResult = {
+    schema: "outpocket.commit_result/1",
+    status: "committed",
+    http_status: 200,
+    confirmation: "CH-9007",
+    committed_revision: 41,
+    chain_entry: { at: "2026-08-28T17:01:02.000Z", actor: "Chen Xiao" },
+    artifact: {
+      policy_version: "server-policy-7",
+      chain_head: chainHead,
+      provenance_summary: { agent_fields: 7, human_fields: 3, seed_fields: 1, total_fields: 11 },
+    },
+  };
+  const calls = [];
+  const w = makeApiWorld({
+    requestSignature: async () => ({ signed: true, request_id: requestId }),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse(200, commitResult);
+    },
+  });
+  w.erp.signIn("chen", "human");
+  await buildCleanReport(w, { title: "Client-authored title" });
+  const reportId = w.erp.openReportOrNull().id;
+  const localBookLength = w.erp.state.dayBook.length;
+
+  const response = await w.dispatch("submit_expense_report", {});
+  const text = response.content[0].text;
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `/api/reports/${reportId}/commit`);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[0].init.credentials, "include");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { report_id: reportId, request_id: requestId });
+  assert.match(text, /Confirmation CH-9007/);
+  assert.match(text, /server revision 41/);
+  assert.match(text, /7\/11 field\(s\) filled via agent tools/);
+  assert.match(text, /3 human-filled, 1 seeded/);
+  assert.match(text, new RegExp(chainHead));
+  assert.doesNotMatch(text, /CH-0001/, "a local confirmation would hide whether the server result was used");
+  assert.equal(w.erp.openReportOrNull().status, "submitted", "the page cache must follow the successful server commit");
+  assert.equal(w.erp.openReportOrNull().artifact, commitResult.artifact);
+  assert.equal(w.erp.state.dayBook.length, localBookLength, "the cache update must not append a second client-only commit event");
+});
+
+test("submit turns 422, 409 and 423 commit refusals into agent-readable text and leaves the draft open", async (t) => {
+  const cases = [
+    { status: 422, code: "E_NOT_CLEAN", message: "the server found a blocking meal cap", phrase: /rechecked the report/ },
+    { status: 409, code: "E_SNAPSHOT_MISMATCH", message: "the signed snapshot is stale", phrase: /signed snapshot no longer matches/ },
+    { status: 423, code: "E_SIGN_IN_PROGRESS", message: "another sign request holds the report", phrase: /locked by a signing operation/ },
+  ];
+
+  for (const row of cases) {
+    await t.test(`${row.status} ${row.code}`, async () => {
+      const w = makeApiWorld({
+        requestSignature: async () => ({ signed: true, request_id: "sg_0123456789abcdef" }),
+        fetchImpl: async () => jsonResponse(row.status, { error: row.code, message: row.message }),
+      });
+      w.erp.signIn("chen", "human");
+      await buildCleanReport(w);
+
+      const response = await w.dispatch("submit_expense_report", {});
+      const text = response.content[0].text;
+
+      assert.match(text, new RegExp(row.code));
+      assert.match(text, new RegExp(row.message));
+      assert.match(text, row.phrase);
+      assert.doesNotMatch(text, /^Error:/, "a server refusal is a workflow result, not an uncaught tool error");
+      assert.equal(w.erp.openReportOrNull().status, "draft");
+    });
+  }
+});
+
+test("get_day_book reads and renders the server SHA-256 chain with its verification result", async () => {
+  const prev = `sha256:${"0".repeat(64)}`;
+  const entryDigest = `sha256:${"b".repeat(64)}`;
+  const head = `sha256:${"c".repeat(64)}`;
+  const calls = [];
+  const w = makeApiWorld({
+    requestSignature: async () => ({ signed: false }),
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse(200, {
+        entries: [{
+          seq: 1,
+          at: "2026-08-28T17:03:04.000Z",
+          kind: "commit",
+          source: "human",
+          actor: "Chen Xiao",
+          label: "employee-authored day-book label",
+          detail: "CH-9007",
+          prev,
+          entry_digest: entryDigest,
+        }],
+        head,
+        verification: { ok: true, brokenAtIndex: null, reason: null },
+      });
+    },
+  });
+  w.erp.signIn("ruiz", "human");
+  w.erp.log("tool", "agent", "local-only label that must not be rendered");
+
+  const response = await w.dispatch("get_day_book", {});
+  const text = response.content[0].text;
+
+  assert.deepEqual(calls.map((x) => x.url), ["/api/daybook"]);
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[0].init.credentials, "include");
+  assert.match(text, /Chain verification: verified/);
+  assert.match(text, new RegExp(head));
+  assert.match(text, new RegExp(prev));
+  assert.match(text, new RegExp(entryDigest));
+  assert.match(text, /employee-authored day-book label/);
+  assert.doesNotMatch(text, /local-only label/, "the local FNV log is not the server day book");
 });
 
 // ── node T5: the blind export ──────────────────────────────────────────────────

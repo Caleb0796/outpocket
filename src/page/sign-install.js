@@ -32,7 +32,7 @@
 //                                                     fetches the confirm_token
 //        -> dialogPort.present(context)               F4: the human decides
 //        -> bridge.continueSign(ticket, reportId)     S5: reads the answer
-//     <- {signed, reason}                             register.js resumes
+//     <- {signed, reason, request_id, commitReport}   register.js resumes
 //
 // openForDialog rather than beginSign, and the difference is not cosmetic: see
 // step 1 below. beginSign is what a TOOL's execute() calls and is deliberately
@@ -124,19 +124,25 @@ export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}
     //
     // openForDialog() (S5, D-89) is the same open plus a session-scoped
     // GET /api/sign/{id}/confirm-token that is NOT a registered tool. The
-    // tool-facing calls are byte-for-byte unchanged, so the narrow contract
-    // still holds for every caller that is an agent; this is a different
-    // caller. NOTHING BELOW ECHOES requestId, signRequest OR confirmToken BACK
-    // OUT — the return value is {signed, reason, ticket}, and that is what
-    // keeps D-89's invariant true at this end of the channel.
+    // beginSign()/continueSign() are unchanged, so their narrow result contract
+    // still holds. The provider now returns request_id to its owning submit tool
+    // because POST /api/reports/{id}/commit cannot address the signed record
+    // without it. It also returns bridge.commitReport as an internal transport
+    // function so the final POST keeps the bridge's base URL and Cookie header in
+    // Node as well as the browser. Neither value is rendered in the tool result;
+    // signRequest and confirmToken remain inside this dialog channel.
     const opened = await bridge.openForDialog(openBody, signal);
     const ticket = opened?.ticket ?? null;
+    const request_id = opened?.requestId ?? null;
+    const commitTransport = typeof bridge.commitReport === "function"
+      ? { commitReport: bridge.commitReport }
+      : {};
 
     // 2. the human decides, in the page.
     const decision = await dialogPort.present({ summary, openBody, opened, signal });
 
     if (!decision?.approved) {
-      return { signed: false, reason: decision?.reason || REASONS.DECLINED, ticket };
+      return { signed: false, reason: decision?.reason || REASONS.DECLINED, ticket, request_id, ...commitTransport };
     }
 
     // 3. ASK THE SERVER WHAT IT RECORDED. Not what the dialog told us — the
@@ -145,12 +151,15 @@ export function createSignatureProvider({ bridge, dialogPort, erp, policy } = {}
     const answered = await bridge.continueSign(ticket, summary.reportId, signal);
 
     if (answered?.status === "awaiting_signature") {
-      return { signed: false, reason: REASONS.NOT_ANSWERED, ticket };
+      return { signed: false, reason: REASONS.NOT_ANSWERED, ticket, request_id, ...commitTransport };
     }
     if (answered?.decision && answered.decision !== "signed") {
-      return { signed: false, reason: answered.reason || REASONS.DECLINED, ticket, response: answered };
+      return {
+        signed: false, reason: answered.reason || REASONS.DECLINED,
+        ticket, request_id, response: answered, ...commitTransport,
+      };
     }
-    return { signed: true, reason: null, ticket, response: answered };
+    return { signed: true, reason: null, ticket, request_id, response: answered, ...commitTransport };
   };
 }
 

@@ -378,6 +378,29 @@ export function createErp({ now = () => new Date(), hashBytes = sha256Hex } = {}
     return { report: r, confirmation, artifact: r.artifact, verdict: vd };
   }
 
+  // ── server commit view cache ──────────────────────────────────
+  //
+  // submitOpenReport() stays above for the seeded/local demonstration paths that
+  // already depend on it. The page tool no longer calls it after signing: doing so
+  // would mint a second confirmation and append a second, client-only submission
+  // event after the server had already committed the report. applyCommitResult()
+  // therefore does the smaller job the page still needs — move its view cache to
+  // the submitted state using the server's timestamp, actor and artifact, then emit
+  // the ordinary report change so the registered surface shrinks immediately.
+  // It deliberately does not call log() or increment counters.confirm; those values
+  // belong to the server response and its SHA-256 day-book chain.
+  function applyCommitResult(reportId, result) {
+    requireEmployee();
+    const r = requireOpenDraft();
+    if (r.id !== reportId) throw new ErpError("NOT_FOUND", `Report ${reportId} is not the open draft.`);
+    r.status = "submitted";
+    r.submittedAt = result.chain_entry.at;
+    r.signature = { signedBy: result.chain_entry.actor, at: result.chain_entry.at };
+    r.artifact = result.artifact;
+    emit("reports");
+    return r;
+  }
+
   // ── canonical digest (drift check) ───────────────────────────
   // Options let the "two agent styles, one ledger" demo compare pure line
   // data across two drafts (receipts can't be shared between reports — the
@@ -427,7 +450,7 @@ export function createErp({ now = () => new Date(), hashBytes = sha256Hex } = {}
     attachReceipt, listReports, createReport, openReport,
     openReportOrNull: () => (state.openReportId ? getReport(state.openReportId) : null),
     addLine, updateLine, removeLine, linkReceipt,
-    verdict, submitOpenReport, canonicalDigest,
+    verdict, submitOpenReport, applyCommitResult, canonicalDigest,
     receiptById,
   };
 }

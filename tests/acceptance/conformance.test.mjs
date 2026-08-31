@@ -1,12 +1,15 @@
 // Node T4 (QA). Conformance of the tool surface against the frozen contract,
 // erp/contracts/tool-surface.contract.md §2, in every one of the six canonical
-// states S0-S5 (§1). Four properties, exactly as the accept predicate states them:
-// (plus a fifth added test guarding the copy below against drift from its source)
+// states S0-S5 (§1). The frozen four remain, with annotation specificity added
+// beside them and one test guarding the copied table against drift from its source:
 //
 //   1. every description length <= 500
 //   2. the annotations object contains only keys from {readOnlyHint, untrustedContentHint}
 //   3. no tool definition contains the banned IR-4 output-schema key (kb/webmcp/BANNED.txt)
 //   4. every read-only tool (per the frozen §2 column) carries readOnlyHint: true
+//   5. all seven writes carry an explicit readOnlyHint: false
+//   6. employee-authored read results carry untrustedContentHint, while the three
+//      reads backed only by server-owned session/policy records do not
 //
 // "Read-only" for (4) is not derived from anything in this repo's runtime code —
 // it is copied verbatim from the frozen table, because that column is exactly what
@@ -74,6 +77,20 @@ function parseFrozenReadonlyTable(contractText) {
 
 const ALLOWED_ANNOTATION_KEYS = new Set(["readOnlyHint", "untrustedContentHint"]);
 
+const WRITE_TOOLS = new Set([
+  "create_expense_report", "open_expense_report", "add_expense_line",
+  "update_expense_line", "remove_expense_line", "link_receipt", "submit_expense_report",
+]);
+
+const UNTRUSTED_READS = new Set([
+  "list_expense_reports", "get_open_report", "get_report",
+  "list_receipts", "validate_expense_report", "get_day_book",
+]);
+
+const SERVER_OWNED_READS = new Set([
+  "get_signin_status", "get_session_scope", "get_expense_policy",
+]);
+
 // IR-4, assembled to avoid the banned contiguous literal — see the header note.
 const BANNED_OUTPUT_KEY = ["output", "Schema"].join("");
 
@@ -124,9 +141,24 @@ function assertConformance(stateId, defs) {
       assert.ok(ALLOWED_ANNOTATION_KEYS.has(k), `${stateId}/${d.name}: annotation key "${k}" is not readOnlyHint or untrustedContentHint`);
 
     assert.ok(!(BANNED_OUTPUT_KEY in d), `${stateId}/${d.name}: definition carries a banned IR-4 output-schema key`);
+    assert.ok(!("title" in d), `${stateId}/${d.name}: title is outside this round's exported definition shape`);
 
     if (READONLY[d.name] === true)
       assert.equal(d.annotations?.readOnlyHint, true, `${stateId}/${d.name}: frozen contract marks this read-only but readOnlyHint !== true`);
+    if (WRITE_TOOLS.has(d.name))
+      assert.deepEqual(d.annotations, { readOnlyHint: false }, `${stateId}/${d.name}: write annotation must be explicit and exact`);
+    if (UNTRUSTED_READS.has(d.name))
+      assert.deepEqual(
+        d.annotations,
+        { readOnlyHint: true, untrustedContentHint: true },
+        `${stateId}/${d.name}: this read can return employee-authored text`
+      );
+    if (SERVER_OWNED_READS.has(d.name))
+      assert.deepEqual(
+        d.annotations,
+        { readOnlyHint: true },
+        `${stateId}/${d.name}: server-owned text must not be marked as employee-authored`
+      );
   }
 }
 
