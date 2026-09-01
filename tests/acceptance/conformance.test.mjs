@@ -146,7 +146,11 @@ function assertConformance(stateId, defs) {
     if (READONLY[d.name] === true)
       assert.equal(d.annotations?.readOnlyHint, true, `${stateId}/${d.name}: frozen contract marks this read-only but readOnlyHint !== true`);
     if (WRITE_TOOLS.has(d.name))
-      assert.deepEqual(d.annotations, { readOnlyHint: false }, `${stateId}/${d.name}: write annotation must be explicit and exact`);
+      assert.deepEqual(
+        d.annotations,
+        { readOnlyHint: false, untrustedContentHint: true },
+        `${stateId}/${d.name}: write annotation must be explicit and mark echoed employee or agent text as untrusted`
+      );
     if (UNTRUSTED_READS.has(d.name))
       assert.deepEqual(
         d.annotations,

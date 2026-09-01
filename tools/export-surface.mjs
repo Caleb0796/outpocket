@@ -134,9 +134,9 @@ const STATES = [
 ];
 
 // Exactly the fields a client agent's model can see. `annotations` is omitted, not
-// emitted empty, when a definition carries none — the write tools have none at all,
-// and R-20's write set is `annotations?.readOnlyHint !== true`, which reads an
-// absent key and an absent hint the same way.
+// emitted empty, only when a definition carries none; reads and writes carry the
+// explicit hints appropriate to their result text. R-20's write set remains
+// `annotations?.readOnlyHint !== true`.
 function project(def) {
   const tool = { name: def.name, description: def.description, inputSchema: def.inputSchema };
   if (def.annotations) tool.annotations = def.annotations;
