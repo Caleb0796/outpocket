@@ -158,16 +158,17 @@ an existing id.
 
 ## Cue 11 — `SB-10` — IN 01:52, OUT 02:06
 
-**ON SCREEN.** The agent submits; the call suspends; the signature dialog
-opens with the snapshot digest and the worst-case consequence printed above
-the signature line.
+**ON SCREEN.** The agent submits; the call comes back with an awaiting-signature
+ticket; the signature dialog opens with the snapshot digest and the worst-case
+consequence printed above the signature line.
 
 **CAPTION.** Submitting doesn't submit. The human is asked, on the record.
 
 **NARRATION.**
-> Submitting doesn't actually submit. The call parks, waiting for a signature,
-> and the page shows exactly what I'd be signing — the snapshot, its digest,
-> and what happens if this is wrong, right above the signature line.
+> Submitting doesn't actually submit. It hands the decision to me and comes
+> back with a ticket — and the page shows exactly what I'd be signing: the
+> snapshot, its digest, and what happens if this is wrong, right above the
+> signature line.
 
 ---
 

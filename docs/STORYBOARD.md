@@ -59,7 +59,8 @@ frame cannot carry does not count as shown.
 3. **The demo** (eleven shots): the agent's own over-cap line changes its
    menu; absence, not refusal, and the page says which rule; one sentence in
    two sessions; a forced request draws a real 403; the receipt enters through
-   a human-only control; submit suspends into a signature request; the report
+   a human-only control; submit returns an awaiting-signature ticket and the
+   review opens for the human; the report
    is locked (423) while the human reviews; the human signs and the page shows
    the server's read-back.
 4. **Impact** (`SB-18`): the pattern generalizes past expenses; one honest
@@ -86,7 +87,7 @@ demonstrated while the sign request is open, which is the only time it can be.
 | `SB-07` | — | — | 0s | **CUT (rev 3).** The client's approval prompt is client policy, not evidence about this design (RUBRIC §3.3); its runtime funds the setup shots. If it appears in captured footage it is not avoided, but it carries no narration and no caption. | `n/a` | — | `agent-client` |
 | `SB-08` | 9 | demo | 9s | The request is forced past the page with a hand-made call. The server answers 403 against the session the human already holds. | `n/a` | yes | `terminal` |
 | `SB-09` | 10 | demo | 10s | Receipt attached by a human through the upload control, for the corrected $48 line (at/above the $25 receipt threshold). Beside it, the agent's only receipt affordance: link an id that already exists. | `[data-receipt-channel]` | yes | `page` |
-| `SB-10` | 11 | demo | 14s | The agent calls `submit_expense_report`; the call correctly suspends into an awaiting-signature ticket, and the signature dialog opens: the worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes | `page` |
+| `SB-10` | 11 | demo | 14s | The agent calls `submit_expense_report`; the call returns promptly with an awaiting-signature ticket, and the signature dialog opens for the human: the worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes | `page` |
 | `SB-11` | 13 | demo | 10s | The human confirms. The page then shows the server's own read-back: status submitted, attribution, method, timestamp, and the linked day-book entry. | `[data-signature-line]` | yes | `page` |
 | `SB-12` | 12 | demo | 11s | With the sign request open, the agent tries to alter the amount. The report is locked: the server answers **423 `E_SIGN_IN_PROGRESS`**. Attempt and rejection in one frame. | `[data-region="editor"]` | yes | `page` |
 | `SB-13` | — | — | 0s | **CUT (rev 3).** The three-line honesty card compresses to one sentence inside `SB-18`; the banner-visibility constraint moves there with it. | `#env-banner` | — | `page` |
@@ -227,10 +228,12 @@ line in DOM order, it is non-empty, and the dialog cannot be confirmed while it
 is empty. Frame both in one shot with the snapshot digest visible. Do not crop
 the worst-case line for layout; it is the reason the signature means anything.
 
-Submitting does not submit: the call correctly **suspends** into the two-call
-handshake (an opaque awaiting ticket; the page records the human decision; the
-commit claims the bound snapshot exactly once). Do not await the suspended
-call in any driving harness — the suspension is the tool behaving as designed.
+Submitting does not submit: the first call **returns promptly** with an opaque
+awaiting ticket (the ChatGPT client times out a suspended tool call at about
+22 seconds, which is why the handshake is two calls), the page records the
+human decision, and a later call with the same context reads the server's
+answer and claims the commit exactly once. Nothing in this beat waits on the
+agent; the wait is the human's.
 
 The server-side sign request expires in five minutes. From this shot to
 `SB-11` is one continuous take, planned before the camera rolls.
