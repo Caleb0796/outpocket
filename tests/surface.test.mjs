@@ -316,7 +316,7 @@ test("T5 export: six canonical states in the frozen order", () => {
     ["S0-anon", "S1-emp-home", "S2-emp-draft-clean", "S3-emp-draft-dirty", "S4-emp-submitted", "S5-aud"]);
 });
 
-test("T5 export: the ids cross over at 2/3 — clean is 13 tools, dirty is 12", () => {
+test("T5 export: the ids cross over at 2/3 — clean is 14 tools, dirty is 13", () => {
   // compile.js's internal S2 is the DIRTY draft and its S3 is the CLEAN one, while
   // the export's S2-… is clean and its S3-… is dirty. The digit does not carry over.
   // Mapping by it would publish submit_expense_report on the surface that holds a
