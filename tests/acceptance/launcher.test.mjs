@@ -21,7 +21,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { demoBannerText, labelAsDemo } from "../../src/page/demo-mode.js";
+import {
+  DEMO_STEP_DELAY_MS,
+  demoBannerText,
+  labelAsDemo,
+  runDemo,
+} from "../../src/page/demo-mode.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -145,26 +150,127 @@ test("the two quoted commands are still verbatim in erp/graph.json", () => {
   }
 });
 
-// F4a's demo state belongs beside launcher coverage because both assertions are
-// about what a filmed run declares before the first interaction. Pin all three
-// sentences: a static "running" label after S3 is a false progress report even
-// when the underlying demo state is correct.
+// F4a's three phases stay pinned here, but F4c makes the running phase a held
+// sequence rather than a static sentence. The duration guard catches a future
+// "fast test" default leaking into the filmed path; runDemo's test below uses
+// the explicit zero-duration seam instead.
 test("the seeded demo banner has exact start, working, and complete states", () => {
+  assert.ok(DEMO_STEP_DELAY_MS >= 800 && DEMO_STEP_DELAY_MS <= 1000);
   assert.equal(
     demoBannerText(7, "start"),
-    "Automated demo · seed 7 · Signing in as Chen… Nothing will be submitted.",
+    "Automated demo · seed 7 · Step 1 of 6 · Signing in as Chen… Nothing will be submitted.",
   );
   assert.equal(
     demoBannerText(7, "working"),
-    "Automated demo · seed 7 · Building and checking a draft… Nothing will be submitted.",
+    "Automated demo · seed 7 · Step 2 of 6 · Building and checking a draft… Nothing will be submitted.",
   );
   assert.equal(
-    demoBannerText(7, "complete"),
-    "Demo complete · seed 7 · Clean draft ready to review below. Nothing was submitted; signing still requires you.",
+    demoBannerText(7, "complete", { reportId: "RP-1018" }),
+    "Demo complete · seed 7 · report RP-1018 · Clean draft ready to review below. Nothing was submitted; signing still requires you.",
   );
 
-  const banner = { textContent: "stale running text" };
+  const attributes = new Map();
+  const banner = {
+    textContent: "stale running text",
+    setAttribute: (name, value) => attributes.set(name, value),
+  };
   const doc = { getElementById: (id) => id === "agent-banner" ? banner : null };
-  assert.equal(labelAsDemo(doc, 7, "complete"), true);
-  assert.equal(banner.textContent, demoBannerText(7, "complete"));
+  assert.equal(labelAsDemo(doc, 7, "complete", { reportId: "RP-1018" }), true);
+  assert.equal(banner.textContent, demoBannerText(7, "complete", { reportId: "RP-1018" }));
+  assert.equal(attributes.get("aria-live"), "polite");
+  assert.equal(attributes.get("data-demo-progress"), "6/6");
+});
+
+// The real defect was temporal: a settled-state assertion could pass while no
+// sampled frame ever showed S2. This fake keeps the production state counts and
+// tool responses but removes only the waits, then records every DOM progress
+// write. It therefore pins the 6 -> 13 -> 14 story without adding seconds to the
+// suite or mistaking an eventual S3 result for a visible transition.
+test("the seed 7 demo exposes each progress frame, report id, and S2 surface", async () => {
+  const updates = [];
+  const attributes = new Map();
+  let bannerText = "";
+  const banner = {
+    get textContent() { return bannerText; },
+    set textContent(value) { bannerText = value; },
+    setAttribute(name, value) {
+      attributes.set(name, value);
+      if (name === "data-demo-progress") {
+        updates.push({ text: bannerText, progress: value, live: attributes.get("aria-live") });
+      }
+    },
+  };
+
+  let state = "S0";
+  const surfaces = {
+    S0: ["get_signin_status", "explain_missing_tool"],
+    S1: ["get_session_scope", "get_expense_policy", "list_expense_reports", "create_expense_report", "open_expense_report", "explain_missing_tool"],
+    S2: ["get_session_scope", "get_expense_policy", "list_expense_reports", "create_expense_report", "open_expense_report", "get_open_report", "add_expense_line", "update_expense_line", "remove_expense_line", "list_receipts", "link_receipt", "validate_expense_report", "explain_missing_tool"],
+  };
+  surfaces.S3 = [...surfaces.S2.slice(0, -1), "submit_expense_report", "explain_missing_tool"];
+
+  const calls = [];
+  let createdArgs = null;
+  const tools = {
+    erp: { now: () => new Date(2026, 7, 30, 12, 0, 0) },
+    state: () => state,
+    names: () => surfaces[state],
+    async executeTool(name, args) {
+      calls.push(name);
+      if (name === "get_session_scope") {
+        return { content: [{ text: "Chen Xiao · role employee. Chargeable projects: FALCON (active); HERON (active); KESTREL (CLOSED)." }] };
+      }
+      if (name === "create_expense_report") {
+        createdArgs = args;
+        state = "S2";
+        return { content: [{ text: "Draft RP-1018 created and opened for project HERON." }] };
+      }
+      if (name === "add_expense_line") {
+        state = "S3";
+        return { content: [{ text: "Line added. Policy check: clean." }] };
+      }
+      return { content: [{ text: "Validation complete. Policy check: clean." }] };
+    },
+  };
+  const doc = {
+    getElementById: (id) => id === "agent-banner" ? banner : null,
+    querySelector: (selector) => selector === '[data-persona="chen"]'
+      ? { click: () => { state = "S1"; } }
+      : null,
+  };
+
+  const result = await runDemo({ seed: 7, tools, shell: null, doc, stepDelayMs: 0 });
+
+  assert.equal(result.reachedState, "S3");
+  assert.equal(result.reportId, "RP-1018");
+  assert.equal(result.plan.project, "HERON");
+  assert.equal(createdArgs.project, "HERON");
+  assert.equal(result.steps.length, 7);
+  assert.ok(result.steps.every((step) => step.ok));
+  assert.deepEqual(calls, [
+    "get_session_scope",
+    "create_expense_report",
+    "add_expense_line",
+    "add_expense_line",
+    "add_expense_line",
+    "validate_expense_report",
+  ]);
+  assert.deepEqual(updates.map((update) => update.progress), ["1/6", "2/6", "3/6", "4/6", "5/6", "6/6", "6/6"]);
+  assert.ok(updates.every((update) => update.live === "polite"));
+  assert.equal(
+    updates[1].text,
+    "Automated demo · seed 7 · Step 2 of 6 · Creating a draft for project HERON… Nothing will be submitted.",
+  );
+  assert.equal(
+    updates[2].text,
+    "Automated demo · seed 7 · report RP-1018 · Step 3 of 6 · Adding a $15.90 coffee line… (surface: 13 tools, draft needs attention)",
+  );
+  assert.equal(
+    updates[5].text,
+    "Automated demo · seed 7 · report RP-1018 · Step 6 of 6 · Validating… (surface: 14 tools, ready to submit)",
+  );
+  assert.equal(
+    updates[6].text,
+    "Demo complete · seed 7 · report RP-1018 · Clean draft ready to review below. Nothing was submitted; signing still requires you.",
+  );
 });

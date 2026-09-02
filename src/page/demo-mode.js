@@ -42,10 +42,17 @@ import { LIMITS } from "../policy.js";
 const DEMO_FLAG = "demo";
 const SEED_PARAM = "seed";
 
+export const DEMO_STEP_DELAY_MS = 900;
+
+const reportClause = (reportId) => reportId ? ` · report ${reportId}` : "";
+
 const DEMO_BANNER = Object.freeze({
-  start: (seed) => `Automated demo · seed ${seed} · Signing in as Chen… Nothing will be submitted.`,
-  working: (seed) => `Automated demo · seed ${seed} · Building and checking a draft… Nothing will be submitted.`,
-  complete: (seed) => `Demo complete · seed ${seed} · Clean draft ready to review below. Nothing was submitted; signing still requires you.`,
+  start: ({ seed, step, total }) =>
+    `Automated demo · seed ${seed} · Step ${step} of ${total} · Signing in as Chen… Nothing will be submitted.`,
+  working: ({ seed, step, total, message = "Building and checking a draft… Nothing will be submitted.", reportId }) =>
+    `Automated demo · seed ${seed}${reportClause(reportId)} · Step ${step} of ${total} · ${message}`,
+  complete: ({ seed, reportId }) =>
+    `Demo complete · seed ${seed}${reportClause(reportId)} · Clean draft ready to review below. Nothing was submitted; signing still requires you.`,
 });
 
 const inBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -123,6 +130,19 @@ export function planFor(seed, { daysAgo }) {
   return { seed, title, lines };
 }
 
+function demoStepTotal(seed) {
+  return planFor(seed, { daysAgo: () => "" }).lines.length + 3;
+}
+
+function demoLineKind(line) {
+  if (/cab/i.test(line.merchant)) return "taxi";
+  if (/rail/i.test(line.merchant)) return "rail";
+  if (/coffee/i.test(line.merchant)) return "coffee";
+  if (line.category === "meals") return "meal";
+  if (line.category === "supplies") return "supplies";
+  return "expense";
+}
+
 /**
  * Read the chargeable projects out of get_session_scope's own answer and choose
  * one by seed. Same parse drive.mjs uses for the flip walk, and the same rule:
@@ -172,18 +192,28 @@ async function waitFor(fn, { timeoutMs = 15000, everyMs = 50 } = {}) {
  * again, so a finished S3 draft and a stalled sign-in were visually identical.
  * These three phases are deliberately complete sentences: a still frame says
  * what the automation is doing, whether it has finished, and that no submission
- * occurred. The final write happens before `done`, making the harness's settled
- * bit and the sentence a single observable state rather than a race.
+ * occurred. `aria-live` makes changes polite announcements, while
+ * `data-demo-progress` gives probes the same position without parsing prose.
+ * The visible sentence remains sufficient on its own. The final write happens
+ * before `done`, making the harness's settled bit and the sentence a single
+ * observable state rather than a race.
  */
-export function demoBannerText(seed, phase = "start") {
-  return (DEMO_BANNER[phase] ?? DEMO_BANNER.start)(seed);
+export function demoBannerText(seed, phase = "start", detail = {}) {
+  const resolvedPhase = Object.hasOwn(DEMO_BANNER, phase) ? phase : "start";
+  const total = detail.total ?? demoStepTotal(seed);
+  const step = detail.step ?? (resolvedPhase === "complete" ? total : resolvedPhase === "working" ? 2 : 1);
+  return DEMO_BANNER[resolvedPhase]({ ...detail, seed, step, total });
 }
 
-export function labelAsDemo(doc, seed, phase = "start") {
+export function labelAsDemo(doc, seed, phase = "start", detail = {}) {
   try {
     const b = doc && doc.getElementById("agent-banner");
     if (!b) return false;
-    b.textContent = demoBannerText(seed, phase);
+    const total = detail.total ?? demoStepTotal(seed);
+    const step = detail.step ?? (phase === "complete" ? total : phase === "working" ? 2 : 1);
+    b.textContent = demoBannerText(seed, phase, { ...detail, step, total });
+    b.setAttribute?.("aria-live", "polite");
+    b.setAttribute?.("data-demo-progress", `${step}/${total}`);
     return true;
   } catch { /* a label is not worth failing a demo over */ }
   return false;
@@ -194,9 +224,17 @@ export function labelAsDemo(doc, seed, phase = "start") {
  * Returns a transcript. Never throws: a failed step is recorded and the run
  * continues, so the dump shows how far it got instead of vanishing.
  */
-export async function runDemo({ seed, tools, shell, doc }) {
+export async function runDemo({ seed, tools, shell, doc, stepDelayMs = DEMO_STEP_DELAY_MS }) {
   const steps = [];
   const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const totalSteps = demoStepTotal(seed);
+  const pause = () => stepDelayMs > 0 ? sleep(stepDelayMs) : Promise.resolve();
+
+  // MEASURED in live Chrome at 50 ms intervals: without held frames, seed 7
+  // crossed S2 between samples and looked as though six tools became fourteen
+  // at once. Four pauses are enough because they surround the state-changing
+  // transitions; later clean lines leave the same fourteen-tool S3 surface.
+  labelAsDemo(doc, seed, "start", { step: 1, total: totalSteps });
 
   // A CALL THAT RETURNED IS NOT A CALL THAT WORKED, and this is the one place
   // that mistake is easy to make here. compile.js's `toolset.call` NEVER THROWS
@@ -256,7 +294,6 @@ export async function runDemo({ seed, tools, shell, doc }) {
   }
   steps.push({ tool: "(sign-in)", ok: true, ms: Math.round(now() - tSignIn),
     text: "signed in via the page's own [data-persona] affordance" });
-  labelAsDemo(doc, seed, "working");
 
   // 2 — the plan, decided entirely by the seed.
   const erpNow = () => tools.erp.now();
@@ -280,12 +317,53 @@ export async function runDemo({ seed, tools, shell, doc }) {
   }
   plan.project = project;
 
-  await call("create_expense_report", { title: plan.title, project });
-  for (const line of plan.lines) await call("add_expense_line", line);
+  labelAsDemo(doc, seed, "working", {
+    step: 2,
+    total: totalSteps,
+    message: `Creating a draft for project ${project}… Nothing will be submitted.`,
+  });
+  await pause();
+
+  const created = await call("create_expense_report", { title: plan.title, project });
+  const reportId = /^Draft\s+(RP-[A-Z0-9-]+)\s+created and opened\b/.exec(created.text ?? "")?.[1] ?? null;
+
+  const showNextStep = (lineIndex) => {
+    const line = plan.lines[lineIndex];
+    const step = lineIndex + 3;
+    labelAsDemo(doc, seed, "working", {
+      step,
+      total: totalSteps,
+      reportId,
+      message: `Adding a $${line.amount} ${demoLineKind(line)} line… ` +
+        `(surface: ${tools.names().length} tools, ${tools.state() === "S3" ? "ready to submit" : "draft needs attention"})`,
+    });
+  };
+
+  showNextStep(0);
+  await pause();
+
+  for (let i = 0; i < plan.lines.length; i++) {
+    await call("add_expense_line", plan.lines[i]);
+    if (i + 1 < plan.lines.length) {
+      showNextStep(i + 1);
+    } else {
+      labelAsDemo(doc, seed, "working", {
+        step: totalSteps,
+        total: totalSteps,
+        reportId,
+        message: `Validating… (surface: ${tools.names().length} tools, ` +
+          `${tools.state() === "S3" ? "ready to submit" : "draft needs attention"})`,
+      });
+    }
+    if (i === 0) await pause();
+  }
+
   await call("validate_expense_report", {});
+  await pause();
+  labelAsDemo(doc, seed, "complete", { step: totalSteps, total: totalSteps, reportId });
 
   // Deliberately no submit_expense_report. See the header.
-  return { steps, plan, reachedState: tools.state() };
+  return { steps, plan, reportId, reachedState: tools.state() };
 }
 
 // ── mount ────────────────────────────────────────────────────────────────────
@@ -315,7 +393,6 @@ if (inBrowser) {
         seed: params.seed, tools, shell: globalThis.outpocketShell, doc: document,
       });
       demoMode.result = result;
-      labelAsDemo(document, params.seed, "complete");
       demoMode.done = true;
       return result;
     })();
