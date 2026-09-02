@@ -557,7 +557,7 @@ test("the real createToolset flow persists every write and submits the same serv
 
     const awaitingText = await call("submit_expense_report");
     const awaiting = JSON.parse(awaitingText);
-    assert.deepEqual(Object.keys(awaiting).sort(), ["status", "ticket"]);
+    assert.deepEqual(Object.keys(awaiting).sort(), ["next", "status", "ticket"]);
     assert.equal(awaiting.status, "awaiting_signature");
     assert.match(awaiting.ticket, /^tk_[0-9a-f]{32}$/);
     assert.doesNotMatch(awaitingText, /confirm_token|request_id|snapshot|digest|revision/i);

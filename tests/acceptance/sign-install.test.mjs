@@ -438,7 +438,9 @@ test("NEGATIVE CONTROL — with NO provider installed, the same submit reaches r
     const result = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
     const text = result?.content?.[0]?.text ?? "";
 
-    assert.match(text, /sent it back/i,
+    // The no-dialog refusal no longer borrows the "sent it back" wording (nobody
+    // reviewed anything); either phrasing proves the submit did not complete.
+    assert.match(text, /could not proceed|sent it back/i,
       "with no provider installed the submit must NOT complete");
     assert.ok(text.includes("nobody to sign"),
       `the refusal must be register.js's safe default, got: ${JSON.stringify(text)}`);

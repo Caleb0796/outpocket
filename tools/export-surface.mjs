@@ -18,8 +18,8 @@
 // 1. THE STATE IDS CROSS OVER AT 2/3. The compiler's internal ids and the export's
 //    canonical ids are NOT positionally aligned:
 //
-//        export S2-emp-draft-clean (13 tools)  ==  compile.js internal S3
-//        export S3-emp-draft-dirty (12 tools)  ==  compile.js internal S2
+//        export S2-emp-draft-clean (14 tools)  ==  compile.js internal S3
+//        export S3-emp-draft-dirty (13 tools)  ==  compile.js internal S2
 //
 //    Mapping by the digit would label the dirty surface "clean" and the clean one
 //    "dirty" — an export that is wrong quietly, since the state count, the id order
@@ -97,7 +97,7 @@ const STATES = [
     build: (erp) => { erp.signIn("chen", "human"); },
   },
   {
-    // 13 tools. The clean draft, and internal S3 — not S2.
+    // 14 tools. The clean draft, and internal S3 — not S2.
     id: "S2-emp-draft-clean", internal: "S3",
     label: "Employee with a clean draft open; the report can be submitted",
     preconditions: { role: "employee", open_report: "draft", verdict: "clean" },
@@ -109,7 +109,7 @@ const STATES = [
     },
   },
   {
-    // 12 tools. The dirty draft, and internal S2 — not S3. One blocking violation
+    // 13 tools. The dirty draft, and internal S2 — not S3. One blocking violation
     // removes submit_expense_report and nothing else.
     id: "S3-emp-draft-dirty", internal: "S2",
     label: "Employee with a draft that carries a blocking violation",
@@ -134,9 +134,9 @@ const STATES = [
 ];
 
 // Exactly the fields a client agent's model can see. `annotations` is omitted, not
-// emitted empty, when a definition carries none — the write tools have none at all,
-// and R-20's write set is `annotations?.readOnlyHint !== true`, which reads an
-// absent key and an absent hint the same way.
+// emitted empty, only when a definition carries none; reads and writes carry the
+// explicit hints appropriate to their result text. R-20's write set remains
+// `annotations?.readOnlyHint !== true`.
 function project(def) {
   const tool = { name: def.name, description: def.description, inputSchema: def.inputSchema };
   if (def.annotations) tool.annotations = def.annotations;

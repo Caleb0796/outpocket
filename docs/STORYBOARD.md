@@ -59,7 +59,8 @@ frame cannot carry does not count as shown.
 3. **The demo** (eleven shots): the agent's own over-cap line changes its
    menu; absence, not refusal, and the page says which rule; one sentence in
    two sessions; a forced request draws a real 403; the receipt enters through
-   a human-only control; submit suspends into a signature request; the report
+   a human-only control; submit returns an awaiting-signature ticket and the
+   review opens for the human; the report
    is locked (423) while the human reviews; the human signs and the page shows
    the server's read-back.
 4. **Impact** (`SB-18`): the pattern generalizes past expenses; one honest
@@ -86,11 +87,11 @@ demonstrated while the sign request is open, which is the only time it can be.
 | `SB-07` | — | — | 0s | **CUT (rev 3).** The client's approval prompt is client policy, not evidence about this design (RUBRIC §3.3); its runtime funds the setup shots. If it appears in captured footage it is not avoided, but it carries no narration and no caption. | `n/a` | — | `agent-client` |
 | `SB-08` | 9 | demo | 9s | The request is forced past the page with a hand-made call. The server answers 403 against the session the human already holds. | `n/a` | yes | `terminal` |
 | `SB-09` | 10 | demo | 10s | Receipt attached by a human through the upload control, for the corrected $48 line (at/above the $25 receipt threshold). Beside it, the agent's only receipt affordance: link an id that already exists. | `[data-receipt-channel]` | yes | `page` |
-| `SB-10` | 11 | demo | 14s | The agent calls `submit_expense_report`; the call correctly suspends into an awaiting-signature ticket, and the signature dialog opens: the worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes | `page` |
-| `SB-11` | 13 | demo | 10s | The human confirms. The page then shows the server's own read-back: status submitted, attribution, method, timestamp, and the linked day-book entry. | `[data-signature-line]` | yes | `page` |
-| `SB-12` | 12 | demo | 11s | With the sign request open, the agent tries to alter the amount. The report is locked: the server answers **423 `E_SIGN_IN_PROGRESS`**. Attempt and rejection in one frame. | `[data-region="editor"]` | yes | `page` |
+| `SB-10` | 11 | demo | 14s | The agent calls `submit_expense_report`; the call returns promptly with an awaiting-signature ticket, and the signature dialog opens for the human: the worst-case consequence is printed immediately above the signature line, and the snapshot digest is on screen. | `[data-worst-case]` | yes | `page` |
+| `SB-11` | 13 | demo | 10s | The human confirms. The page shows the server's confirmation ("Submitted. Confirmation CH-…"); the agent then reads the report back — who signed, how, when, and the day-book entry — from the server's record. | `[data-signature-line]` | yes | `page` |
+| `SB-12` | 12 | demo | 11s | With the sign request open (dialog still on the page), the agent tries to alter the amount. The report is locked: the agent pane shows the server's **423 `E_SIGN_IN_PROGRESS`** refusal. Open dialog and refusal in one frame. | `[data-worst-case]` | yes | `page` |
 | `SB-13` | — | — | 0s | **CUT (rev 3).** The three-line honesty card compresses to one sentence inside `SB-18`; the banner-visibility constraint moves there with it. | `#env-banner` | — | `page` |
-| `SB-14` | 5 | demo | 10s | The agent adds a $180 airport car (transport). Validation runs in the same call: a blocking `CAP_TRANSPORT` finding renders in the editor — "$180.00 exceeds the $150.00 per-trip transport cap" — with its fix hint. | `[data-region="editor"]` | yes | `page` |
+| `SB-14` | 5 | demo | 10s | The agent adds a $180 airport car (transport). The line lands in the editor, and validation runs in the same call: the agent pane shows the page's blocking `CAP_TRANSPORT` verdict — "$180.00 exceeds the $150.00 per-trip transport cap" — with its fix hint. Both panes in frame. | `[data-region="editor"]` | yes | `page` |
 | `SB-15` | 6 | demo | 9s | The inspector re-renders in the same frame: the `submit_expense_report` row is absent. Clean state offered 14 tools; the dirty state offers 13 — the difference is exactly this row. | `#surface-inspector` | yes | `page` |
 | `SB-16` | 1 | setup | 12s | Cold open on the live product, mid-session: employee home with an open clean draft, inspector visible, environment banner at the top. One sentence of narration says what this is. No logo. | `#surface-inspector [data-tool-row]` | yes | `page` |
 | `SB-17` | 2 | setup | 24s | Post-production comparison card over live-page b-roll: self-built copilot / integration credential / Outpocket (page publishes tools, bring your own agent, no model shipped, no new credential). Environment banner remains visible. | `#env-banner` | yes | `page` |
@@ -131,9 +132,10 @@ axis that actually exists.
 
 Since `23dab22`, `add_expense_line` validates in the same call: the blocking
 finding is on screen the moment the line lands, with no separate
-`validate_expense_report` needed to trigger it. Film the editor: the $180
-amount and the `CAP_TRANSPORT` finding — "$180.00 exceeds the $150.00 per-trip
-transport cap" — must both read in one still, with the fix hint visible.
+`validate_expense_report` needed to trigger it. The page renders the new line (its amount in the editor); the verdict text is
+the tool result and appears in the agent pane. Frame both panes: the editor row
+and the `CAP_TRANSPORT` verdict — "$180.00 exceeds the $150.00 per-trip
+transport cap" — must read in one still, with the fix hint visible.
 
 The fix hint for this rule says an over-cap trip needs a written exception
 from an approver. The agent's on-camera repair is therefore to correct the
@@ -227,10 +229,12 @@ line in DOM order, it is non-empty, and the dialog cannot be confirmed while it
 is empty. Frame both in one shot with the snapshot digest visible. Do not crop
 the worst-case line for layout; it is the reason the signature means anything.
 
-Submitting does not submit: the call correctly **suspends** into the two-call
-handshake (an opaque awaiting ticket; the page records the human decision; the
-commit claims the bound snapshot exactly once). Do not await the suspended
-call in any driving harness — the suspension is the tool behaving as designed.
+Submitting does not submit: the first call **returns promptly** with an opaque
+awaiting ticket (the ChatGPT client times out a suspended tool call at about
+22 seconds, which is why the handshake is two calls), the page records the
+human decision, and a later call with the same context reads the server's
+answer and claims the commit exactly once. Nothing in this beat waits on the
+agent; the wait is the human's.
 
 The server-side sign request expires in five minutes. From this shot to
 `SB-11` is one continuous take, planned before the camera rolls.
@@ -248,7 +252,8 @@ route calls `assertUnlocked` first; the attempt draws **HTTP 423
 the human is reviewing cannot be moved underneath them.
 
 This is the payoff shot of the whole demo and it must read in a still: the
-attempted edit and the 423 rejection in one frame. The narration may add — as
+open dialog on the page and the 423 refusal in the agent pane, in one frame.
+The refusal is a tool result — it does not render on the page. The narration may add — as
 a statement about commit, not about this frame — that the server also
 re-canonicalises the bound snapshot and recomputes the verdict at commit.
 
@@ -259,9 +264,11 @@ the server supplies who and when from the session cookie and its own clock. The
 one sentence this shot is allowed to assert is: a commit cannot be made without
 a POST from the authenticated session to `/api/sign/{request_id}/respond`.
 
-What the page shows after the click is the server's **read-back** — status
-submitted, attribution, method, timestamp, and the linked day-book entry — not
-the click's local echo.
+What the page shows after the click is the server's confirmation ("Submitted.
+Confirmation CH-…") — not the click's local echo. Attribution, method,
+timestamp and the day-book entry are read back through the agent (`get_report`,
+`get_day_book`) from the server's record; film that read-back in the agent
+pane as the second half of the shot.
 
 The dialog also carries a one-time value that is delivered only into its
 rendered markup. Do not put it on screen in close-up, do not read it aloud, and

@@ -34,9 +34,14 @@ export const DESC_BUDGET = 500; // official description budget
 
 export const ok = (text) => ({ content: [{ type: "text", text }] });
 
-export function clip(text, budget = OUTPUT_BUDGET) {
+const CLIP_NOTES = Object.freeze({
+  validate_expense_report: " …[truncated: more violations follow; clear the blocking ones above, then validate again]",
+  get_day_book: " …[truncated: older entries omitted]",
+});
+
+export function clip(text, toolName, budget = OUTPUT_BUDGET) {
   if (text.length <= budget) return text;
-  const note = " …[truncated — use a visible report_id, line_id, or receipt_id to make the next tool call narrower]";
+  const note = CLIP_NOTES[toolName] ?? " …[truncated — call validate_expense_report or get_open_report for details]";
   return text.slice(0, budget - note.length) + note;
 }
 
@@ -87,12 +92,15 @@ function fullVerdictText(erp) {
   const r = erp.openReportOrNull();
   if (!r) return "No report is open.";
   const vd = erp.verdict(r.id);
-  const parts = [];
-  for (const v of vd.reportViolations) parts.push(`report ${violationText(v)}`);
+  const blocking = [];
+  const warnings = [];
+  const add = (text, violation) => (violation.severity === "block" ? blocking : warnings).push(text);
+  for (const v of vd.reportViolations) add(`report ${violationText(v)}`, v);
   for (const l of r.lines) {
     const vs = vd.lineViolations.get(l.id) ?? [];
-    for (const v of vs) parts.push(`${l.id} ${violationText(v)}`);
+    for (const v of vs) add(`${l.id} ${violationText(v)}`, v);
   }
+  const parts = [...blocking, ...warnings];
   const body = parts.length ? parts.join("\n") : "Every policy check passes.";
   return `${body}\n${reportStatusLine(erp)}`;
 }
@@ -201,7 +209,7 @@ export function buildDefs(erp, hooks = {}) {
   const get_expense_policy = {
     name: "get_expense_policy",
     description:
-      "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+      "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => ok(JSON.stringify(policyForAgent())),
@@ -312,7 +320,7 @@ export function buildDefs(erp, hooks = {}) {
   const lineProps = {
     date: { ...S, format: "date", description: "Receipt date, YYYY-MM-DD" },
     merchant: { ...S, description: "Merchant name as printed on the receipt" },
-    category: { type: "string", enum: CATEGORIES },
+    category: { type: "string", enum: CATEGORIES, description: "Expense category from the receipt; `other` also needs a business-purpose description" },
     amount: { type: "number", exclusiveMinimum: 0, description: "Receipt total as a decimal in its own currency, e.g. 186.40" },
     currency: { type: "string", enum: Object.keys(FX), default: "USD", description: "Defaults to USD" },
     attendees: { type: "integer", minimum: 1, description: "Meals: number of people on the receipt" },
@@ -362,7 +370,7 @@ export function buildDefs(erp, hooks = {}) {
       "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
     inputSchema: {
       type: "object",
-      properties: { line_id: { ...S, description: "from get_open_report, e.g. ln_3" }, ...lineProps },
+      properties: { line_id: { ...S, description: "From get_open_report, e.g. ln_3" }, ...lineProps },
       required: ["line_id"],
     },
     annotations: { readOnlyHint: false, untrustedContentHint: true },
@@ -418,10 +426,7 @@ export function buildDefs(erp, hooks = {}) {
       "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
     inputSchema: {
       type: "object",
-      properties: {
-        line_id: { ...S, description: "from get_open_report, e.g. ln_3" },
-        receipt_id: { ...S, description: "from list_receipts, e.g. rc_2" },
-      },
+      properties: { line_id: { ...S, description: "From get_open_report, e.g. ln_3" }, receipt_id: { ...S, description: "From list_receipts, e.g. rc_2" } },
       required: ["line_id", "receipt_id"],
     },
     annotations: { readOnlyHint: false, untrustedContentHint: true },
@@ -451,7 +456,7 @@ export function buildDefs(erp, hooks = {}) {
   const submit_expense_report = {
     name: "submit_expense_report",
     description:
-      `Request submission of the open expense report. A response with {"status":"awaiting_signature","ticket":"…"} means the page is waiting for the employee’s Sign or Send back decision. When the employee has chosen, invoke submit_expense_report with {} to read the server-owned decision and either finish or refuse submission. Submission is the employee’s act — this tool only requests it.`,
+      "Request submission of the open expense report. Returns {status:\"awaiting_signature\",ticket} while the employee reviews and signs or sends the report back in the page; calling this tool again once they have decided returns the server's answer — signed and submitted with a confirmation, or sent back with their reason. Submission is the employee's act — this tool only requests it.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
@@ -474,21 +479,13 @@ export function buildDefs(erp, hooks = {}) {
       };
       const decision = await hooks.requestSignature(summary, opts?.signal);
       if (decision?.status === "awaiting_signature") {
-        return ok(JSON.stringify({
-          status: decision.status,
-          ticket: decision.ticket,
-          waiting_on: "employee_page_decision",
-          resume: { tool: "submit_expense_report", arguments: {} },
-        }));
+        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket, next: "The employee is reviewing in the page. Call submit_expense_report again to read their decision." }));
       }
       if (decision?.status === "submission_in_progress") {
-        return ok(JSON.stringify({
-          status: decision.status,
-          ticket: decision.ticket,
-          waiting_on: "submission_completion",
-          resume: { tool: "submit_expense_report", arguments: {} },
-        }));
+        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket, next: "The page is completing submission. Call submit_expense_report again to read the result." }));
       }
+      if (decision?.signed === false && !decision?.response)
+        return ok(`Submission could not proceed: ${decision?.reason}. Nothing was signed; the draft stays editable. Call submit_expense_report again to open a new review.`);
       if (!decision?.signed)
         return ok(`The employee reviewed the report and sent it back${decision?.reason ? `: “${decision.reason}”` : "."} The draft stays editable — adjust it and try again.`);
 
@@ -579,7 +576,7 @@ export function buildDefs(erp, hooks = {}) {
       }
 
       const entries = Array.isArray(response.body?.entries) ? response.body.entries : [];
-      const shown = entries.slice(-6);
+      const shown = entries.slice(-5);
       const omitted = entries.length - shown.length;
       const header = `Chain verification: ${verificationText(response.body?.verification)}. ` +
         `Head: ${response.body?.head ?? "(empty chain)"}.`;

@@ -142,7 +142,7 @@ export function createToolset(erp, hooks = {}) {
         return res;
       }
       const raw = await def.execute(args ?? {}, opts, source);
-      raw.content[0].text = clip(raw.content[0].text);
+      raw.content[0].text = clip(raw.content[0].text, def.name);
       hooks.onCallEnd?.(rec, { status: "ok", text: raw.content[0].text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 });
       return raw;
     } catch (e) {
@@ -155,7 +155,9 @@ export function createToolset(erp, hooks = {}) {
       const hasTechnical = Number.isInteger(e?.status) && typeof e?.code === "string";
       const error = hasTechnical ? { status: e.status, code: e.code, message } : null;
       const technical = error ? ` Technical: HTTP ${error.status} · ${error.code}.` : "";
-      const text = error ? `${clip(base, OUTPUT_BUDGET - technical.length)}${technical}` : clip(base);
+      const text = error
+        ? `${clip(base, def.name, OUTPUT_BUDGET - technical.length)}${technical}`
+        : clip(base, def.name);
       const result = { status: "err", text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 };
       if (error) result.error = error;
       hooks.onCallEnd?.(rec, result);

@@ -168,7 +168,7 @@ function modelContext() {
  *
  * The shape is exactly four keys plus execute. Annotations are exactly the two
  * that exist — readOnlyHint and untrustedContentHint — and definitions carry
- * only the first. Nothing else is emitted, because nothing else is real.
+ * one or both as appropriate. Nothing else is emitted, because nothing else is real.
  *
  * `source` is "agent": a call arriving through the browser's tool API is the
  * agent's act, and provenance downstream depends on that being recorded

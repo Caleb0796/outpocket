@@ -1,5 +1,5 @@
 {
-  "app_commit": "5eb88218b76f09a6e7d5f862d1e6f4d44938a384",
+  "app_commit": "2901196717393f370b925a3528fb68bf6e1802b4",
   "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
   "policy_version": "2026-08.1",
   "schema": "outpocket.tool_export/1",
@@ -56,11 +56,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1385,
-        "estimated_tokens": 531,
+        "description_bytes": 1501,
+        "estimated_tokens": 560,
         "schema_bytes": 623,
         "tool_count": 6,
-        "total_bytes": 2123
+        "total_bytes": 2239
       },
       "label": "Employee signed in, no report open",
       "preconditions": {
@@ -69,7 +69,7 @@
         "verdict": "n_a"
       },
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:fd9c1b7ab4608a3c4b0c7ebf7e94789a7e081e37b3b81617b973427f6dc4363c",
+      "surface_digest": "sha256:be8e1078792d6ddc8c098d5ea4578772257885286f3167a2be632ec99640d770",
       "tools": [
         {
           "annotations": {
@@ -86,7 +86,7 @@
           "annotations": {
             "readOnlyHint": true
           },
-          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -107,7 +107,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
@@ -131,7 +132,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
@@ -172,11 +174,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 3002,
-        "estimated_tokens": 1603,
-        "schema_bytes": 3157,
+        "description_bytes": 3194,
+        "estimated_tokens": 1719,
+        "schema_bytes": 3429,
         "tool_count": 14,
-        "total_bytes": 6412
+        "total_bytes": 6876
       },
       "label": "Employee with a clean draft open; the report can be submitted",
       "preconditions": {
@@ -185,7 +187,7 @@
         "verdict": "clean"
       },
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:2c8690085e0970ad6f26f2858758a728060a7536dfeebcd0e0b1f2ad3156d1c4",
+      "surface_digest": "sha256:b1758e7ef69810ec4e985e9e6a780636c20a327ba692135429c0bbbabf4dbf27",
       "tools": [
         {
           "annotations": {
@@ -202,7 +204,7 @@
           "annotations": {
             "readOnlyHint": true
           },
-          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -223,7 +225,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
@@ -247,7 +250,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
@@ -278,7 +282,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
           "inputSchema": {
@@ -293,6 +298,7 @@
                 "type": "integer"
               },
               "category": {
+                "description": "Expense category from the receipt; `other` also needs a business-purpose description",
                 "enum": [
                   "meals",
                   "lodging",
@@ -363,7 +369,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
           "inputSchema": {
@@ -378,6 +385,7 @@
                 "type": "integer"
               },
               "category": {
+                "description": "Expense category from the receipt; `other` also needs a business-purpose description",
                 "enum": [
                   "meals",
                   "lodging",
@@ -427,7 +435,7 @@
                 "type": "array"
               },
               "line_id": {
-                "description": "e.g. ln_3",
+                "description": "From get_open_report, e.g. ln_3",
                 "type": "string"
               },
               "merchant": {
@@ -449,7 +457,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
           "inputSchema": {
@@ -479,12 +488,14 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
           "inputSchema": {
             "properties": {
               "line_id": {
+                "description": "From get_open_report, e.g. ln_3",
                 "type": "string"
               },
               "receipt_id": {
@@ -514,9 +525,10 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
-          "description": "Submit the open expense report to the approver. This suspends while the employee reviews the report next to the attached receipt images and signs it in the page; it returns the signed confirmation, or the employee's reason for sending it back. Submission is the employee's act — this tool only requests it.",
+          "description": "Request submission of the open expense report. Returns {status:\"awaiting_signature\",ticket} while the employee reviews and signs or sends the report back in the page; calling this tool again once they have decided returns the server's answer — signed and submitted with a confirmation, or sent back with their reason. Submission is the employee's act — this tool only requests it.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -547,11 +559,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 2694,
-        "estimated_tokens": 1513,
-        "schema_bytes": 3124,
+        "description_bytes": 2810,
+        "estimated_tokens": 1610,
+        "schema_bytes": 3396,
         "tool_count": 13,
-        "total_bytes": 6050
+        "total_bytes": 6438
       },
       "label": "Employee with a draft that carries a blocking violation",
       "preconditions": {
@@ -560,7 +572,7 @@
         "verdict": "dirty"
       },
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:14fb3627b8e13fff86f129a316090687f7199cb31eafc34dabb4144777f74eaa",
+      "surface_digest": "sha256:cec97da3b2243a89de83c0366cdf5830015f2096dd1a1fb874e4a83f70e64798",
       "tools": [
         {
           "annotations": {
@@ -577,7 +589,7 @@
           "annotations": {
             "readOnlyHint": true
           },
-          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -598,7 +610,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
@@ -622,7 +635,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
@@ -653,7 +667,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
           "inputSchema": {
@@ -668,6 +683,7 @@
                 "type": "integer"
               },
               "category": {
+                "description": "Expense category from the receipt; `other` also needs a business-purpose description",
                 "enum": [
                   "meals",
                   "lodging",
@@ -738,7 +754,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
           "inputSchema": {
@@ -753,6 +770,7 @@
                 "type": "integer"
               },
               "category": {
+                "description": "Expense category from the receipt; `other` also needs a business-purpose description",
                 "enum": [
                   "meals",
                   "lodging",
@@ -802,7 +820,7 @@
                 "type": "array"
               },
               "line_id": {
-                "description": "e.g. ln_3",
+                "description": "From get_open_report, e.g. ln_3",
                 "type": "string"
               },
               "merchant": {
@@ -824,7 +842,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
           "inputSchema": {
@@ -854,12 +873,14 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
           "inputSchema": {
             "properties": {
               "line_id": {
+                "description": "From get_open_report, e.g. ln_3",
                 "type": "string"
               },
               "receipt_id": {
@@ -911,11 +932,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1590,
-        "estimated_tokens": 594,
+        "description_bytes": 1706,
+        "estimated_tokens": 623,
         "schema_bytes": 656,
         "tool_count": 7,
-        "total_bytes": 2376
+        "total_bytes": 2492
       },
       "label": "Employee viewing a report already submitted; the surface has shrunk",
       "preconditions": {
@@ -924,7 +945,7 @@
         "verdict": "n_a"
       },
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:2d390e9e66c0b0a849091d8d6d45deda08cc79b422b974a47f41c191c799309c",
+      "surface_digest": "sha256:4934571beeeed8e158525fd7503c7cf7a5765c76ca18f3d0664692fda7cc8f08",
       "tools": [
         {
           "annotations": {
@@ -941,7 +962,7 @@
           "annotations": {
             "readOnlyHint": true
           },
-          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -962,7 +983,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
           "inputSchema": {
@@ -986,7 +1008,8 @@
         },
         {
           "annotations": {
-            "readOnlyHint": false
+            "readOnlyHint": false,
+            "untrustedContentHint": true
           },
           "description": "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
           "inputSchema": {
@@ -1039,11 +1062,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1718,
-        "estimated_tokens": 565,
+        "description_bytes": 1834,
+        "estimated_tokens": 594,
         "schema_bytes": 430,
         "tool_count": 7,
-        "total_bytes": 2260
+        "total_bytes": 2376
       },
       "label": "Auditor signed in; every tool on this surface is read-only",
       "preconditions": {
@@ -1052,7 +1075,7 @@
         "verdict": "n_a"
       },
       "state_id": "S5-aud",
-      "surface_digest": "sha256:952b4ed646d4dedc71db957b81bf3915bf06a9429967a72334abe25b6aca69dc",
+      "surface_digest": "sha256:09f0447faac2fca54345e9543ee9f55c9e2c104b900d9e169e6d7f3b707929fb",
       "tools": [
         {
           "annotations": {
@@ -1069,7 +1092,7 @@
           "annotations": {
             "readOnlyHint": true
           },
-          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt.",
+          "description": "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -1157,7 +1180,7 @@
   ],
   "totals": {
     "distinct_tool_count": 17,
-    "max_description_bytes": 334,
+    "max_description_bytes": 425,
     "state_count": 6
   }
 }

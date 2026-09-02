@@ -150,7 +150,7 @@ function assertConformance(stateId, defs) {
       assert.deepEqual(
         d.annotations,
         { readOnlyHint: false, untrustedContentHint: true },
-        `${stateId}/${d.name}: echoing write annotation must be explicit and exact`
+        `${stateId}/${d.name}: write annotation must be explicit and mark echoed employee or agent text as untrusted`
       );
     if (UNTRUSTED_READS.has(d.name))
       assert.deepEqual(

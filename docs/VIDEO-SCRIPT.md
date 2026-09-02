@@ -77,8 +77,9 @@ each field carries a server-assigned provenance tag.
 
 ## Cue 5 — `SB-14` — IN 00:54, OUT 01:04
 
-**ON SCREEN.** The agent adds a $180 airport car. The blocking `CAP_TRANSPORT`
-finding renders in the same beat, with its fix hint.
+**ON SCREEN.** The agent adds a $180 airport car; the line lands in the editor
+and the agent pane shows the page's blocking `CAP_TRANSPORT` verdict with its
+fix hint. Both panes in frame.
 
 **CAPTION.** Validation answers in the same call.
 
@@ -158,23 +159,25 @@ an existing id.
 
 ## Cue 11 — `SB-10` — IN 01:52, OUT 02:06
 
-**ON SCREEN.** The agent submits; the call suspends; the signature dialog
-opens with the snapshot digest and the worst-case consequence printed above
-the signature line.
+**ON SCREEN.** The agent submits; the call comes back with an awaiting-signature
+ticket; the signature dialog opens with the snapshot digest and the worst-case
+consequence printed above the signature line.
 
 **CAPTION.** Submitting doesn't submit. The human is asked, on the record.
 
 **NARRATION.**
-> Submitting doesn't actually submit. The call parks, waiting for a signature,
-> and the page shows exactly what I'd be signing — the snapshot, its digest,
-> and what happens if this is wrong, right above the signature line.
+> Submitting doesn't actually submit. It hands the decision to me and comes
+> back with a ticket — and the page shows exactly what I'd be signing: the
+> snapshot, its digest, and what happens if this is wrong, right above the
+> signature line.
 
 ---
 
 ## Cue 12 — `SB-12` — IN 02:06, OUT 02:17
 
-**ON SCREEN.** The dialog is open. The agent tries to alter the amount; the
-attempt and the **423 `E_SIGN_IN_PROGRESS`** rejection read in one frame.
+**ON SCREEN.** The dialog is still open on the page. In the agent pane, the
+attempt to alter the amount and the **423 `E_SIGN_IN_PROGRESS`** refusal read
+in one frame.
 
 **CAPTION.** While a human reviews, the report is locked. HTTP 423.
 
@@ -187,14 +190,16 @@ attempt and the **423 `E_SIGN_IN_PROGRESS`** rejection read in one frame.
 
 ## Cue 13 — `SB-11` — IN 02:17, OUT 02:27
 
-**ON SCREEN.** The human clicks. The page shows the server's read-back: status
-submitted, attribution, method, timestamp, the linked day-book entry.
+**ON SCREEN.** The human clicks. The page shows the server's confirmation; the
+agent reads the report back — who signed, how, when, and the day-book entry —
+from the server's record.
 
 **CAPTION.** The outcome is the server's record, not the click's echo.
 
 **NARRATION.**
-> I click — and what the page shows next comes back from the server: who
-> signed, how, and when. The server's record is the outcome, not my click.
+> I click — and the confirmation comes back from the server, not from my
+> click. Ask the agent to read it back: who signed, how, and when, from the
+> server's record.
 
 ---
 

@@ -215,7 +215,7 @@ export function explainMissing({ name, erp, state, membership, catalogue, surfac
     return envelope(SURFACE_RULES.SIGNIN_REQUIRED, state, {
       code: "SIGNIN_REQUIRED",
       message: `${asked} needs a signed-in session and nobody is signed in, so the surface holds only the sign-in explainer.`,
-      fix: "The employee signs in themselves, in the page, via company SSO — an agent cannot do it and is never shown credentials.",
+      fix: "The employee signs in themselves, in the page, via company SSO — an agent cannot do it and is never shown credentials. get_signin_status reports when that has happened.",
       candidates: candidatesFrom(["get_signin_status"], surfaceNames, describe),
     });
   }

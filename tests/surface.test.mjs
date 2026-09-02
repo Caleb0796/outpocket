@@ -158,10 +158,10 @@ test("input schemas expose stable constraints and exact id sources without dynam
   const sourcedIds = [
     [defs.open_expense_report.inputSchema.properties.report_id, "from list_expense_reports, e.g. RP-1018"],
     [defs.get_report.inputSchema.properties.report_id, "from list_expense_reports, e.g. RP-1018"],
-    [defs.update_expense_line.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
+    [defs.update_expense_line.inputSchema.properties.line_id, "From get_open_report, e.g. ln_3"],
     [defs.remove_expense_line.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
-    [defs.link_receipt.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
-    [defs.link_receipt.inputSchema.properties.receipt_id, "from list_receipts, e.g. rc_2"],
+    [defs.link_receipt.inputSchema.properties.line_id, "From get_open_report, e.g. ln_3"],
+    [defs.link_receipt.inputSchema.properties.receipt_id, "From list_receipts, e.g. rc_2"],
   ];
   for (const [schema, description] of sourcedIds) {
     assert.equal(schema.description, description);
@@ -224,6 +224,30 @@ test("runTool preserves HTTP status and code for listeners and agent text", asyn
       assert.equal(typeof ended.error.code, "string");
     });
   }
+
+  await t.test("truncation reserves the technical suffix", async () => {
+    const erp = createErp();
+    erp.signIn("chen", "human");
+    let ended = null;
+    const toolset = createToolset(erp, {
+      api: createLocalApi(erp),
+      onCallStart: (record) => record,
+      onCallEnd: (_record, result) => { ended = result; },
+    });
+    const def = toolset.surface().find((entry) => entry.name === "get_session_scope");
+    const message = "server-owned refusal ".repeat(200);
+    def.execute = async () => {
+      throw Object.assign(new Error(message), { status: 423, code: "E_SIGN_IN_PROGRESS" });
+    };
+
+    const response = await toolset.runTool(def, {}, {}, "test");
+    const text = response.content[0].text;
+    assert.equal(text.length, OUTPUT_BUDGET);
+    assert.match(text, /\[truncated/);
+    assert.match(text, / Technical: HTTP 423 · E_SIGN_IN_PROGRESS\.$/);
+    assert.equal(ended.text, text);
+    assert.deepEqual(ended.error, { status: 423, code: "E_SIGN_IN_PROGRESS", message });
+  });
 });
 
 test("auditor writes are impossible twice over: no tool AND a 403 underneath", async () => {
@@ -252,31 +276,34 @@ test("every tool output in a busy session respects the 1500-char budget", async 
     assert.ok(text.length <= OUTPUT_BUDGET, `output of ${text.slice(0, 40)}… is ${text.length} chars`);
   const clipped = w.outputs.filter((text) => text.includes("[truncated"));
   assert.ok(clipped.length > 0, "the fixture must cross the budget so the truncation note is exercised");
-  for (const text of clipped) {
-    assert.match(text, /use a visible report_id, line_id, or receipt_id to make the next tool call narrower/);
-    assert.doesNotMatch(text, /call validate_expense_report or get_open_report/);
-  }
+  assert.ok(clipped.some((text) => text.includes("more violations follow; clear the blocking ones above, then validate again")));
+  assert.ok(clipped.some((text) => text.includes("call validate_expense_report or get_open_report for details")));
+  for (const text of clipped)
+    assert.doesNotMatch(text, /use a visible report_id, line_id, or receipt_id to make the next tool call narrower/);
 });
 
-test("submit wait results say what is pending and resume with empty arguments", async (t) => {
+test("submit wait results name the pending state and how to read it", async (t) => {
   const ticket = `tk_${"b".repeat(32)}`;
   const cases = [
-    { status: "awaiting_signature", waiting_on: "employee_page_decision" },
-    { status: "submission_in_progress", waiting_on: "submission_completion" },
+    { status: "awaiting_signature", ticket },
+    { status: "submission_in_progress" },
   ];
 
   for (const row of cases) {
     await t.test(row.status, async () => {
-      const w = makeWorld({ signImpl: async () => ({ status: row.status, ticket }) });
+      const w = makeWorld({ signImpl: async () => row });
       w.erp.signIn("chen", "human");
       await buildCleanReport(w);
       const response = await w.dispatch("submit_expense_report", {});
-      assert.deepEqual(JSON.parse(response.content[0].text), {
-        status: row.status,
-        ticket,
-        waiting_on: row.waiting_on,
-        resume: { tool: "submit_expense_report", arguments: {} },
-      });
+      const result = JSON.parse(response.content[0].text);
+      assert.equal(result.status, row.status);
+      assert.equal(typeof result.next, "string");
+      assert.ok(result.next.length > 0);
+      assert.deepEqual(
+        Object.keys(result).sort(),
+        row.ticket === undefined ? ["next", "status"] : ["next", "status", "ticket"],
+      );
+      if (row.ticket !== undefined) assert.equal(result.ticket, row.ticket);
     });
   }
 });
@@ -447,7 +474,7 @@ test("T5 export: six canonical states in the frozen order", () => {
     ["S0-anon", "S1-emp-home", "S2-emp-draft-clean", "S3-emp-draft-dirty", "S4-emp-submitted", "S5-aud"]);
 });
 
-test("T5 export: the ids cross over at 2/3 — clean is 13 tools, dirty is 12", () => {
+test("T5 export: the ids cross over at 2/3 — clean is 14 tools, dirty is 13", () => {
   // compile.js's internal S2 is the DIRTY draft and its S3 is the CLEAN one, while
   // the export's S2-… is clean and its S3-… is dirty. The digit does not carry over.
   // Mapping by it would publish submit_expense_report on the surface that holds a

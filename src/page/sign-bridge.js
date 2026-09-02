@@ -25,6 +25,7 @@
 // snapshot_digest and revision from GET /api/sign/{request_id} — so this is
 // a discipline about this module's own surface, not a claim that it closes
 // the vector. See erp/contracts/signature.schema.json x-signRequestState.
+// The tool-layer `next` sentence is a constant and echoes nothing from the sign record.
 //
 // D-89: openForDialog() below is the ONE deliberate exception, and it does
 // not weaken the paragraph above — beginSign()/continueSign() (what a
