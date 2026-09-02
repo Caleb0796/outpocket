@@ -59,16 +59,19 @@ and website share one live session and one state-dependent action menu. As the
 report changes, the page revises the tools the agent receives on its next turn.
 
 Two consequences follow from that division. The site ships no model and runs no
-agent — `package.json` has an empty dependency list — so the operator carries
-no inference hosting, no prompt maintenance, and no exposure to one pinned
-model's drift; the employee brings their own WebMCP-capable client, and the
-site's contract with it is the tool schema plus the server's per-request
-checks. And relative to a backend MCP server, no new standing credential is
-minted: a backend server would hold its own key to the ERP and work away from
-the page, while here authorization starts at the employee's login and the work
-stays on the page the employee is watching. That is a fit statement for a
-personally-signed flow, not a security ranking — the server still treats every
-caller as untrusted.
+model-backed agent — package.json declares no runtime dependencies, and the
+clearly labelled fallback/demo driver performs no inference — so the operator
+carries no inference hosting or model-specific prompt maintenance. Relative to
+the conventional backend MCP deployment we compared, no new standing credential
+is minted here: that deployment would hold a separate ERP credential and work
+away from the page, while Outpocket starts from the employee's existing login
+and keeps the work on the page. That is a fit statement for a personally-signed
+flow, not a security ranking — the server still treats every caller as
+untrusted.
+
+WebMCP is not a wrapper here: the page compiles six distinct registered surfaces
+from live role, report, and validation state, then replaces each generation so
+the agent's next turn sees only the actions that currently exist.
 
 ## 2. How it improves the user experience
 
@@ -95,6 +98,10 @@ Our addition is snapshot binding: the exact report and policy shown for review
 are canonically digested, then the server re-canonicalizes current state before
 commit. If the report or policy changed after review, the comparison fails.
 
+The same visible report survives agent entry, human review, the second-call
+commit, reload, and auditor read-back, making the demo one coherent product path
+rather than a collection of tool calls.
+
 ## 3. What people and agents can now do together
 
 An employee can hand policy lookup, repetitive entry, and correction loops to an
@@ -113,6 +120,10 @@ The potential impact is practical rather than speculative: less duplicate data
 entry for employees, fewer avoidable policy corrections for finance, and a
 clearer record of which fields came from an agent and which were edited by a
 person. We have not measured time saved, so we do not claim a percentage.
+
+The first deployable audience is finance teams whose employees already use a
+browser-based expense desk: they can reduce duplicate entry and policy rework
+without requiring Outpocket to hold a new standing ERP integration credential.
 
 ## 4. How we built it
 
@@ -153,3 +164,7 @@ the site. For that reason, the repository includes captured browser evidence,
 expected-surface fixtures, real-HTTP acceptance tests, negative mutations, and a
 five-minute walkthrough that says what each step should show as well as what the
 project does not prove.
+
+The ambitious part is the composition: a state-shaped WebMCP menu,
+server-recomputed policy verdict, snapshot-bound two-call signature, per-field
+provenance, and a linked audit chain all meet in one browser session.
