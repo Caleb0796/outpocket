@@ -1,5 +1,5 @@
 {
-  "app_commit": "2901196717393f370b925a3528fb68bf6e1802b4",
+  "app_commit": "e35d949b4ce0401eb1d976fce666352edcf94d30",
   "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
   "policy_version": "2026-08.1",
   "schema": "outpocket.tool_export/1",
@@ -7,10 +7,10 @@
     {
       "accounting": {
         "description_bytes": 600,
-        "estimated_tokens": 205,
-        "schema_bytes": 182,
+        "estimated_tokens": 293,
+        "schema_bytes": 534,
         "tool_count": 2,
-        "total_bytes": 819
+        "total_bytes": 1171
       },
       "label": "Nobody is signed in",
       "preconditions": {
@@ -19,7 +19,7 @@
         "verdict": "n_a"
       },
       "state_id": "S0-anon",
-      "surface_digest": "sha256:3e675e98304cefad40df07a31cc542460d9bca696cc6b44c4fd5f68e11efc3c8",
+      "surface_digest": "sha256:ed8ecc649e64e585a7d4e933f09030a9b3994a246637804c83864f92207a3c27",
       "tools": [
         {
           "annotations": {
@@ -42,6 +42,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
@@ -57,10 +76,10 @@
     {
       "accounting": {
         "description_bytes": 1501,
-        "estimated_tokens": 560,
-        "schema_bytes": 623,
+        "estimated_tokens": 662,
+        "schema_bytes": 1032,
         "tool_count": 6,
-        "total_bytes": 2239
+        "total_bytes": 2648
       },
       "label": "Employee signed in, no report open",
       "preconditions": {
@@ -69,7 +88,7 @@
         "verdict": "n_a"
       },
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:be8e1078792d6ddc8c098d5ea4578772257885286f3167a2be632ec99640d770",
+      "surface_digest": "sha256:c52d634a3b437f6079dd813047c43cd5dace91a701cc0fd78e67c58d6d39ea88",
       "tools": [
         {
           "annotations": {
@@ -114,7 +133,11 @@
           "inputSchema": {
             "properties": {
               "project": {
-                "description": "Project code from the employee's scope, e.g. FALCON",
+                "description": "Active project code from get_session_scope, e.g. FALCON",
+                "enum": [
+                  "FALCON",
+                  "HERON"
+                ],
                 "type": "string"
               },
               "title": {
@@ -139,7 +162,7 @@
           "inputSchema": {
             "properties": {
               "report_id": {
-                "description": "e.g. RP-1018",
+                "description": "from list_expense_reports, e.g. RP-1018",
                 "type": "string"
               }
             },
@@ -160,6 +183,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
@@ -174,11 +216,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 3194,
-        "estimated_tokens": 1719,
-        "schema_bytes": 3429,
+        "description_bytes": 3269,
+        "estimated_tokens": 1879,
+        "schema_bytes": 3992,
         "tool_count": 14,
-        "total_bytes": 6876
+        "total_bytes": 7514
       },
       "label": "Employee with a clean draft open; the report can be submitted",
       "preconditions": {
@@ -187,7 +229,7 @@
         "verdict": "clean"
       },
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:b1758e7ef69810ec4e985e9e6a780636c20a327ba692135429c0bbbabf4dbf27",
+      "surface_digest": "sha256:cc30dc8ad7371f261dd35c689845a3ae0cc2c6476f1388e170e1b9a6e38b0dfd",
       "tools": [
         {
           "annotations": {
@@ -232,7 +274,11 @@
           "inputSchema": {
             "properties": {
               "project": {
-                "description": "Project code from the employee's scope, e.g. FALCON",
+                "description": "Active project code from get_session_scope, e.g. FALCON",
+                "enum": [
+                  "FALCON",
+                  "HERON"
+                ],
                 "type": "string"
               },
               "title": {
@@ -257,7 +303,7 @@
           "inputSchema": {
             "properties": {
               "report_id": {
-                "description": "e.g. RP-1018",
+                "description": "from list_expense_reports, e.g. RP-1018",
                 "type": "string"
               }
             },
@@ -273,7 +319,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "description": "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -290,6 +336,7 @@
             "properties": {
               "amount": {
                 "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "exclusiveMinimum": 0,
                 "type": "number"
               },
               "attendees": {
@@ -310,6 +357,7 @@
                 "type": "string"
               },
               "currency": {
+                "default": "USD",
                 "description": "Defaults to USD",
                 "enum": [
                   "USD",
@@ -322,6 +370,7 @@
               },
               "date": {
                 "description": "Receipt date, YYYY-MM-DD",
+                "format": "date",
                 "type": "string"
               },
               "description": {
@@ -377,6 +426,7 @@
             "properties": {
               "amount": {
                 "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "exclusiveMinimum": 0,
                 "type": "number"
               },
               "attendees": {
@@ -397,6 +447,7 @@
                 "type": "string"
               },
               "currency": {
+                "default": "USD",
                 "description": "Defaults to USD",
                 "enum": [
                   "USD",
@@ -409,6 +460,7 @@
               },
               "date": {
                 "description": "Receipt date, YYYY-MM-DD",
+                "format": "date",
                 "type": "string"
               },
               "description": {
@@ -464,6 +516,7 @@
           "inputSchema": {
             "properties": {
               "line_id": {
+                "description": "from get_open_report, e.g. ln_3",
                 "type": "string"
               }
             },
@@ -516,7 +569,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
+          "description": "Run the full policy validation over the open report and return violations, truncated at the output budget with a note when a report is large: code, severity (block or warn), field, message and fix hint, plus totals. Blocking violations keep the report from being submittable.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -545,6 +598,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
@@ -559,11 +631,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 2810,
-        "estimated_tokens": 1610,
-        "schema_bytes": 3396,
+        "description_bytes": 2885,
+        "estimated_tokens": 1769,
+        "schema_bytes": 3959,
         "tool_count": 13,
-        "total_bytes": 6438
+        "total_bytes": 7076
       },
       "label": "Employee with a draft that carries a blocking violation",
       "preconditions": {
@@ -572,7 +644,7 @@
         "verdict": "dirty"
       },
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:cec97da3b2243a89de83c0366cdf5830015f2096dd1a1fb874e4a83f70e64798",
+      "surface_digest": "sha256:8ae7b7a87213f2f2369a9bbb0a0df3c6dfb64000ef8184df124ff6abd9b3efa9",
       "tools": [
         {
           "annotations": {
@@ -617,7 +689,11 @@
           "inputSchema": {
             "properties": {
               "project": {
-                "description": "Project code from the employee's scope, e.g. FALCON",
+                "description": "Active project code from get_session_scope, e.g. FALCON",
+                "enum": [
+                  "FALCON",
+                  "HERON"
+                ],
                 "type": "string"
               },
               "title": {
@@ -642,7 +718,7 @@
           "inputSchema": {
             "properties": {
               "report_id": {
-                "description": "e.g. RP-1018",
+                "description": "from list_expense_reports, e.g. RP-1018",
                 "type": "string"
               }
             },
@@ -658,7 +734,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "description": "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -675,6 +751,7 @@
             "properties": {
               "amount": {
                 "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "exclusiveMinimum": 0,
                 "type": "number"
               },
               "attendees": {
@@ -695,6 +772,7 @@
                 "type": "string"
               },
               "currency": {
+                "default": "USD",
                 "description": "Defaults to USD",
                 "enum": [
                   "USD",
@@ -707,6 +785,7 @@
               },
               "date": {
                 "description": "Receipt date, YYYY-MM-DD",
+                "format": "date",
                 "type": "string"
               },
               "description": {
@@ -762,6 +841,7 @@
             "properties": {
               "amount": {
                 "description": "Receipt total as a decimal in its own currency, e.g. 186.40",
+                "exclusiveMinimum": 0,
                 "type": "number"
               },
               "attendees": {
@@ -782,6 +862,7 @@
                 "type": "string"
               },
               "currency": {
+                "default": "USD",
                 "description": "Defaults to USD",
                 "enum": [
                   "USD",
@@ -794,6 +875,7 @@
               },
               "date": {
                 "description": "Receipt date, YYYY-MM-DD",
+                "format": "date",
                 "type": "string"
               },
               "description": {
@@ -849,6 +931,7 @@
           "inputSchema": {
             "properties": {
               "line_id": {
+                "description": "from get_open_report, e.g. ln_3",
                 "type": "string"
               }
             },
@@ -901,7 +984,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
+          "description": "Run the full policy validation over the open report and return violations, truncated at the output budget with a note when a report is large: code, severity (block or warn), field, message and fix hint, plus totals. Blocking violations keep the report from being submittable.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -918,6 +1001,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
@@ -932,11 +1034,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1706,
-        "estimated_tokens": 623,
-        "schema_bytes": 656,
+        "description_bytes": 1734,
+        "estimated_tokens": 733,
+        "schema_bytes": 1065,
         "tool_count": 7,
-        "total_bytes": 2492
+        "total_bytes": 2929
       },
       "label": "Employee viewing a report already submitted; the surface has shrunk",
       "preconditions": {
@@ -945,7 +1047,7 @@
         "verdict": "n_a"
       },
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:4934571beeeed8e158525fd7503c7cf7a5765c76ca18f3d0664692fda7cc8f08",
+      "surface_digest": "sha256:4b58520aeacf537173ecc848c3bfa73db9802737f1da46b2cf008b5841035775",
       "tools": [
         {
           "annotations": {
@@ -990,7 +1092,11 @@
           "inputSchema": {
             "properties": {
               "project": {
-                "description": "Project code from the employee's scope, e.g. FALCON",
+                "description": "Active project code from get_session_scope, e.g. FALCON",
+                "enum": [
+                  "FALCON",
+                  "HERON"
+                ],
                 "type": "string"
               },
               "title": {
@@ -1015,7 +1121,7 @@
           "inputSchema": {
             "properties": {
               "report_id": {
-                "description": "e.g. RP-1018",
+                "description": "from list_expense_reports, e.g. RP-1018",
                 "type": "string"
               }
             },
@@ -1031,7 +1137,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "description": "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -1048,6 +1154,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
@@ -1062,11 +1187,11 @@
     },
     {
       "accounting": {
-        "description_bytes": 1834,
-        "estimated_tokens": 594,
-        "schema_bytes": 430,
+        "description_bytes": 1849,
+        "estimated_tokens": 693,
+        "schema_bytes": 809,
         "tool_count": 7,
-        "total_bytes": 2376
+        "total_bytes": 2770
       },
       "label": "Auditor signed in; every tool on this surface is read-only",
       "preconditions": {
@@ -1075,7 +1200,7 @@
         "verdict": "n_a"
       },
       "state_id": "S5-aud",
-      "surface_digest": "sha256:09f0447faac2fca54345e9543ee9f55c9e2c104b900d9e169e6d7f3b707929fb",
+      "surface_digest": "sha256:c1f130228be023e1a862f987ea28c343f1d9d86337c7fb32ddba0057c23ccddc",
       "tools": [
         {
           "annotations": {
@@ -1116,11 +1241,11 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Read one expense report by id: header, status, every line with amounts, receipt links and provenance, totals, and the blocking and warning counts. A pure read — it does not open the report in the page and writes nothing, so the page keeps showing whatever it was showing. Ids come from list_expense_reports.",
+          "description": "Read one expense report by id: header and status; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance; totals and validation counts. A pure read — it does not open the report or write anything. Ids come from list_expense_reports.",
           "inputSchema": {
             "properties": {
               "report_id": {
-                "description": "e.g. RP-1018",
+                "description": "from list_expense_reports, e.g. RP-1018",
                 "type": "string"
               }
             },
@@ -1136,7 +1261,7 @@
             "readOnlyHint": true,
             "untrustedContentHint": true
           },
-          "description": "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+          "description": "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
           "inputSchema": {
             "properties": {},
             "type": "object"
@@ -1165,6 +1290,25 @@
             "properties": {
               "name": {
                 "description": "The tool to explain, for example submit_expense_report.",
+                "enum": [
+                  "get_signin_status",
+                  "get_session_scope",
+                  "get_expense_policy",
+                  "list_expense_reports",
+                  "create_expense_report",
+                  "open_expense_report",
+                  "get_open_report",
+                  "get_report",
+                  "add_expense_line",
+                  "update_expense_line",
+                  "remove_expense_line",
+                  "list_receipts",
+                  "link_receipt",
+                  "validate_expense_report",
+                  "submit_expense_report",
+                  "get_day_book",
+                  "explain_missing_tool"
+                ],
                 "type": "string"
               }
             },
