@@ -308,7 +308,7 @@ test("submit wait results name the pending state and how to read it", async (t) 
   }
 });
 
-test("submit commits the signed request on the server and renders only server confirmation and provenance", async () => {
+test("submit reads back the server confirmation, signature method, timestamp, and day-book entry", async () => {
   const requestId = "sg_0123456789abcdef";
   const chainHead = `sha256:${"a".repeat(64)}`;
   const commitResult = {
@@ -317,7 +317,13 @@ test("submit commits the signed request on the server and renders only server co
     http_status: 200,
     confirmation: "CH-9007",
     committed_revision: 41,
-    chain_entry: { at: "2026-08-28T17:01:02.000Z", actor: "Chen Xiao" },
+    chain_entry: {
+      seq: 1,
+      at: "2026-08-28T17:01:02.000Z",
+      actor: "Chen Xiao",
+      label: "",
+      detail: "CH-9007",
+    },
     artifact: {
       policy_version: "server-policy-7",
       chain_head: chainHead,
@@ -325,8 +331,14 @@ test("submit commits the signed request on the server and renders only server co
     },
   };
   const calls = [];
+  const settlements = [];
   const w = makeApiWorld({
-    requestSignature: async () => ({ signed: true, request_id: requestId }),
+    requestSignature: async () => ({
+      signed: true,
+      request_id: requestId,
+      response: { method: "click", signed_by: "Chen Xiao" },
+      settle: (result) => settlements.push(result),
+    }),
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
       return jsonResponse(200, commitResult);
@@ -335,6 +347,7 @@ test("submit commits the signed request on the server and renders only server co
   w.erp.signIn("chen", "human");
   await buildCleanReport(w, { title: "Client-authored title" });
   const reportId = w.erp.openReportOrNull().id;
+  commitResult.chain_entry.label = `signed & submitted ${reportId}`;
   const localBookLength = w.erp.state.dayBook.length;
 
   const response = await w.dispatch("submit_expense_report", {});
@@ -354,7 +367,16 @@ test("submit commits the signed request on the server and renders only server co
   assert.match(text, /7\/11 field\(s\) filled via agent tools/);
   assert.match(text, /3 human-filled, 1 seeded/);
   assert.match(text, new RegExp(chainHead));
+  assert.match(text, /Signed by Chen Xiao via signature click at 2026-08-28T17:01:02\.000Z \(server clock\)\./);
+  assert.match(text, new RegExp(`Day book #1: signed & submitted ${reportId} — CH-9007\\.`));
+  assert.doesNotMatch(text, /request_id|confirm_token|acknowledged_digest|sg_0123456789abcdef/i);
   assert.doesNotMatch(text, /CH-0001/, "a local confirmation would hide whether the server result was used");
+  assert.deepEqual(settlements, [{
+    status: "committed",
+    confirmation: "CH-9007",
+    signedBy: "Chen Xiao",
+    message: "Submitted. Confirmation CH-9007.",
+  }]);
   assert.equal(w.erp.openReportOrNull().status, "submitted", "the page cache must follow the successful server commit");
   assert.equal(w.erp.openReportOrNull().artifact, commitResult.artifact);
   assert.equal(w.erp.state.dayBook.length, localBookLength, "the cache update must not append a second client-only commit event");

@@ -260,7 +260,7 @@ export function createSignatureProvider({ bridge, dialogPort, storage = pageSess
           clearContinuation(storage, record.reportId);
           dialogPort.finish?.({
             kind: "declined",
-            message: `Sent back. Nothing was submitted; the draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
+            message: `Sent back. Nothing was submitted. The draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
           });
           continue;
         }
@@ -390,7 +390,7 @@ export function createSignatureProvider({ bridge, dialogPort, storage = pageSess
       const reason = answered.reason || REASONS.DECLINED;
       dialogPort.finish?.({
         kind: "declined",
-        message: `Sent back. Nothing was submitted; the draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
+        message: `Sent back. Nothing was submitted. The draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
       });
       return {
         signed: false,
@@ -420,7 +420,7 @@ export function createSignatureProvider({ bridge, dialogPort, storage = pageSess
       ticket: record.ticket,
       request_id: record.request_id,
       response: answered,
-      settle({ status, confirmation = null, message = null } = {}) {
+      settle({ status, confirmation = null, message = null, signedBy = null } = {}) {
         if (pending !== record) return;
         if (status === "committed") {
           pending = null;
@@ -428,6 +428,7 @@ export function createSignatureProvider({ bridge, dialogPort, storage = pageSess
           dialogPort.finish?.({
             kind: "committed",
             confirmation,
+            signedBy,
             message: message || `Submitted${confirmation ? `. Confirmation ${confirmation}.` : "."}`,
           });
           return;

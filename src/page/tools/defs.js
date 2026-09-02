@@ -523,16 +523,21 @@ export function buildDefs(erp, hooks = {}) {
         return ok(message);
       }
 
+      const chainEntry = result.chain_entry;
+      const signatureMethod = result.method ?? decision.response?.method ?? decision.method ?? null;
       decision.settle?.({
         status: "committed",
         confirmation: result.confirmation ?? null,
+        signedBy: chainEntry?.actor ?? decision.response?.signed_by ?? null,
         message: result.confirmation
           ? `Submitted. Confirmation ${result.confirmation}.`
           : "Submitted. Refresh the report to read the server confirmation.",
       });
 
       const provenance = result.artifact?.provenance_summary;
-      if (!result.confirmation || !result.chain_entry?.at || !result.chain_entry?.actor ||
+      if (!result.confirmation || !chainEntry?.at || !chainEntry?.actor ||
+          !Number.isInteger(chainEntry?.seq) || !chainEntry?.label || !chainEntry?.detail ||
+          typeof signatureMethod !== "string" || !signatureMethod ||
           !result.artifact?.chain_head || !provenance) {
         return ok("The server committed the report but returned an incomplete result. Refresh the page to read the committed report and its day-book entry.");
       }
@@ -547,12 +552,15 @@ export function buildDefs(erp, hooks = {}) {
           `${sentence(error?.message, "the read-back failed")} Refresh the page before taking another action.`,
         );
       }
+      const methodText = signatureMethod === "click" ? "signature click" : signatureMethod;
       return ok(
         `Signed and submitted. Confirmation ${result.confirmation}; server revision ${result.committed_revision}. ` +
         `Provenance: ${provenance.agent_fields}/${provenance.total_fields} field(s) filled via agent tools, ` +
         `${provenance.human_fields} human-filled, ${provenance.seed_fields} seeded. ` +
-        `Commit actor ${result.chain_entry.actor}; policy ${result.artifact.policy_version}; ` +
-        `SHA-256 day-book head ${result.artifact.chain_head}.`);
+        `Commit actor ${chainEntry.actor}; policy ${result.artifact.policy_version}; ` +
+        `SHA-256 day-book head ${result.artifact.chain_head}. ` +
+        `Signed by ${chainEntry.actor} via ${methodText} at ${chainEntry.at} (server clock). ` +
+        `Day book #${chainEntry.seq}: ${chainEntry.label} — ${chainEntry.detail}.`);
     },
   };
 

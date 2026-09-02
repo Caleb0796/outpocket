@@ -53,7 +53,7 @@ export const POLICY_UNAVAILABLE_TEXT = "Policy version unavailable. Nothing was 
 export const SIGNED_RECORDED_TEXT =
   "Signature recorded by the server. Submission will finish when submit_expense_report is called again.";
 export const DECLINED_RECORDED_TEXT =
-  "Sent back. Nothing was submitted; the draft remains editable.";
+  "Sent back. Nothing was submitted. The draft remains editable.";
 
 /** Format integer cents as USD. */
 function usd(cents) {
@@ -548,13 +548,29 @@ export async function restartSignRequest({
 
 /** Replace the modal with a persistent, screen-reader-announced outcome. */
 export function showSignResult({
-  doc = globalThis.document, kind = "status", message = "", confirmation = null,
+  doc = globalThis.document, kind = "status", message = "", confirmation = null, signedBy = null,
 } = {}) {
   const region = doc?.querySelector?.('[data-region="sign"]');
   if (!region) return null;
+  const text = message || (confirmation ? `Submitted. Confirmation ${confirmation}.` : "Signature status updated.");
+  const review = region.querySelector?.("[data-sign-dialog]");
+  if (review) {
+    region.setAttribute?.("data-sign-active", "");
+    review.setAttribute?.("data-sign-review-state", kind);
+    setStatus(review, text, { kind });
+    const status = review.querySelector?.("[data-sign-status]");
+    status?.setAttribute?.("data-sign-result", kind);
+
+    const actor = typeof signedBy === "string" && signedBy.trim() ? signedBy.trim() : null;
+    const who = review.querySelector?.("[data-signature-line]")?.querySelector?.(".sig-who");
+    if (kind === "committed" && actor && who) {
+      who.textContent = `Signed by ${actor} · current authenticated session`;
+    }
+    return status ?? review;
+  }
+
   region.removeAttribute?.("data-sign-active");
   region.textContent = "";
-  const text = message || (confirmation ? `Submitted. Confirmation ${confirmation}.` : "Signature status updated.");
   const result = el(doc, "p", {
     "data-sign-result": kind,
     role: "status",
@@ -564,10 +580,18 @@ export function showSignResult({
   return result;
 }
 
-function closeAcceptedDialog(root, { doc, decision, message }) {
+/**
+ * Move an answered modal into the page as the persistent review record.
+ * `close()` is necessary to leave the modal top layer; setting `open` again
+ * makes the SAME dialog a non-modal box, so the disclosed consequence and its
+ * immediately following signature line survive for the later commit result.
+ */
+function keepAcceptedDialog(root, { doc, decision, message }) {
   const previousFocus = root?.previousFocus ?? null;
   if (root?.open && typeof root.close === "function") root.close();
   else root?.removeAttribute?.("open");
+  root?.setAttribute?.("open", "");
+  if (root) root.open = true;
   showSignResult({ doc, kind: decision, message });
   previousFocus?.focus?.();
 }
@@ -613,7 +637,7 @@ export function mountSignDialog({
   const root = renderSignDialog(doc, { signRequest, confirmToken, fetchImpl, sessionName });
   root.previousFocus = doc.activeElement ?? null;
   root.onRestart = onRestart;
-  root.onDecisionAccepted = ({ decision, message }) => closeAcceptedDialog(root, { doc, decision, message });
+  root.onDecisionAccepted = ({ decision, message }) => keepAcceptedDialog(root, { doc, decision, message });
   region.appendChild(root);
 
   root.addEventListener?.("cancel", (event) => {

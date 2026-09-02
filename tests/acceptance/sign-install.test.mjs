@@ -196,11 +196,17 @@ test("SIGN: the first tool call returns promptly, reuses one ticket, and a later
       await respond({ gate, sid, base, cookie, reportId: report.id, decision: "signed" });
       const completed = await registry.executeTool("submit_expense_report", {}, { source: "agent" });
       assert.match(textOf(completed), /Signed and submitted/i);
+      assert.match(textOf(completed), new RegExp(
+        `Signed by Chen Xiao via signature click at [^ ]+ \\(server clock\\)\\. ` +
+        `Day book #1: signed & submitted ${report.id} — CH-0001\\.`));
       assert.doesNotMatch(textOf(completed), /confirm_token|ct_[0-9a-f]/i);
       assert.equal(commitCalls, 1, "the signed continuation must commit exactly once");
       assert.equal(erp.openReportOrNull()?.status, "submitted");
       assert.ok(erp.openReportOrNull()?.signature, "no signature was recorded on the report");
       assert.equal(dialog.finished.at(-1)?.kind, "committed");
+      assert.equal(dialog.finished.at(-1)?.confirmation, "CH-0001");
+      assert.equal(dialog.finished.at(-1)?.signedBy, "Chen Xiao");
+      assert.equal(dialog.finished.at(-1)?.message, "Submitted. Confirmation CH-0001.");
     } finally {
       install.uninstall?.();
       resetInstallForTests();
@@ -364,6 +370,8 @@ test("SEND BACK: the second call reads the server decline, does not commit, and 
       assert.equal(erp.openReportOrNull()?.status, "draft");
       assert.equal(registry.state(), "S3");
       assert.equal(dialog.finished.at(-1)?.kind, "declined");
+      assert.match(dialog.finished.at(-1)?.message, /meal total looks wrong/i);
+      assert.match(dialog.finished.at(-1)?.message, /The draft remains editable\./);
     } finally {
       install.uninstall?.();
       resetInstallForTests();
@@ -581,7 +589,8 @@ test("a signed continuation grants one commit claim until settle releases or com
     openForDialog: async () => opened,
     continueSign: async () => ({ state: "answered", decision: "signed" }),
   };
-  const provider = createSignatureProvider({ bridge, dialogPort: stubDialog() });
+  const dialog = stubDialog();
+  const provider = createSignatureProvider({ bridge, dialogPort: dialog });
   const summary = { reportId: "RP-1018", personaId: "chen", warnings: 0 };
 
   assert.equal((await provider(summary)).status, "awaiting_signature");
@@ -589,7 +598,20 @@ test("a signed continuation grants one commit claim until settle releases or com
   assert.equal(claimed.signed, true);
   assert.equal((await provider(summary)).status, "submission_in_progress");
   claimed.settle({ status: "retryable" });
-  assert.equal((await provider(summary)).signed, true);
+  const reclaimed = await provider(summary);
+  assert.equal(reclaimed.signed, true);
+  reclaimed.settle({
+    status: "committed",
+    confirmation: "CH-0001",
+    signedBy: "Chen Xiao",
+    message: "Submitted. Confirmation CH-0001.",
+  });
+  assert.deepEqual(dialog.finished.at(-1), {
+    kind: "committed",
+    confirmation: "CH-0001",
+    signedBy: "Chen Xiao",
+    message: "Submitted. Confirmation CH-0001.",
+  });
 });
 
 test("createSignatureProvider REFUSES a bridge without openForDialog, rather than falling back", () => {

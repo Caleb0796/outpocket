@@ -36,6 +36,7 @@ import Ajv2020 from "ajv/dist/2020.js";  // the frozen contracts are draft 2020-
 import {
   renderSignDialog, certificationSentence, certifiedFacts, respondBody,
   submitDecision, canConfirm, restartSignRequest, mountSignDialog,
+  showSignResult,
   ALREADY_ANSWERED_TEXT, POLICY_UNAVAILABLE_TEXT,
   SIGNED_RECORDED_TEXT, DECLINED_RECORDED_TEXT,
 } from "../../src/page/ui/sign-dialog.js";
@@ -410,6 +411,48 @@ test("signed and declined responses render different server-owned outcomes and c
   }
 });
 
+test("a signed review keeps both storyboard anchors through the later server confirmation", async () => {
+  const mountedDoc = fakeDocWithSignRegion("Chen Xiao");
+  const fetchImpl = spyFetch([
+    { status: 200, payload: { version: "2026.08.1" } },
+    { status: 200, payload: { schema: "outpocket.sign_response/1", state: "answered", decision: "signed" } },
+  ]);
+  const root = mountSignDialog({
+    doc: mountedDoc.doc,
+    signRequest: REPORT_A,
+    confirmToken: TOKEN,
+    fetchImpl,
+  });
+  await root.policyVersionReady;
+  const worstCase = root.querySelector("[data-worst-case]");
+  const signatureLine = root.querySelector("[data-signature-line]");
+
+  root.querySelector("[data-sign-confirm]").click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(mountedDoc.region.querySelector("[data-sign-dialog]"), root);
+  assert.equal(root.querySelector("[data-worst-case]"), worstCase);
+  assert.equal(root.querySelector("[data-signature-line]"), signatureLine);
+  assert.equal(signatureLine.previousElementSibling, worstCase);
+  assert.equal(statusOf(root), SIGNED_RECORDED_TEXT);
+  assert.equal(root.open, true, "the accepted review must remain visible in the page");
+
+  showSignResult({
+    doc: mountedDoc.doc,
+    kind: "committed",
+    confirmation: "CH-0001",
+    signedBy: "Chen Xiao",
+  });
+
+  assert.equal(mountedDoc.region.querySelector("[data-sign-dialog]"), root);
+  assert.equal(root.querySelector("[data-worst-case]"), worstCase);
+  assert.equal(root.querySelector("[data-signature-line]"), signatureLine);
+  assert.equal(signatureLine.previousElementSibling, worstCase);
+  assert.equal(statusOf(root), "Submitted. Confirmation CH-0001.");
+  assert.equal(signatureLine.querySelector(".sig-who").textContent,
+    "Signed by Chen Xiao · current authenticated session");
+});
+
 test("two immediate decision clicks produce one POST and lock both buttons synchronously", async () => {
   const fetchImpl = spyFetch([{
     status: 200,
@@ -648,7 +691,7 @@ test("CONTROL — success renders, while mounted policy loading uses the server 
   assert.equal(unavailableFetch.calls.length, 1, "a signature POST escaped after the policy GET failed");
 });
 
-test("mounted dialog opens modally, blocks Escape, then closes and restores focus after a server decision", async () => {
+test("mounted dialog opens modally, blocks Escape, then becomes the persistent send-back review", async () => {
   const mountedDoc = fakeDocWithSignRegion();
   const trigger = new FakeNode("button", mountedDoc.doc);
   trigger.focus();
@@ -675,9 +718,20 @@ test("mounted dialog opens modally, blocks Escape, then closes and restores focu
   root.querySelector("[data-sign-decline]").click();
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  assert.equal(root.open, false);
-  assert.equal(mountedDoc.region.querySelector("[data-sign-result]").textContent, DECLINED_RECORDED_TEXT);
+  assert.equal(root.open, true);
+  assert.equal(mountedDoc.region.querySelector("[data-sign-dialog]"), root);
+  assert.equal(statusOf(root), DECLINED_RECORDED_TEXT);
+  assert.equal(root.querySelector("[data-signature-line]").previousElementSibling,
+    root.querySelector("[data-worst-case]"));
   assert.equal(mountedDoc.doc.activeElement, trigger);
+
+  showSignResult({
+    doc: mountedDoc.doc,
+    kind: "declined",
+    message: "Sent back from the server record. The draft remains editable.",
+  });
+  assert.equal(mountedDoc.region.querySelector("[data-sign-dialog]"), root);
+  assert.equal(statusOf(root), "Sent back from the server record. The draft remains editable.");
 });
 
 test("mounted dialog cycles Tab focus between its decision controls", async () => {
