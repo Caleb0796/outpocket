@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 // tools/check-toplevel.mjs — node T1, seat I2.
 //
-// WHAT IT PROVES. Zero registerTool call sites are reachable from an iframe entry
-// file or a worker entry file. Registration has to happen in the top-level document,
-// because a tool registered inside a frame is never discovered by the agent — same
-// origin or not (HANDOVER §3 rule 11, MEASURED). A frame is not a weaker place to
-// register; it is a place where registration silently does nothing, which is worse,
-// because the page looks correct and the surface is empty.
+// WHAT IT PROVES. Zero Outpocket registerTool call sites are reachable from an
+// iframe or worker entry. Outpocket deliberately registers only in the top-level
+// document to preserve one authoritative registration surface and cover the judge
+// clients verified for this project; this checker enforces that project choice.
 //
 // HOW IT IS INVOKED. Paths arrive on argv, one per file:
 //

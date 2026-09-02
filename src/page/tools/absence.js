@@ -56,7 +56,7 @@
 // once already today, and a page that registers zero tools looks healthy to every
 // fetch-based probe.
 
-import { ok } from "./defs.js";
+import { ALL_TOOL_NAMES, ok } from "./defs.js";
 import { POLICY_VERSION } from "../../policy.js";
 
 export const ABSENCE_TOOL_NAME = "explain_missing_tool";
@@ -200,7 +200,7 @@ export function explainMissing({ name, erp, state, membership, catalogue, surfac
   if (surfaceNames.includes(asked)) {
     return envelope(SURFACE_RULES.TOOL_PRESENT, state, {
       code: "TOOL_PRESENT",
-      message: `${asked} is on the tool surface right now and can be called. Nothing is blocking it.`,
+      message: `${asked} is registered now; clients that snapshot the tool list per turn will see it on their next turn. Nothing is blocking it.`,
       fix: "No action is needed to make it available.",
       candidates: candidatesFrom([asked], surfaceNames, describe),
     });
@@ -281,7 +281,7 @@ export function explainMissing({ name, erp, state, membership, catalogue, surfac
       code: "REPORT_BLOCKED",
       message: `Report ${open.id} has ${vd.blocking} blocking violation(s) — ${codes.join(", ") || "unspecified"} — so ${asked} is not registered.`,
       fix: "Clear every blocking violation; the door opens by itself when the verdict is clean.",
-      candidates: candidatesFrom(["validate_expense_report", "update_expense_line", "remove_expense_line", "link_receipt"], surfaceNames, describe),
+      candidates: candidatesFrom(blockedCandidateOrder(codes), surfaceNames, describe),
       observed: vd.blocking,
       limit: 0,
     });
@@ -303,6 +303,18 @@ function blockingCodes(vd) {
   return [...new Set(all.filter((x) => x.severity === "block").map((x) => x.code))];
 }
 
+// The envelope permits three candidates. The validator's first real blocking code
+// selects the immediate repair class: receipt findings need discovery and linking,
+// while field findings need the line editor. This matters when a costly field also
+// lacks a receipt — the earlier field finding must not be hidden by a later receipt
+// finding. Validation remains in both fronts so neither class can crowd it out.
+function blockedCandidateOrder(codes) {
+  const receiptBlocked = codes[0] === "RECEIPT_REQUIRED" || codes[0] === "RECEIPT_DUP";
+  return receiptBlocked
+    ? ["list_receipts", "link_receipt", "validate_expense_report", "update_expense_line", "remove_expense_line"]
+    : ["update_expense_line", "validate_expense_report", "remove_expense_line", "list_receipts", "link_receipt"];
+}
+
 /**
  * The tool definition. `table` is supplied by ./compile.js, which owns the frozen
  * membership; this module never imports it. Everything is read through thunks so
@@ -318,7 +330,11 @@ export function buildAbsenceTool(erp, table) {
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "The tool to explain, for example submit_expense_report." },
+        name: {
+          type: "string",
+          enum: [...ALL_TOOL_NAMES, ABSENCE_TOOL_NAME],
+          description: "The tool to explain, for example submit_expense_report.",
+        },
       },
       required: ["name"],
     },

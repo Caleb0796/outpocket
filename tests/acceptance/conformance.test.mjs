@@ -7,9 +7,10 @@
 //   2. the annotations object contains only keys from {readOnlyHint, untrustedContentHint}
 //   3. no tool definition contains the banned IR-4 output-schema key (kb/webmcp/BANNED.txt)
 //   4. every read-only tool (per the frozen §2 column) carries readOnlyHint: true
-//   5. all seven writes carry an explicit readOnlyHint: false
-//   6. employee-authored read results carry untrustedContentHint, while the three
-//      reads backed only by server-owned session/policy records do not
+//   5. all seven writes carry explicit readOnlyHint: false and
+//      untrustedContentHint: true because their results can echo supplied text
+//   6. all seven reads that can echo untrusted content carry untrustedContentHint,
+//      while the three reads backed only by server-owned session/policy records do not
 //
 // "Read-only" for (4) is not derived from anything in this repo's runtime code —
 // it is copied verbatim from the frozen table, because that column is exactly what
@@ -84,7 +85,7 @@ const WRITE_TOOLS = new Set([
 
 const UNTRUSTED_READS = new Set([
   "list_expense_reports", "get_open_report", "get_report",
-  "list_receipts", "validate_expense_report", "get_day_book",
+  "list_receipts", "validate_expense_report", "get_day_book", "explain_missing_tool",
 ]);
 
 const SERVER_OWNED_READS = new Set([
@@ -146,12 +147,16 @@ function assertConformance(stateId, defs) {
     if (READONLY[d.name] === true)
       assert.equal(d.annotations?.readOnlyHint, true, `${stateId}/${d.name}: frozen contract marks this read-only but readOnlyHint !== true`);
     if (WRITE_TOOLS.has(d.name))
-      assert.deepEqual(d.annotations, { readOnlyHint: false }, `${stateId}/${d.name}: write annotation must be explicit and exact`);
+      assert.deepEqual(
+        d.annotations,
+        { readOnlyHint: false, untrustedContentHint: true },
+        `${stateId}/${d.name}: echoing write annotation must be explicit and exact`
+      );
     if (UNTRUSTED_READS.has(d.name))
       assert.deepEqual(
         d.annotations,
         { readOnlyHint: true, untrustedContentHint: true },
-        `${stateId}/${d.name}: this read can return employee-authored text`
+        `${stateId}/${d.name}: this read can return untrusted text`
       );
     if (SERVER_OWNED_READS.has(d.name))
       assert.deepEqual(

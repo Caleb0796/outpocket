@@ -150,9 +150,16 @@ export function createToolset(erp, hooks = {}) {
         hooks.onCallEnd?.(rec, { status: "aborted", text: "aborted", ms: (hooks.now ? hooks.now() : Date.now()) - t0 });
         throw e;
       }
-      const text = e instanceof ErpError ? `Error [${e.code}]: ${e.message}` : `Error: ${e?.message ?? String(e)}`;
-      hooks.onCallEnd?.(rec, { status: "err", text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 });
-      return ok(clip(text));
+      const message = e?.message ?? String(e);
+      const base = e instanceof ErpError ? `Error [${e.code}]: ${message}` : `Error: ${message}`;
+      const hasTechnical = Number.isInteger(e?.status) && typeof e?.code === "string";
+      const error = hasTechnical ? { status: e.status, code: e.code, message } : null;
+      const technical = error ? ` Technical: HTTP ${error.status} · ${error.code}.` : "";
+      const text = error ? `${clip(base, OUTPUT_BUDGET - technical.length)}${technical}` : clip(base);
+      const result = { status: "err", text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 };
+      if (error) result.error = error;
+      hooks.onCallEnd?.(rec, result);
+      return ok(text);
     }
   }
 

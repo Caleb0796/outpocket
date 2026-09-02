@@ -60,9 +60,9 @@ const REAL_API_PRESENT = () =>
 
 const inBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
-// Registration is top-level only. A shim installed in a frame would be as
-// invisible as a real registration there, so this module declines the same way
-// register.js does, and for the same reason.
+// Outpocket deliberately installs the shim only at top level, matching the single
+// authoritative registration surface used by register.js and covering the judge
+// clients verified for this project.
 const topLevel = inBrowser && window === window.top;
 
 /** Tools handed to us by registerTool, keyed by name. Revocation is by signal. */

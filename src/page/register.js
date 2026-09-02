@@ -29,14 +29,11 @@
 //
 // ── THE ONE HARD RULE: TOP-LEVEL DOCUMENT ONLY ────────────────────────────────
 //
-// Registration happens in the top-level document and nowhere else. Some clients
-// discover no tools at all that were registered inside a frame — same origin or
-// not (erp/FACTS.md; probe/README.md states this page registers everything at
-// top level for that reason). A frame is not a weaker place to register; it is a
-// place where registration silently does nothing, which is worse, because the
-// page looks correct and the surface is empty. tools/check-toplevel.mjs proves
-// statically that no call site is reachable from a frame or worker entry;
-// mountedInTopLevelDocument below is the same rule asserted at run time.
+// Outpocket deliberately registers only in the top-level document. That keeps one
+// authoritative registration surface and covers the judge clients verified for
+// this project (erp/FACTS.md; probe/README.md). tools/check-toplevel.mjs proves
+// statically that this project choice has no call site reachable from a frame or
+// worker entry; mountedInTopLevelDocument below asserts the same choice at run time.
 //
 // ── WHAT THIS FILE DOES NOT CLAIM ─────────────────────────────────────────────
 //

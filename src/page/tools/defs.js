@@ -10,9 +10,9 @@
 // needs the membership table and ./absence.js must not import it.
 //
 // Names, per-state membership and the read-only column are frozen. Descriptions are
-// not: they may be re-worded inside the 500-char budget without a ticket. Every
-// description below is nevertheless byte-identical to the one the freeze measured,
-// because a port is not a re-wording.
+// not: they may be re-worded inside the 500-char budget without a ticket. This round
+// changes only the agent-facing precision of those descriptions; it does not change
+// which definitions exist or when they are registered.
 //
 // Pure module: no DOM, no browser globals, no registration. Registration is node T2
 // and it happens in the top-level document only.
@@ -21,12 +21,11 @@
 // NOT validate against the schema. Every write tool therefore checks its own arguments
 // in code, and the server checks them again underneath.
 //
-// Annotations are exactly two: readOnlyHint and untrustedContentHint. Nothing else.
-// The second is intentionally selective rather than copied onto every read: report
-// titles, merchants, receipt filenames, validation detail and day-book labels can
-// contain employee-authored text, while sign-in scope and the compact policy come
-// from server-owned records. Keeping those two classes distinct is useful to a
-// caller; a blanket annotation would erase the distinction it is meant to express.
+// The annotation key set is exactly readOnlyHint and untrustedContentHint. Nothing
+// else. The latter marks two precise classes: reads that can return employee-authored
+// text, and writes whose result can echo the title, merchant, line, receipt or return
+// reason supplied by a person. It stays off server-owned session and policy reads,
+// preserving the distinction instead of flattening every definition into one class.
 
 import { CATEGORIES, FX, fmtUsd, fmtMoney, policyForAgent } from "../../policy.js";
 
@@ -37,7 +36,7 @@ export const ok = (text) => ({ content: [{ type: "text", text }] });
 
 export function clip(text, budget = OUTPUT_BUDGET) {
   if (text.length <= budget) return text;
-  const note = " …[truncated — call validate_expense_report or get_open_report for details]";
+  const note = " …[truncated — use a visible report_id, line_id, or receipt_id to make the next tool call narrower]";
   return text.slice(0, budget - note.length) + note;
 }
 
@@ -57,7 +56,9 @@ function reportStatusLine(erp) {
   if (!r) return "No report is open.";
   const vd = erp.verdict(r.id);
   const door = r.status === "draft"
-    ? (vd.clean && r.lines.length ? "submit_expense_report is now on the tool surface." : "submit_expense_report is not on the tool surface yet.")
+    ? (vd.clean && r.lines.length
+        ? "submit_expense_report is registered now; clients that snapshot the tool list per turn will see it on their next turn."
+        : "submit_expense_report is not registered now; clients that snapshot the tool list per turn will see that state on their next turn.")
     : `Report is ${r.status} (read-only).`;
   return `Report ${r.id} “${r.title}” (${r.project}): ${r.lines.length} line(s) · total ${fmtUsd(vd.totalUsd)} · ${vd.blocking} blocking, ${vd.warnings} warning(s). ${door}`;
 }
@@ -152,6 +153,7 @@ export const TEXT = { violationText, reportStatusLine, lineText, lineVerdictText
 export function buildDefs(erp, hooks = {}) {
   const S = { type: "string" };
   const session = erp.session();
+  const activeProjectCodes = session?.projects.filter((project) => project.active).map((project) => project.code) ?? [];
   const api = hooks.api;
 
   function serverApi(method) {
@@ -188,7 +190,7 @@ export function buildDefs(erp, hooks = {}) {
     execute: () => {
       const s = session;
       const projects = s.projects.length
-        ? s.projects.map((p) => `${p.code} (${p.name}${p.active ? "" : " — CLOSED"})`).join("; ")
+        ? s.projects.map((p) => `${p.code} (${p.name} — ${p.active ? "ACTIVE" : "CLOSED"})`).join("; ")
         : "none (read-only role)";
       return ok(
         `${s.name} · ${s.title} · role ${s.role} · ${s.costCenter}. Chargeable projects: ${projects}. ` +
@@ -227,11 +229,11 @@ export function buildDefs(erp, hooks = {}) {
       type: "object",
       properties: {
         title: { ...S, description: "Short human-readable title, e.g. 'Boston client workshop'" },
-        project: { ...S, description: "Project code from the employee's scope, e.g. FALCON" },
+        project: { ...S, enum: activeProjectCodes, description: "Active project code from get_session_scope, e.g. FALCON" },
       },
       required: ["title", "project"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const payload = await serverApi("createReport")(args, opts?.signal);
       const r = adoptReportPayload(payload, { open: true });
@@ -245,10 +247,10 @@ export function buildDefs(erp, hooks = {}) {
       "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
     inputSchema: {
       type: "object",
-      properties: { report_id: { ...S, description: "e.g. RP-1018" } },
+      properties: { report_id: { ...S, description: "from list_expense_reports, e.g. RP-1018" } },
       required: ["report_id"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const payload = await serverApi("openReport")(args, opts?.signal);
       adoptReportPayload(payload, { open: true });
@@ -259,7 +261,7 @@ export function buildDefs(erp, hooks = {}) {
   const get_open_report = {
     name: "get_open_report",
     description:
-      "Read the report currently open in the page: header, every line with amounts, receipt links and provenance (which lines were filled by an agent vs edited by the employee), plus totals and validation counts.",
+      "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => {
@@ -276,10 +278,10 @@ export function buildDefs(erp, hooks = {}) {
   const get_report = {
     name: "get_report",
     description:
-      "Read one expense report by id: header, status, every line with amounts, receipt links and provenance, totals, and the blocking and warning counts. A pure read — it does not open the report in the page and writes nothing, so the page keeps showing whatever it was showing. Ids come from list_expense_reports.",
+      "Read one expense report by id: header and status; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance; totals and validation counts. A pure read — it does not open the report or write anything. Ids come from list_expense_reports.",
     inputSchema: {
       type: "object",
-      properties: { report_id: { ...S, description: "e.g. RP-1018" } },
+      properties: { report_id: { ...S, description: "from list_expense_reports, e.g. RP-1018" } },
       required: ["report_id"],
     },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
@@ -308,11 +310,11 @@ export function buildDefs(erp, hooks = {}) {
   };
 
   const lineProps = {
-    date: { ...S, description: "Receipt date, YYYY-MM-DD" },
+    date: { ...S, format: "date", description: "Receipt date, YYYY-MM-DD" },
     merchant: { ...S, description: "Merchant name as printed on the receipt" },
     category: { type: "string", enum: CATEGORIES },
-    amount: { type: "number", description: "Receipt total as a decimal in its own currency, e.g. 186.40" },
-    currency: { type: "string", enum: Object.keys(FX), description: "Defaults to USD" },
+    amount: { type: "number", exclusiveMinimum: 0, description: "Receipt total as a decimal in its own currency, e.g. 186.40" },
+    currency: { type: "string", enum: Object.keys(FX), default: "USD", description: "Defaults to USD" },
     attendees: { type: "integer", minimum: 1, description: "Meals: number of people on the receipt" },
     nights: { type: "integer", minimum: 1, description: "Lodging: number of nights on the folio" },
     itemization: {
@@ -344,7 +346,7 @@ export function buildDefs(erp, hooks = {}) {
       properties: lineProps,
       required: ["date", "merchant", "category", "amount"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const open = erp.openReportOrNull();
       const payload = await serverApi("addLine")(open.id, coerceLine(args), opts?.signal);
@@ -360,10 +362,10 @@ export function buildDefs(erp, hooks = {}) {
       "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
     inputSchema: {
       type: "object",
-      properties: { line_id: { ...S, description: "e.g. ln_3" }, ...lineProps },
+      properties: { line_id: { ...S, description: "from get_open_report, e.g. ln_3" }, ...lineProps },
       required: ["line_id"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const open = erp.openReportOrNull();
       const payload = await serverApi("updateLine")(
@@ -382,10 +384,10 @@ export function buildDefs(erp, hooks = {}) {
     description: "Remove one line from the open draft report. Its linked receipt, if any, becomes available again.",
     inputSchema: {
       type: "object",
-      properties: { line_id: S },
+      properties: { line_id: { ...S, description: "from get_open_report, e.g. ln_3" } },
       required: ["line_id"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const open = erp.openReportOrNull();
       const payload = await serverApi("removeLine")(open.id, args, opts?.signal);
@@ -416,10 +418,13 @@ export function buildDefs(erp, hooks = {}) {
       "Link one attached receipt file to one expense line as its evidence. Each receipt backs exactly one line; byte-identical duplicates are refused by the server.",
     inputSchema: {
       type: "object",
-      properties: { line_id: S, receipt_id: { ...S, description: "From list_receipts, e.g. rc_2" } },
+      properties: {
+        line_id: { ...S, description: "from get_open_report, e.g. ln_3" },
+        receipt_id: { ...S, description: "from list_receipts, e.g. rc_2" },
+      },
       required: ["line_id", "receipt_id"],
     },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       const open = erp.openReportOrNull();
       const payload = await serverApi("linkReceipt")(open.id, args, opts?.signal);
@@ -432,7 +437,7 @@ export function buildDefs(erp, hooks = {}) {
   const validate_expense_report = {
     name: "validate_expense_report",
     description:
-      "Run the full policy validation over the open report and return every violation — code, severity (block or warn), field, message and fix hint — plus totals. Blocking violations are what keep the report from being submittable.",
+      "Run the full policy validation over the open report and return violations, truncated at the output budget with a note when a report is large: code, severity (block or warn), field, message and fix hint, plus totals. Blocking violations keep the report from being submittable.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: async (args, opts) => {
@@ -446,9 +451,9 @@ export function buildDefs(erp, hooks = {}) {
   const submit_expense_report = {
     name: "submit_expense_report",
     description:
-      `Request submission of the open expense report. The first call opens the page review and returns {status:"awaiting_signature",ticket}; after the employee clicks Sign or Send back, call this tool again to read the server decision and finish or refuse submission. Submission is the employee's act — this tool only requests it.`,
+      `Request submission of the open expense report. A response with {"status":"awaiting_signature","ticket":"…"} means the page is waiting for the employee’s Sign or Send back decision. When the employee has chosen, invoke submit_expense_report with {} to read the server-owned decision and either finish or refuse submission. Submission is the employee’s act — this tool only requests it.`,
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: false },
+    annotations: { readOnlyHint: false, untrustedContentHint: true },
     execute: async (args, opts) => {
       let r = erp.openReportOrNull();
       if (!r) return ok("No report is open.");
@@ -469,10 +474,20 @@ export function buildDefs(erp, hooks = {}) {
       };
       const decision = await hooks.requestSignature(summary, opts?.signal);
       if (decision?.status === "awaiting_signature") {
-        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket }));
+        return ok(JSON.stringify({
+          status: decision.status,
+          ticket: decision.ticket,
+          waiting_on: "employee_page_decision",
+          resume: { tool: "submit_expense_report", arguments: {} },
+        }));
       }
       if (decision?.status === "submission_in_progress") {
-        return ok(JSON.stringify({ status: decision.status, ticket: decision.ticket }));
+        return ok(JSON.stringify({
+          status: decision.status,
+          ticket: decision.ticket,
+          waiting_on: "submission_completion",
+          resume: { tool: "submit_expense_report", arguments: {} },
+        }));
       }
       if (!decision?.signed)
         return ok(`The employee reviewed the report and sent it back${decision?.reason ? `: “${decision.reason}”` : "."} The draft stays editable — adjust it and try again.`);
@@ -485,7 +500,13 @@ export function buildDefs(erp, hooks = {}) {
       try {
         committed = await serverApi("commitReport")(r.id, decision.request_id, opts?.signal);
       } catch (error) {
-        if (error?.name === "AbortError") throw error;
+        if (error?.name === "AbortError") {
+          decision.settle?.({
+            status: "retryable",
+            message: "The commit request was aborted before the server answered; call submit_expense_report again.",
+          });
+          throw error;
+        }
         const message = `The server could not finish submission: ${sentence(error?.message, "the commit request failed")} The signed request is retained; call submit_expense_report again to retry.`;
         decision.settle?.({ status: "retryable", message });
         return ok(message);

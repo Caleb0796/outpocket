@@ -5,7 +5,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { makeWorld, names, buildCleanReport, createLocalApi } from "./helpers.mjs";
 import { createErp } from "../src/erp.js";
 import { createApiClient } from "../src/page/api-client.js";
-import { createToolset, DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
+import { ALL_TOOL_NAMES, buildDefs, createToolset, DESC_BUDGET, OUTPUT_BUDGET } from "../src/tools.js";
 import { digest } from "../src/canonical.js";
 
 function makeApiWorld({ requestSignature, fetchImpl }) {
@@ -68,11 +68,15 @@ test("employee surface grows with state: 6 → 14 (door) → shrinks to 13 when 
   const n = names(w.toolset);
   assert.equal(n.length, 14, `expected the clean-draft surface, got: ${n.join(",")}`);
   assert.ok(n.includes("submit_expense_report"), "door open when clean");
+  const cleanStatus = await w.dispatch("get_open_report", {});
+  assert.match(cleanStatus.content[0].text, /registered now; clients that snapshot the tool list per turn will see it on their next turn/);
 
   // dirty it → the door closes
   w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
   assert.ok(!names(w.toolset).includes("submit_expense_report"), "door closes when a blocking violation appears");
   assert.equal(names(w.toolset).length, 13);
+  const dirtyStatus = await w.dispatch("get_open_report", {});
+  assert.match(dirtyStatus.content[0].text, /not registered now; clients that snapshot the tool list per turn will see that state on their next turn/);
 });
 
 test("auditor surface: read-only by construction", async () => {
@@ -127,6 +131,47 @@ test("descriptions fit the official 500-char budget in every state", async () =>
   check();
 });
 
+test("get_session_scope marks active and closed projects explicitly", () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  const text = buildDefs(w.erp).get_session_scope.execute().content[0].text;
+  assert.equal(
+    text,
+    "Chen Xiao · Field engineer · role employee · CC-4200 · Field Engineering. " +
+      "Chargeable projects: FALCON (Falcon line retrofit — ACTIVE); HERON (Heron pilot plant — ACTIVE); " +
+      "KESTREL (Kestrel decommission — CLOSED). Approver: Mei Tanaka (Engineering Director). " +
+      "Reimbursement currency: USD. All actions run inside this signed-in session."
+  );
+});
+
+test("input schemas expose stable constraints and exact id sources without dynamic entity enums", () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  const defs = buildDefs(w.erp);
+  const line = defs.add_expense_line.inputSchema.properties;
+
+  assert.deepEqual(defs.create_expense_report.inputSchema.properties.project.enum, ["FALCON", "HERON"]);
+  assert.equal(line.date.format, "date");
+  assert.equal(line.currency.default, "USD");
+  assert.equal(line.amount.exclusiveMinimum, 0);
+
+  const sourcedIds = [
+    [defs.open_expense_report.inputSchema.properties.report_id, "from list_expense_reports, e.g. RP-1018"],
+    [defs.get_report.inputSchema.properties.report_id, "from list_expense_reports, e.g. RP-1018"],
+    [defs.update_expense_line.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
+    [defs.remove_expense_line.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
+    [defs.link_receipt.inputSchema.properties.line_id, "from get_open_report, e.g. ln_3"],
+    [defs.link_receipt.inputSchema.properties.receipt_id, "from list_receipts, e.g. rc_2"],
+  ];
+  for (const [schema, description] of sourcedIds) {
+    assert.equal(schema.description, description);
+    assert.ok(!Object.hasOwn(schema, "enum"), `${description} must not freeze a same-state entity catalogue`);
+  }
+
+  const explain = w.toolset.surface().find((def) => def.name === "explain_missing_tool");
+  assert.deepEqual(explain.inputSchema.properties.name.enum, ALL_TOOL_NAMES);
+});
+
 test("double lock: a captured submit tool refuses after the surface moved on", async () => {
   const w = makeWorld();
   w.erp.signIn("chen", "human");
@@ -145,6 +190,40 @@ test("calling an unregistered tool names the real surface", async () => {
   const res = await w.dispatch("submit_expense_report", {});
   assert.match(res.content[0].text, /No tool named/);
   assert.match(res.content[0].text, /get_signin_status/);
+});
+
+test("runTool preserves HTTP status and code for listeners and agent text", async (t) => {
+  const cases = [
+    { status: 422, code: "E_NOT_CLEAN" },
+    { status: 403, code: "E_FORBIDDEN" },
+    { status: 404, code: "E_REPORT_NOT_FOUND" },
+    { status: 423, code: "E_SIGN_IN_PROGRESS" },
+  ];
+
+  for (const row of cases) {
+    await t.test(`${row.status} ${row.code}`, async () => {
+      const erp = createErp();
+      erp.signIn("chen", "human");
+      let ended = null;
+      const toolset = createToolset(erp, {
+        api: createLocalApi(erp),
+        onCallStart: (record) => record,
+        onCallEnd: (_record, result) => { ended = result; },
+      });
+      const def = toolset.surface().find((entry) => entry.name === "get_session_scope");
+      const thrown = Object.assign(new Error("server-owned refusal"), row);
+      def.execute = async () => { throw thrown; };
+
+      const response = await toolset.runTool(def, {}, {}, "test");
+      const expectedText = `Error: server-owned refusal Technical: HTTP ${row.status} · ${row.code}.`;
+      assert.equal(response.content[0].text, expectedText);
+      assert.equal(ended.status, "err");
+      assert.equal(ended.text, expectedText);
+      assert.deepEqual(ended.error, { ...row, message: "server-owned refusal" });
+      assert.equal(typeof ended.error.status, "number");
+      assert.equal(typeof ended.error.code, "string");
+    });
+  }
 });
 
 test("auditor writes are impossible twice over: no tool AND a 403 underneath", async () => {
@@ -171,6 +250,35 @@ test("every tool output in a busy session respects the 1500-char budget", async 
     await w.dispatch(name, {});
   for (const text of w.outputs)
     assert.ok(text.length <= OUTPUT_BUDGET, `output of ${text.slice(0, 40)}… is ${text.length} chars`);
+  const clipped = w.outputs.filter((text) => text.includes("[truncated"));
+  assert.ok(clipped.length > 0, "the fixture must cross the budget so the truncation note is exercised");
+  for (const text of clipped) {
+    assert.match(text, /use a visible report_id, line_id, or receipt_id to make the next tool call narrower/);
+    assert.doesNotMatch(text, /call validate_expense_report or get_open_report/);
+  }
+});
+
+test("submit wait results say what is pending and resume with empty arguments", async (t) => {
+  const ticket = `tk_${"b".repeat(32)}`;
+  const cases = [
+    { status: "awaiting_signature", waiting_on: "employee_page_decision" },
+    { status: "submission_in_progress", waiting_on: "submission_completion" },
+  ];
+
+  for (const row of cases) {
+    await t.test(row.status, async () => {
+      const w = makeWorld({ signImpl: async () => ({ status: row.status, ticket }) });
+      w.erp.signIn("chen", "human");
+      await buildCleanReport(w);
+      const response = await w.dispatch("submit_expense_report", {});
+      assert.deepEqual(JSON.parse(response.content[0].text), {
+        status: row.status,
+        ticket,
+        waiting_on: row.waiting_on,
+        resume: { tool: "submit_expense_report", arguments: {} },
+      });
+    });
+  }
 });
 
 test("submit commits the signed request on the server and renders only server confirmation and provenance", async () => {
@@ -251,6 +359,29 @@ test("submit turns 422, 409 and 423 commit refusals into agent-readable text and
       assert.equal(w.erp.openReportOrNull().status, "draft");
     });
   }
+});
+
+test("an aborted submit commit releases the page claim before rethrowing AbortError", async () => {
+  const aborted = new Error("the caller aborted the commit request");
+  aborted.name = "AbortError";
+  const settlements = [];
+  const w = makeApiWorld({
+    requestSignature: async () => ({
+      signed: true,
+      request_id: "sg_0123456789abcdef",
+      settle: (result) => settlements.push(result),
+    }),
+    fetchImpl: async () => { throw aborted; },
+  });
+  w.erp.signIn("chen", "human");
+  await buildCleanReport(w);
+
+  await assert.rejects(() => w.dispatch("submit_expense_report", {}), (error) => error === aborted);
+  assert.deepEqual(settlements, [{
+    status: "retryable",
+    message: "The commit request was aborted before the server answered; call submit_expense_report again.",
+  }]);
+  assert.equal(w.erp.openReportOrNull().status, "draft");
 });
 
 test("get_day_book reads and renders the server SHA-256 chain with its verification result", async () => {
@@ -469,7 +600,33 @@ test("T3: it discriminates — two tools absent for different reasons get differ
   assert.ok(blocked.message.includes(open.id), "it names the report that is actually blocked");
   assert.equal(blocked.observed, vd.blocking, "it reports the real blocking count");
   assert.match(blocked.message, /CAP_MEALS/, "it names a code the validator actually produced");
+  assert.deepEqual(
+    blocked.candidates.map((candidate) => candidate.value),
+    ["update_expense_line", "validate_expense_report", "remove_expense_line"],
+    "a field blocker must put the line editor first without dropping validation"
+  );
   assert.equal(auditorOnly.code, "ROLE_SCOPE");
+});
+
+test("T3: receipt blockers prioritize receipt discovery and linking without dropping validation", () => {
+  const w = makeWorld();
+  w.erp.signIn("chen", "human");
+  w.erp.createReport({ title: "Receipt candidate order", project: "FALCON" }, "test");
+  w.erp.addLine({
+    date: w.dates.cab,
+    merchant: "City Cab",
+    category: "transport",
+    amount: 30,
+    description: "airport transfer",
+  }, "test");
+
+  const blocked = askAbout(w, "submit_expense_report");
+  assert.equal(blocked.code, "REPORT_BLOCKED");
+  assert.match(blocked.message, /RECEIPT_REQUIRED/);
+  assert.deepEqual(
+    blocked.candidates.map((candidate) => candidate.value),
+    ["list_receipts", "link_receipt", "validate_expense_report"]
+  );
 });
 
 test("T3: the same tool, absent for four different reasons, gets four different answers", async () => {
@@ -525,6 +682,7 @@ test("T3: it never reports itself missing, and never invents an absence", async 
   const present = askAbout(w, "submit_expense_report");
   assert.equal(present.code, "TOOL_PRESENT", "submit is on the clean-draft surface; saying otherwise is a lie");
   assert.doesNotMatch(present.message, /not (registered|on the)/i);
+  assert.match(present.message, /snapshot the tool list per turn will see it on their next turn/);
 
   // Control, from the same operation: the identical call one blocking violation
   // later does NOT say present — so TOOL_PRESENT is a fact about the surface and
