@@ -28,7 +28,7 @@
       "id": "acct-bytes-per-state",
       "measurements": {
         "byteBudget": 8000,
-        "maximumBytes": 7281,
+        "maximumBytes": 7865,
         "stateCount": 6
       },
       "verdict": "pass"
@@ -38,8 +38,8 @@
       "measurements": {
         "descriptionCount": 49,
         "guidanceChars": 500,
-        "maximumChars": 334,
-        "medianChars": 222,
+        "maximumChars": 380,
+        "medianChars": 157,
         "withinPublishedGuidance": true
       },
       "verdict": "pass"
@@ -48,69 +48,69 @@
   "schema": "outpocket.surface_accounting/1",
   "states": [
     {
-      "bytes": 980,
+      "bytes": 1360,
       "descBytes": 600,
       "descMax": 334,
       "descMedian": 300,
-      "digest": "sha256:f06bcc69e91399f550951ed1e7627b4999ba946884ec79503fc33aa8b2254d53",
+      "digest": "sha256:ed8ecc649e64e585a7d4e933f09030a9b3994a246637804c83864f92207a3c27",
       "readOnlyCount": 2,
       "state": "S0-anon",
-      "tokensApprox": 245,
+      "tokensApprox": 340,
       "tools": 2
     },
     {
-      "bytes": 2532,
-      "descBytes": 1385,
+      "bytes": 2802,
+      "descBytes": 1093,
       "descMax": 334,
-      "descMedian": 242.5,
-      "digest": "sha256:dddbdfd1bc404351540552bb5d16f91a701b2fbe8fba7d7872984e7fd2deea96",
+      "descMedian": 131,
+      "digest": "sha256:bfa5cb7f367f4999dd506b7bddabe0e300602ae2c2514da693b20ea4f42bd293",
       "readOnlyCount": 4,
       "state": "S1-emp-home",
-      "tokensApprox": 633,
+      "tokensApprox": 701,
       "tools": 6
     },
     {
-      "bytes": 7281,
-      "descBytes": 3002,
-      "descMax": 334,
-      "descMedian": 219.5,
-      "digest": "sha256:e251898e471645517d481d803bbb3e39f02aad8bdf72228e5e9a916276cf10f4",
+      "bytes": 7865,
+      "descBytes": 2571,
+      "descMax": 384,
+      "descMedian": 150.5,
+      "digest": "sha256:3442260c82a943ba918868f5e64bc75a1ae680089bc21189eb63bbfa2b6f0517",
       "readOnlyCount": 7,
       "state": "S2-emp-draft-clean",
-      "tokensApprox": 1821,
+      "tokensApprox": 1967,
       "tools": 14
     },
     {
-      "bytes": 6875,
-      "descBytes": 2694,
+      "bytes": 7316,
+      "descBytes": 2187,
       "descMax": 334,
-      "descMedian": 217,
-      "digest": "sha256:1ffd45cd481d33e72d580d00aa41c01e5c097955924c941cd26ea9b22fc7bc79",
+      "descMedian": 144,
+      "digest": "sha256:a77a0193a29b4ca555571072270771099c5c3244dc6ac5138617b3237e249c73",
       "readOnlyCount": 7,
       "state": "S3-emp-draft-dirty",
-      "tokensApprox": 1719,
+      "tokensApprox": 1829,
       "tools": 13
     },
     {
-      "bytes": 2865,
-      "descBytes": 1590,
+      "bytes": 3124,
+      "descBytes": 1259,
       "descMax": 334,
-      "descMedian": 222,
-      "digest": "sha256:8cc5df1c8f86a1826d907a59c06367f09cea8aacc1039f157340239880242578",
+      "descMedian": 144,
+      "digest": "sha256:bc96e521cdd41403895bf2df12a27cb9c0f450aa22c57dda4205dcfaa496653c",
       "readOnlyCount": 5,
       "state": "S4-emp-submitted",
-      "tokensApprox": 717,
+      "tokensApprox": 781,
       "tools": 7
     },
     {
-      "bytes": 2851,
-      "descBytes": 1748,
+      "bytes": 3147,
+      "descBytes": 1525,
       "descMax": 334,
-      "descMedian": 263,
-      "digest": "sha256:10950a36c3356afd2c87e57d24834ff055d9a39219647282f3018443ba635520",
+      "descMedian": 183,
+      "digest": "sha256:0b7c99d49bb3814321e50b1abb4da175e8921e1dcdfed601f8e09dbfa3c72b31",
       "readOnlyCount": 7,
       "state": "S5-aud",
-      "tokensApprox": 713,
+      "tokensApprox": 787,
       "tools": 7
     }
   ]

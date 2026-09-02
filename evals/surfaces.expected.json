@@ -1,7 +1,7 @@
 {
   "schema": "outpocket.expected_surfaces/1",
   "source": {
-    "app_commit": "e35d949b4ce0401eb1d976fce666352edcf94d30",
+    "app_commit": "8c9b92e742d7c634705d32efc6106ebfa30de77a",
     "distinct_tool_count": 17,
     "path": "artifacts/tools.export.json",
     "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
@@ -19,7 +19,7 @@
     },
     {
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:c52d634a3b437f6079dd813047c43cd5dace91a701cc0fd78e67c58d6d39ea88",
+      "surface_digest": "sha256:bfa5cb7f367f4999dd506b7bddabe0e300602ae2c2514da693b20ea4f42bd293",
       "tool_names": [
         "create_expense_report",
         "explain_missing_tool",
@@ -31,7 +31,7 @@
     },
     {
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:cc30dc8ad7371f261dd35c689845a3ae0cc2c6476f1388e170e1b9a6e38b0dfd",
+      "surface_digest": "sha256:3442260c82a943ba918868f5e64bc75a1ae680089bc21189eb63bbfa2b6f0517",
       "tool_names": [
         "add_expense_line",
         "create_expense_report",
@@ -51,7 +51,7 @@
     },
     {
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:8ae7b7a87213f2f2369a9bbb0a0df3c6dfb64000ef8184df124ff6abd9b3efa9",
+      "surface_digest": "sha256:a77a0193a29b4ca555571072270771099c5c3244dc6ac5138617b3237e249c73",
       "tool_names": [
         "add_expense_line",
         "create_expense_report",
@@ -70,7 +70,7 @@
     },
     {
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:4b58520aeacf537173ecc848c3bfa73db9802737f1da46b2cf008b5841035775",
+      "surface_digest": "sha256:bc96e521cdd41403895bf2df12a27cb9c0f450aa22c57dda4205dcfaa496653c",
       "tool_names": [
         "create_expense_report",
         "explain_missing_tool",
@@ -83,7 +83,7 @@
     },
     {
       "state_id": "S5-aud",
-      "surface_digest": "sha256:c1f130228be023e1a862f987ea28c343f1d9d86337c7fb32ddba0057c23ccddc",
+      "surface_digest": "sha256:0b7c99d49bb3814321e50b1abb4da175e8921e1dcdfed601f8e09dbfa3c72b31",
       "tool_names": [
         "explain_missing_tool",
         "get_day_book",
