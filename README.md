@@ -6,15 +6,22 @@ keeps control of sign-in, receipt attachment, review, and signature.**
 
 [Live app](https://outpocket.onrender.com/) ·
 [Seeded moving demo](https://outpocket.onrender.com/?demo=1&seed=7) ·
+[Source repository](https://github.com/Caleb0796/outpocket) ·
 [Five-minute judge guide](docs/JUDGE-GUIDE.md) ·
 [Devpost draft](docs/DEVPOST.md) ·
-[MIT license](LICENSE)
+[MIT license](LICENSE) ·
+[![CI](https://github.com/Caleb0796/outpocket/actions/workflows/ci.yml/badge.svg)](https://github.com/Caleb0796/outpocket/actions/workflows/ci.yml)
 
 > **Fastest judge path:** open
 > **[the seed-7 demo](https://outpocket.onrender.com/?demo=1&seed=7)**. The page
 > labels the run, signs in through its own chen persona control, and drives a
 > repeatable filing from the 6-tool employee home surface to a 14-tool clean
 > draft. It stops before submission because the signature remains a human act.
+
+1. Open the [live app](https://outpocket.onrender.com/) in ChatGPT's built-in
+   browser with site tools enabled.
+2. Click the `chen` login control.
+3. Paste the prompt from [Copy this prompt](#copy-this-prompt).
 
 The catalogue contains **17 distinct tools across 6 registration states**. The
 page adds and revokes tools as the session, open report, and validation verdict

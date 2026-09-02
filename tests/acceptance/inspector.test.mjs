@@ -37,6 +37,8 @@ import { resolve, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const RUN_BROWSER_TESTS = process.env.OUTPOCKET_RUN_BROWSER_TESTS === "1";
+const browserTest = RUN_BROWSER_TESTS ? test : test.skip;
 
 // ── the served page ─────────────────────────────────────────────────────────
 
@@ -172,10 +174,12 @@ const READ_BOTH = `(async () => {
 })()`;
 
 let app, page;
-test.before(async () => { app = await serveApp(); page = await launchChrome(); });
-test.after(async () => { await page?.close(); await app?.close(); });
+if (RUN_BROWSER_TESTS) {
+  test.before(async () => { app = await serveApp(); page = await launchChrome(); });
+  test.after(async () => { await page?.close(); await app?.close(); });
+}
 
-test("the signed-out surface is visible with two rows, then tracks all four employee states", async () => {
+browserTest("the signed-out surface is visible with two rows, then tracks all four employee states", async () => {
   await page.goto(app.origin + "/");
 
   // S0 is the explanation for why signing in changes the available work. It
@@ -229,7 +233,7 @@ test("the signed-out surface is visible with two rows, then tracks all four empl
   process.stdout.write(`# surface sizes S1..S4: ${counts.join(", ")}\n`);
 });
 
-test("the version chip text equals the value from GET /api/policy, and neither is empty", async () => {
+browserTest("the version chip text equals the value from GET /api/policy, and neither is empty", async () => {
   await page.goto(app.origin + "/");
   await page.evaluate(DRIVE.S1);
 
@@ -252,7 +256,7 @@ test("the version chip text equals the value from GET /api/policy, and neither i
   assert.ok(r.chipText.includes(served), `the chip's visible text does not contain ${served}`);
 });
 
-test("the inspector reads the BROWSER's surface, not our own registry", async () => {
+browserTest("the inspector reads the BROWSER's surface, not our own registry", async () => {
   // The panel's claim is "this is what the agent can see". Reading our registry
   // would make that true by construction; reading document.modelContext makes
   // it an observation. The rendered source is asserted so a silent fallback
@@ -264,7 +268,7 @@ test("the inspector reads the BROWSER's surface, not our own registry", async ()
     `the inspector fell back to ${JSON.stringify(r.source)} — it is not showing what the browser holds`);
 });
 
-test("the served S5 view explains auditor limits and changes the human receipt card", async () => {
+browserTest("the served S5 view explains auditor limits and changes the human receipt card", async () => {
   await page.goto(app.origin + "/");
   await page.evaluate(`(async () => {
     document.querySelector('[data-login="ruiz"]').click();

@@ -4,10 +4,11 @@
 inside the employee's current web session, while the employee keeps the acts
 that carry personal responsibility.
 
-## Try the live demo
+## Links
 
-[Live app](https://outpocket.onrender.com/) ·
-[Seeded moving demo](https://outpocket.onrender.com/?demo=1&seed=7)
+- [Live app](https://outpocket.onrender.com/)
+- [Seed-7 demo](https://outpocket.onrender.com/?demo=1&seed=7)
+- [Source repository](https://github.com/Caleb0796/outpocket)
 
 **Demo personas:** `chen` is the employee and `ruiz` is auditor Elena Ruiz; both
 are one click with no password.
