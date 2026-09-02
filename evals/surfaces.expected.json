@@ -1,7 +1,7 @@
 {
   "schema": "outpocket.expected_surfaces/1",
   "source": {
-    "app_commit": "5ba890a73a81cac617b0e778f0fd5d65a74b00c5",
+    "app_commit": "2901196717393f370b925a3528fb68bf6e1802b4",
     "distinct_tool_count": 17,
     "path": "artifacts/tools.export.json",
     "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
@@ -11,7 +11,7 @@
   "states": [
     {
       "state_id": "S0-anon",
-      "surface_digest": "sha256:f06bcc69e91399f550951ed1e7627b4999ba946884ec79503fc33aa8b2254d53",
+      "surface_digest": "sha256:3e675e98304cefad40df07a31cc542460d9bca696cc6b44c4fd5f68e11efc3c8",
       "tool_names": [
         "explain_missing_tool",
         "get_signin_status"
@@ -19,7 +19,7 @@
     },
     {
       "state_id": "S1-emp-home",
-      "surface_digest": "sha256:dddbdfd1bc404351540552bb5d16f91a701b2fbe8fba7d7872984e7fd2deea96",
+      "surface_digest": "sha256:be8e1078792d6ddc8c098d5ea4578772257885286f3167a2be632ec99640d770",
       "tool_names": [
         "create_expense_report",
         "explain_missing_tool",
@@ -31,7 +31,7 @@
     },
     {
       "state_id": "S2-emp-draft-clean",
-      "surface_digest": "sha256:e251898e471645517d481d803bbb3e39f02aad8bdf72228e5e9a916276cf10f4",
+      "surface_digest": "sha256:b1758e7ef69810ec4e985e9e6a780636c20a327ba692135429c0bbbabf4dbf27",
       "tool_names": [
         "add_expense_line",
         "create_expense_report",
@@ -51,7 +51,7 @@
     },
     {
       "state_id": "S3-emp-draft-dirty",
-      "surface_digest": "sha256:1ffd45cd481d33e72d580d00aa41c01e5c097955924c941cd26ea9b22fc7bc79",
+      "surface_digest": "sha256:cec97da3b2243a89de83c0366cdf5830015f2096dd1a1fb874e4a83f70e64798",
       "tool_names": [
         "add_expense_line",
         "create_expense_report",
@@ -70,7 +70,7 @@
     },
     {
       "state_id": "S4-emp-submitted",
-      "surface_digest": "sha256:8cc5df1c8f86a1826d907a59c06367f09cea8aacc1039f157340239880242578",
+      "surface_digest": "sha256:4934571beeeed8e158525fd7503c7cf7a5765c76ca18f3d0664692fda7cc8f08",
       "tool_names": [
         "create_expense_report",
         "explain_missing_tool",
@@ -83,7 +83,7 @@
     },
     {
       "state_id": "S5-aud",
-      "surface_digest": "sha256:10950a36c3356afd2c87e57d24834ff055d9a39219647282f3018443ba635520",
+      "surface_digest": "sha256:09f0447faac2fca54345e9543ee9f55c9e2c104b900d9e169e6d7f3b707929fb",
       "tool_names": [
         "explain_missing_tool",
         "get_day_book",

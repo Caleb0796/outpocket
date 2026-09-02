@@ -142,7 +142,7 @@ export function createToolset(erp, hooks = {}) {
         return res;
       }
       const raw = await def.execute(args ?? {}, opts, source);
-      raw.content[0].text = clip(raw.content[0].text);
+      raw.content[0].text = clip(raw.content[0].text, def.name);
       hooks.onCallEnd?.(rec, { status: "ok", text: raw.content[0].text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 });
       return raw;
     } catch (e) {
@@ -152,7 +152,7 @@ export function createToolset(erp, hooks = {}) {
       }
       const text = e instanceof ErpError ? `Error [${e.code}]: ${e.message}` : `Error: ${e?.message ?? String(e)}`;
       hooks.onCallEnd?.(rec, { status: "err", text, ms: (hooks.now ? hooks.now() : Date.now()) - t0 });
-      return ok(clip(text));
+      return ok(clip(text, def.name));
     }
   }
 
