@@ -17,6 +17,7 @@ const packageJson = JSON.parse(
 
 const repositoryUrl = new URL("../../", import.meta.url);
 const SUITES = new Set(["accounting", "capability", "negative"]);
+const NETWORK_DENIAL_CHILD = "WEBMCP_EVAL_NETWORK_DENIAL_CHILD";
 const NETWORK_DENIAL_ERROR = "E_NETWORK_DISABLED";
 const NETWORK_DENIAL_MECHANISM =
   "prototype patch on net.Socket.prototype.connect and dns.lookup, in-process, via --import ./webmcp-eval-kit/test/no-net.mjs";
@@ -401,6 +402,36 @@ function proveNetworkDenial() {
   );
 
   return [socketControl.result, dnsControl.result];
+}
+
+function networkDenialIsArmed() {
+  return dns.lookup === net.Socket.prototype.connect
+    && dns.lookup.denialMechanism === NETWORK_DENIAL_MECHANISM;
+}
+
+// The accounting claim covers the whole evaluator process, so loading the
+// denial module from runAccountingSuite() would be too late: any new top-level
+// import could already have opened a socket. The public CLI therefore re-enters
+// itself with Node's preload flag and the child proves both patched operations
+// before reading the export. The child marker only detects a failed preload;
+// the installed functions remain the pass condition, so setting the marker by
+// itself produces a versioned diagnostic instead of bypassing the control.
+function runAccountingWithNetworkDenial(argv) {
+  const preloadPath = fileURLToPath(new URL("../test/no-net.mjs", import.meta.url));
+  const cliPath = fileURLToPath(import.meta.url);
+  const child = spawnSync(
+    process.execPath,
+    ["--import", preloadPath, cliPath, ...argv],
+    {
+      env: { ...process.env, [NETWORK_DENIAL_CHILD]: "1" },
+      stdio: "inherit",
+    },
+  );
+  if (child.error) throw child.error;
+  if (child.status === null) {
+    throw new Error(`accounting network-denial child ended via ${child.signal ?? "an unknown signal"}`);
+  }
+  return child.status;
 }
 
 function accountingForTools(tools) {
@@ -894,6 +925,89 @@ function resolveCapabilityValue(value, variables) {
   return value;
 }
 
+// State construction needs a real committed report, but this suite does not
+// grade the human dialog. Its scoped provider uses the page's current open-body
+// builder, records an authentic signed response on the server, and deliberately
+// returns the awaiting result across one tool-call boundary. A later invocation
+// can then exercise the provider's current {request_id,response,settle} contract
+// and let submit_expense_report perform the real commit.
+function installCapabilitySignatureProviderInPage() {
+  const registry = globalThis.outpocketTools;
+  const buildOpenBody = globalThis.outpocketSignInstall?.buildOpenBody;
+  if (typeof registry?.setSignatureProvider !== "function" || typeof buildOpenBody !== "function") {
+    return false;
+  }
+  const pending = new Map();
+
+  async function request(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      ...options,
+      headers: { "Content-Type": "application/json", ...options.headers },
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        `${options.method ?? "GET"} ${path} returned ${response.status}: ${JSON.stringify(body)}`,
+      );
+    }
+    return body;
+  }
+
+  globalThis.__capabilitySignatureUndo = registry.setSignatureProvider(async (summary) => {
+    const existing = pending.get(summary.reportId);
+    if (existing) {
+      return {
+        reason: null,
+        request_id: existing.signRequest.request_id,
+        response: existing.response,
+        signed: true,
+        ticket: existing.ticket,
+        settle({ status } = {}) {
+          if (status === "committed" && pending.get(summary.reportId) === existing) {
+            pending.delete(summary.reportId);
+          }
+        },
+      };
+    }
+
+    const opened = await request("/api/sign", {
+      body: JSON.stringify(buildOpenBody(summary)),
+      method: "POST",
+    });
+    const signRequest = opened.sign_request;
+    if (!signRequest?.request_id || typeof opened.ticket !== "string" || !opened.ticket) {
+      throw new Error("capability sign setup received an incomplete open response");
+    }
+    const token = await request(
+      `/api/sign/${encodeURIComponent(signRequest.request_id)}/confirm-token`,
+    );
+    const response = await request(
+      `/api/sign/${encodeURIComponent(signRequest.request_id)}/respond`,
+      {
+        body: JSON.stringify({
+          acknowledged_digest: signRequest.snapshot_digest,
+          acknowledged_revision: signRequest.revision,
+          confirm_token: token.confirm_token,
+          decision: "signed",
+          method: "click",
+          reason: null,
+          request_id: signRequest.request_id,
+          schema: "outpocket.sign_respond_request/1",
+        }),
+        method: "POST",
+      },
+    );
+    pending.set(summary.reportId, {
+      response,
+      signRequest,
+      ticket: opened.ticket,
+    });
+    return { status: "awaiting_signature", ticket: opened.ticket };
+  });
+  return true;
+}
+
 async function runCapabilityAction(context, action) {
   const { cdp, frameId, sessionId, variables } = context;
   if (action.type === "click") {
@@ -901,14 +1015,11 @@ async function runCapabilityAction(context, action) {
     return;
   }
   if (action.type === "install_signature_provider") {
-    const installed = await evaluateInPage(cdp, sessionId, `(() => {
-      const registry = globalThis.outpocketTools;
-      if (typeof registry?.setSignatureProvider !== "function") return false;
-      globalThis.__capabilitySignatureUndo = registry.setSignatureProvider(
-        async () => ({ signed: true, reason: null })
-      );
-      return true;
-    })()`);
+    const installed = await evaluateInPage(
+      cdp,
+      sessionId,
+      `(${installCapabilitySignatureProviderInPage.toString()})()`,
+    );
     assert.equal(installed, true, "capability setup could not install the scoped signature provider");
     process.stderr.write(`capability setup: signature provider injected for ${action.scope}\n`);
     return;
@@ -1261,39 +1372,20 @@ function nextNegativeReportId(label) {
   return `RP-E3-${process.pid}-${negativeReportCounter}-${label}`;
 }
 
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function syntheticOpenBody(signatureContract, reportId, policy) {
-  const example = cloneJson(signatureContract.examples[0]);
+function negativeOpenBody(reportId) {
   return {
-    policy_digest: digest("outpocket/policy/1", policy),
-    policy_version: policy.version,
-    report: { ...example.snapshot.report, id: reportId },
     report_id: reportId,
-    revision: example.revision,
-    verdict: example.snapshot.verdict,
-    violation_history_count: example.violation_history_count,
-    worst_case: example.worst_case,
-  };
-}
-
-function liveOpenBody(report, policy, policyDigest = digest("outpocket/policy/1", policy)) {
-  return {
-    policy_digest: policyDigest,
-    policy_version: policy.version,
-    report,
-    report_id: report.id,
-    revision: 0,
-    verdict: { blocking: 0, violations: [], warning: 0 },
     violation_history_count: 0,
     worst_case: "No blocking violations.",
   };
 }
 
-async function openNegativeSign(origin, cookie, body) {
-  const opened = await requestJson(origin, "/api/sign", { body, cookie, method: "POST" });
+async function openNegativeSign(origin, cookie, reportId) {
+  const opened = await requestJson(origin, "/api/sign", {
+    body: negativeOpenBody(reportId),
+    cookie,
+    method: "POST",
+  });
   assertHttp(opened, 200, undefined, "well-formed open sign request");
   const signRequest = opened.body?.sign_request;
   assert.equal(signRequest?.schema, "outpocket.sign_request/1", "open sign request returned the wrong schema");
@@ -1364,7 +1456,13 @@ async function createNegativeReport(origin, cookie, label) {
 }
 
 async function addNegativeLine(origin, cookie, reportId) {
-  const body = { amount_cents: 1200, category: "transport", currency: "USD", merchant: "E3 control" };
+  const body = {
+    amount_cents: 1200,
+    category: "transport",
+    currency: "USD",
+    date: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+    merchant: "E3 control",
+  };
   const response = await requestJson(origin, `/api/reports/${reportId}/lines`, {
     body,
     cookie,
@@ -1374,33 +1472,113 @@ async function addNegativeLine(origin, cookie, reportId) {
   return response.body.line;
 }
 
+async function validateNegativeReport(origin, cookie, reportId) {
+  const response = await requestJson(origin, `/api/reports/${reportId}/validation`, { cookie });
+  assertHttp(response, 200, undefined, "well-formed validate report request");
+  assert.equal(
+    response.body?.verdict?.blocking,
+    0,
+    `negative control report ${reportId} was not clean: ${JSON.stringify(response.body?.verdict)}`,
+  );
+  assert.equal(response.body?.report?.id, reportId, "validate report returned the wrong aggregate");
+  return response.body.report;
+}
+
+async function createValidatedNegativeReport(origin, cookie, label) {
+  const created = await createNegativeReport(origin, cookie, label);
+  const line = await addNegativeLine(origin, cookie, created.report.id);
+  const report = await validateNegativeReport(origin, cookie, created.report.id);
+  return { ...created, line, report };
+}
+
+async function signedNegativeReport(origin, cookie, reportId) {
+  const signRequest = await openNegativeSign(origin, cookie, reportId);
+  await answerNegativeSign(origin, cookie, signRequest);
+  return signRequest;
+}
+
+// Snapshot and served-policy movement are privileged authority failures, not
+// fields a client may put in POST /api/sign. The public target still supplies
+// every positive control. For the two attacks that require authority movement,
+// the kit starts the same HTTP app with a gate whose injected report/policy
+// readers can move only after a genuine sign response. This keeps the request
+// shapes identical while preserving the exact server refusal each case grades.
+async function withAuthorityMutationServer(context, run) {
+  const [{ createHttpServer }, { createSignGate }] = await Promise.all([
+    import(new URL("../../server/index.mjs", import.meta.url)),
+    import(new URL("../../server/sign.mjs", import.meta.url)),
+  ]);
+  let projectReport = (report) => report;
+  let servedPolicy = {
+    digest: digest("outpocket/policy/1", context.policy),
+    version: context.policy.version,
+  };
+  const signGate = createSignGate({ getServedPolicy: () => servedPolicy });
+  const setReportAuthority = signGate.setReportAuthority.bind(signGate);
+  signGate.setReportAuthority = (authority) => {
+    setReportAuthority({
+      ...authority,
+      getLiveReport(reportId) {
+        const report = authority.getLiveReport(reportId);
+        return report ? projectReport(report) : report;
+      },
+    });
+  };
+  const server = createHttpServer({ secureCookies: false, signGate });
+  await new Promise((resolve, reject) => {
+    const onError = (error) => reject(error);
+    server.once("error", onError);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", onError);
+      resolve();
+    });
+  });
+  const address = server.address();
+  assert.ok(address && typeof address === "object", "authority mutation server did not bind a TCP address");
+  try {
+    return await run({
+      movePolicyDigest(nextDigest) {
+        servedPolicy = { ...servedPolicy, digest: nextDigest };
+      },
+      origin: new URL(`http://127.0.0.1:${address.port}`),
+      tamperReport() {
+        projectReport = (report) => ({ ...report, title: `${report.title} changed after signature` });
+      },
+    });
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+}
+
 async function executeCommitWithoutAnswer(context) {
-  const { origin, policy, signatureContract } = context;
+  const { origin } = context;
   const cookie = await loginNegative(origin, "chen");
-  const controlId = nextNegativeReportId("commit-control");
-  const controlSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, controlId, policy));
+  const controlReport = await createValidatedNegativeReport(origin, cookie, "commit control");
+  const controlSign = await openNegativeSign(origin, cookie, controlReport.report.id);
   await answerNegativeSign(origin, cookie, controlSign);
-  const controlBody = commitBody(controlSign, controlId);
-  const control = await commitNegativeSign(origin, cookie, controlSign, controlId);
+  const controlBody = commitBody(controlSign, controlReport.report.id);
+  const control = await commitNegativeSign(origin, cookie, controlSign, controlReport.report.id);
   assertHttp(control, 200, undefined, "N-15 well-formed commit control");
 
-  const attackId = nextNegativeReportId("commit-attack");
-  const attackSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, attackId, policy));
-  const attackBody = commitBody(attackSign, attackId);
+  const attackReport = await createValidatedNegativeReport(origin, cookie, "commit attack");
+  const attackSign = await openNegativeSign(origin, cookie, attackReport.report.id);
+  const attackBody = commitBody(attackSign, attackReport.report.id);
   assert.deepEqual(Object.keys(attackBody), Object.keys(controlBody), "N-15 control and attack commit body shapes differ");
-  const failure = await commitNegativeSign(origin, cookie, attackSign, attackId);
+  const failure = await commitNegativeSign(origin, cookie, attackSign, attackReport.report.id);
   return { failure, wellFormed: control };
 }
 
 async function executeRespondWithoutConfirmToken(context) {
-  const { origin, policy, signatureContract } = context;
+  const { origin } = context;
   const cookie = await loginNegative(origin, "chen");
-  const controlId = nextNegativeReportId("respond-control");
-  const controlSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, controlId, policy));
+  const controlReport = await createValidatedNegativeReport(origin, cookie, "respond control");
+  const controlSign = await openNegativeSign(origin, cookie, controlReport.report.id);
   const control = await answerNegativeSign(origin, cookie, controlSign);
 
-  const attackId = nextNegativeReportId("respond-attack");
-  const attackSign = await openNegativeSign(origin, cookie, syntheticOpenBody(signatureContract, attackId, policy));
+  const attackReport = await createValidatedNegativeReport(origin, cookie, "respond attack");
+  const attackSign = await openNegativeSign(origin, cookie, attackReport.report.id);
   const attackBody = signRespondBody(attackSign, "unused");
   delete attackBody.confirm_token;
   const controlWithoutToken = { ...control.body };
@@ -1428,51 +1606,51 @@ async function executeAuditorWrite(context) {
   return { failure, wellFormed: control };
 }
 
-async function signedLiveReport(context, cookie, report, policyDigest) {
-  const signRequest = await openNegativeSign(
-    context.origin,
-    cookie,
-    liveOpenBody(report, context.policy, policyDigest),
-  );
-  await answerNegativeSign(context.origin, cookie, signRequest);
-  return signRequest;
-}
-
 async function executeSnapshotMismatch(context) {
   const cookie = await loginNegative(context.origin, "chen");
-  const controlReport = (await createNegativeReport(context.origin, cookie, "snapshot control")).report;
-  const controlSign = await signedLiveReport(context, cookie, controlReport);
-  const control = await commitNegativeSign(context.origin, cookie, controlSign, controlReport.id);
+  const controlReport = await createValidatedNegativeReport(context.origin, cookie, "snapshot control");
+  const controlSign = await signedNegativeReport(
+    context.origin,
+    cookie,
+    controlReport.report.id,
+  );
+  const control = await commitNegativeSign(
+    context.origin,
+    cookie,
+    controlSign,
+    controlReport.report.id,
+  );
   assertHttp(control, 200, undefined, "N-05 matching snapshot control");
 
-  const liveReport = (await createNegativeReport(context.origin, cookie, "snapshot attack")).report;
-  const changedSnapshot = { ...liveReport, title: `${liveReport.title} changed` };
-  assert.deepEqual(
-    Object.keys(changedSnapshot),
-    Object.keys(liveReport),
-    "N-05 control and attack report shapes differ",
-  );
-  const attackSign = await signedLiveReport(context, cookie, changedSnapshot);
-  const failure = await commitNegativeSign(context.origin, cookie, attackSign, liveReport.id);
+  const failure = await withAuthorityMutationServer(context, async ({ origin, tamperReport }) => {
+    const attackCookie = await loginNegative(origin, "chen");
+    const localControl = await createValidatedNegativeReport(origin, attackCookie, "snapshot local control");
+    const localControlSign = await signedNegativeReport(origin, attackCookie, localControl.report.id);
+    const localSuccess = await commitNegativeSign(origin, attackCookie, localControlSign, localControl.report.id);
+    assertHttp(localSuccess, 200, undefined, "N-05 injected matching snapshot control");
+
+    const attackReport = await createValidatedNegativeReport(origin, attackCookie, "snapshot attack");
+    const attackSign = await signedNegativeReport(origin, attackCookie, attackReport.report.id);
+    tamperReport();
+    return commitNegativeSign(origin, attackCookie, attackSign, attackReport.report.id);
+  });
   return { failure, wellFormed: control };
 }
 
 async function executeWriteDuringSign(context) {
   const cookie = await loginNegative(context.origin, "chen");
-  const controlReport = (await createNegativeReport(context.origin, cookie, "lock control")).report;
-  const controlLine = await addNegativeLine(context.origin, cookie, controlReport.id);
+  const controlReport = await createValidatedNegativeReport(context.origin, cookie, "lock control");
   const patchBody = { amount_cents: 1300 };
-  const control = await requestJson(context.origin, `/api/reports/${controlReport.id}/lines/${controlLine.id}`, {
+  const control = await requestJson(context.origin, `/api/reports/${controlReport.report.id}/lines/${controlReport.line.id}`, {
     body: patchBody,
     cookie,
     method: "PATCH",
   });
   assertHttp(control, 200, undefined, "N-06 unlocked mutation control");
 
-  const attackReport = (await createNegativeReport(context.origin, cookie, "lock attack")).report;
-  const attackLine = await addNegativeLine(context.origin, cookie, attackReport.id);
-  await openNegativeSign(context.origin, cookie, liveOpenBody(attackReport, context.policy));
-  const failure = await requestJson(context.origin, `/api/reports/${attackReport.id}/lines/${attackLine.id}`, {
+  const attackReport = await createValidatedNegativeReport(context.origin, cookie, "lock attack");
+  await openNegativeSign(context.origin, cookie, attackReport.report.id);
+  const failure = await requestJson(context.origin, `/api/reports/${attackReport.report.id}/lines/${attackReport.line.id}`, {
     body: patchBody,
     cookie,
     method: "PATCH",
@@ -1561,34 +1739,44 @@ function executeViolationHistoryContract(context) {
 
 async function executePolicyContentSwap(context) {
   const cookie = await loginNegative(context.origin, "chen");
-  const controlReport = (await createNegativeReport(context.origin, cookie, "policy control")).report;
-  const controlSign = await signedLiveReport(context, cookie, controlReport);
-  const control = await commitNegativeSign(context.origin, cookie, controlSign, controlReport.id);
+  const controlReport = await createValidatedNegativeReport(context.origin, cookie, "policy control");
+  const controlSign = await signedNegativeReport(
+    context.origin,
+    cookie,
+    controlReport.report.id,
+  );
+  const control = await commitNegativeSign(
+    context.origin,
+    cookie,
+    controlSign,
+    controlReport.report.id,
+  );
   assertHttp(control, 200, undefined, "N-20 pinned-policy control");
 
-  const attackReport = (await createNegativeReport(context.origin, cookie, "policy attack")).report;
   const trapDigest = "sha256:17bc4b2d1031b63e07a3983b067c8485316e8c16b53454e481680f65b7962e92";
-  const attackSign = await signedLiveReport(context, cookie, attackReport, trapDigest);
-  const failure = await commitNegativeSign(context.origin, cookie, attackSign, attackReport.id);
+  const failure = await withAuthorityMutationServer(context, async ({ movePolicyDigest, origin }) => {
+    const attackCookie = await loginNegative(origin, "chen");
+    const localControl = await createValidatedNegativeReport(origin, attackCookie, "policy local control");
+    const localControlSign = await signedNegativeReport(origin, attackCookie, localControl.report.id);
+    const localSuccess = await commitNegativeSign(origin, attackCookie, localControlSign, localControl.report.id);
+    assertHttp(localSuccess, 200, undefined, "N-20 injected pinned-policy control");
+
+    const attackReport = await createValidatedNegativeReport(origin, attackCookie, "policy attack");
+    const attackSign = await signedNegativeReport(origin, attackCookie, attackReport.report.id);
+    movePolicyDigest(trapDigest);
+    return commitNegativeSign(origin, attackCookie, attackSign, attackReport.report.id);
+  });
   return { failure, wellFormed: control };
 }
 
 async function executeDeclineToUnlock(context) {
   const cookie = await loginNegative(context.origin, "chen");
-  const controlId = nextNegativeReportId("decline-control");
-  const controlSign = await openNegativeSign(
-    context.origin,
-    cookie,
-    syntheticOpenBody(context.signatureContract, controlId, context.policy),
-  );
+  const controlReport = await createValidatedNegativeReport(context.origin, cookie, "decline control");
+  const controlSign = await openNegativeSign(context.origin, cookie, controlReport.report.id);
   const control = await answerNegativeSign(context.origin, cookie, controlSign);
 
-  const attackId = nextNegativeReportId("decline-attack");
-  const attackSign = await openNegativeSign(
-    context.origin,
-    cookie,
-    syntheticOpenBody(context.signatureContract, attackId, context.policy),
-  );
+  const attackReport = await createValidatedNegativeReport(context.origin, cookie, "decline attack");
+  const attackSign = await openNegativeSign(context.origin, cookie, attackReport.report.id);
   const token = await confirmToken(context.origin, cookie, attackSign.request_id);
   const declinedBody = signRespondBody(attackSign, token, "declined");
   const declined = await requestJson(context.origin, `/api/sign/${attackSign.request_id}/respond`, {
@@ -1604,7 +1792,12 @@ async function executeDeclineToUnlock(context) {
     cookie,
     method: "POST",
   });
-  const secondary = await commitNegativeSign(context.origin, cookie, attackSign, attackId);
+  const secondary = await commitNegativeSign(
+    context.origin,
+    cookie,
+    attackSign,
+    attackReport.report.id,
+  );
   return { failure, secondary, wellFormed: control.response };
 }
 
@@ -2005,7 +2198,18 @@ async function main(argv) {
   }
 
   try {
-    await runSuites(parseArgs(argv));
+    const options = parseArgs(argv);
+    if (options.suites[0] === "accounting" && !networkDenialIsArmed()) {
+      if (process.env[NETWORK_DENIAL_CHILD] === "1") {
+        throw new Error(
+          `network denial preload did not arm on Node ${process.version}; `
+          + "dns.lookup and net.Socket.prototype.connect must both throw E_NETWORK_DISABLED",
+        );
+      }
+      process.exitCode = runAccountingWithNetworkDenial(argv);
+      return;
+    }
+    await runSuites(options);
   } catch (error) {
     process.stderr.write(`webmcp-eval: ${error.message}\n`);
     if (error instanceof TypeError) {

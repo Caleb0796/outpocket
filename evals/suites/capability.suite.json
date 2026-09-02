@@ -84,7 +84,13 @@
           "type": "tool",
           "name": "submit_expense_report",
           "args": {},
-          "require_text": "Signed and submitted"
+          "require_text": "awaiting_signature"
+        },
+        {
+          "type": "tool",
+          "name": "submit_expense_report",
+          "args": {},
+          "require_text": "^Signed and submitted\\. Confirmation CH-"
         }
       ]
     },
