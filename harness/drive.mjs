@@ -8,7 +8,7 @@
 //   node harness/drive.mjs --url <origin> --list  # one tool name per line on stdout, exit 0
 //   node harness/drive.mjs --url <origin> --exec <name>   # invoke by name over CDP, exit 0
 //   node harness/drive.mjs --smoke-login chen,ruiz        # a real login per persona, exit 0
-//   node harness/drive.mjs --assert-flips 1,5,12,13       # the S0->S1->S2->S3 walk over CDP
+//   node harness/drive.mjs --assert-flips 2,6,13,14       # the S0->S1->S2->S3 walk over CDP
 //   node harness/drive.mjs --fallback --scenario happy    # the same walk, WebMCP disabled
 //   node harness/drive.mjs --url "<origin>/?demo=1&seed=7" --dump-state  # H4: byte-stable state
 //
@@ -915,9 +915,9 @@ async function modeGate({ headless }) {
 // ------------------------------------- --assert-flips (D-58) and --fallback (D-61)
 //
 // TWO MODES, ONE WALK, AND THAT IS THE POINT. T2.accept span 0 runs
-// `node harness/drive.mjs --assert-flips 1,5,12,13`; H3.accept runs
+// `node harness/drive.mjs --assert-flips 2,6,13,14`; H3.accept runs
 // `node harness/drive.mjs --fallback --scenario happy` and says it "drives THE SAME TOOL
-// SURFACE through the page's own getTools/executeTool, completes the 1->5->12->13 walk".
+// SURFACE through the page's own getTools/executeTool, completes the 2->6->13->14 walk".
 // The same walk, over two different execution channels, is therefore the literal reading of
 // both predicates, and it is one implementation below with the channel injected.
 //
@@ -975,11 +975,11 @@ async function modeGate({ headless }) {
 // submit_expense_report's disappearance; those decide, and nothing else does. Tightening a
 // consumer's predicate from inside the producer is the same act as writing a spec into a
 // consumer, which is the defect D-50, D-58 and D-61 all exist to stop. The diagnostic is there
-// so "12 tools, but the wrong 12" is VISIBLE; promoting it to a failure is PM's call.
+// so "13 tools, but the wrong 13" is VISIBLE; promoting it to a failure is PM's call.
 //
-// THE NUMERALS ARE CROSS-CHECKED, NOT HARD-CODED. 1,5,12,13 arrive on the command line and
+// THE NUMERALS ARE CROSS-CHECKED, NOT HARD-CODED. 2,6,13,14 arrive on the command line and
 // each is mapped back onto the state in the FROZEN contract whose membership has that size
-// (S0=1, S1=5, S2=12, S3=13), by importing MEMBERSHIP from src/page/tools/compile.js — the
+// (S0=2, S1=6, S2=13, S3=14), by importing MEMBERSHIP from src/page/tools/compile.js — the
 // same table tools/validate-contracts.mjs proves equal to
 // erp/contracts/tool-surface.contract.md §1 in both directions. A numeral matching no state is
 // announced. That is why this file holds no second copy of the counts.
@@ -1110,7 +1110,7 @@ async function waitForStableNames(cdp, sessionId, expected, { deadlineMs = 20000
   }
 }
 
-// Diagnostic only — the numeral is what gets asserted. S4 and S5 both hold six names, so a
+// Diagnostic only — the numeral is what gets asserted. S4 and S5 both hold seven names, so a
 // size can be ambiguous; say so rather than silently picking one.
 function statesOfSize(MEMBERSHIP, n) {
   return Object.keys(MEMBERSHIP).filter((s) => MEMBERSHIP[s].length === n);
@@ -1456,10 +1456,10 @@ async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenari
   const { MEMBERSHIP } = await import(resolve(REPO, 'src', 'page', 'tools', 'compile.js'));
   const { LIMITS } = await import(resolve(REPO, 'src', 'policy.js'));
 
-  // H3.accept names the walk as "1->5->12->13" without passing the numerals on the command
+  // H3.accept names the walk as "2->6->13->14" without passing the numerals on the command
   // line, so --fallback on its own takes them FROM THE FROZEN CONTRACT — the size of each
   // walk state's membership — rather than from a second copy typed into this file. That is
-  // also the cross-check made explicit: if these defaults ever stop reading 1,5,12,13, the
+  // also the cross-check made explicit: if these defaults ever stop reading 2,6,13,14, the
   // contract moved and every document quoting those numerals is stale.
   if (!counts) counts = WALK.map((w) => MEMBERSHIP[w.state].length);
 
@@ -1567,7 +1567,7 @@ async function modeFlipWalk({ counts, fallback, selftest, url, headless, scenari
 
     // NAME THE ORDERING FACT IN THE ERROR TEXT. --smoke-login's own failure message is what let
     // F1's span 0 be diagnosed in a single run instead of an afternoon, and the two files this
-    // walk needs are both still in flight. A bare "0 tools, asserted 1" is a true report and a
+    // walk needs are both still in flight. A bare "0 tools, asserted 2" is a true report and a
     // useless one; it reads as a defect in the harness when it is a defect in the calendar.
     // Note that an ABSENT API and a PRESENT-BUT-EMPTY one are different facts and are told
     // apart here: with --enable-features=WebMCP the page API exists from load, so a page that
@@ -1664,14 +1664,14 @@ function parseArgv(argv) {
   return out;
 }
 
-// `1,5,12,13` -> [1,5,12,13]. A non-numeral is an error rather than a NaN that silently fails
+// `2,6,13,14` -> [2,6,13,14]. A non-numeral is an error rather than a NaN that silently fails
 // every comparison downstream and reports a count mismatch it never had.
 function parseCounts(spec) {
   const parts = String(spec ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const out = parts.map(Number);
   const bad = parts.filter((_, i) => !Number.isInteger(out[i]) || out[i] < 0);
   if (!parts.length || bad.length) {
-    throw new Error(`--assert-flips takes a comma-separated list of tool counts, e.g. 1,5,12,13` +
+    throw new Error(`--assert-flips takes a comma-separated list of tool counts, e.g. 2,6,13,14` +
       (bad.length ? ` — not ${bad.map((b) => JSON.stringify(b)).join(', ')}` : ''));
   }
   return out;
@@ -1790,7 +1790,7 @@ const USAGE = [
   '  node harness/drive.mjs --smoke-login chen,ruiz       a real login per persona in a real',
   '                                                       browser, one fresh cookie jar each;',
   '                                                       serves the app itself unless --url',
-  '  node harness/drive.mjs --assert-flips 1,5,12,13      walk S0->S1->S2->S3 over CDP with',
+  '  node harness/drive.mjs --assert-flips 2,6,13,14      walk S0->S1->S2->S3 over CDP with',
   '                                                       --enable-features=WebMCP, assert each',
   '                                                       (await getTools()).length in order,',
   '                                                       then assert submit_expense_report',

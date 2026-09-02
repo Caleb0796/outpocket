@@ -32,7 +32,7 @@ cannot prove a person clicked—the full disclosure is below.
 Sign in as chen, connect an agent to the page, and paste:
 
 ```text
-Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, business purpose "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
+Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, and set the description (business purpose) to "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
 ```
 
 That walk starts at S1, creates an open draft at S2, and ends at S3 with
@@ -121,7 +121,11 @@ cookie determines the role used for every request.
 | Chen Xiao | employee | `login: chen` | Create, correct, validate, review, and submit a report |
 | Elena Ruiz | auditor | `login: ruiz` | Read submitted reports and the day book; no write tools |
 
+![Elena Ruiz signed in as an auditor, with seven read-only tools listed above the two receipt channels.](submission-media/gallery-auditor-readonly.png)
+
 ## The surface is the workflow menu
+
+![Chen Xiao signed in as an employee, with the S3 surface inspector listing 14 tools above report RP-1018.](submission-media/gallery-clean-surface.png)
 
 | Registration state | Tool count | Visible change |
 | --- | ---: | --- |
@@ -137,6 +141,8 @@ Every write is authorized again by the server against the current session, and
 the commit route independently recomputes the verdict. A report with blocking
 findings is refused with HTTP 422 `E_NOT_CLEAN` even if a caller bypasses the
 page.
+
+![Chen Xiao's S2 draft view, with the surface inspector listing 13 tools and report RP-1018 showing an amount of 2000 in the editor.](submission-media/gallery-policy-block.png)
 
 ## What the signature adds—and what it does not
 
@@ -166,6 +172,10 @@ description.
 - The deployment is one Node.js process with in-memory sessions, reports, sign
   requests, and day-book state. A page reload survives; a process restart does
   not. There is no multi-instance coordination or durable database yet.
+- The demo personas are shared, not a multi-tenant account model. Multiple
+  visitors using one persona in the same running process see and can edit one
+  another's drafts. A deployment restart clears those drafts with the rest of
+  the in-memory state.
 - Receipt bytes stay in the browser. The server receives receipt metadata and a
   SHA-256 value computed in the browser; it does not receive or independently
   validate the attachment bytes. The chain therefore covers the recorded

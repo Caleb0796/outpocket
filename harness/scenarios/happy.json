@@ -8,20 +8,20 @@
   "purpose": "H3's accept runs `node harness/drive.mjs --fallback --scenario happy`. This file is what `--scenario happy` names. It is READ, not merely opened: drive.mjs cross-checks `walk[].count` against MEMBERSHIP in src/page/tools/compile.js and fails on a mismatch. A scenario file whose only job was to exist would be a check that discovered nothing — the numbers below have to be able to be WRONG, or naming them proves nothing.",
 
   "walk": [
-    { "state": "S0", "count": 1,  "label": "signed out, on load" },
-    { "state": "S1", "count": 5,  "label": "signed in as the employee persona" },
-    { "state": "S2", "count": 12, "label": "draft created and open, no lines yet" },
-    { "state": "S3", "count": 13, "label": "one clean line — the submit door opens" }
+    { "state": "S0", "count": 2,  "label": "signed out, on load" },
+    { "state": "S1", "count": 6,  "label": "signed in as the employee persona" },
+    { "state": "S2", "count": 13, "label": "draft created and open, no lines yet" },
+    { "state": "S3", "count": 14, "label": "one clean line — the submit door opens" }
   ],
 
-  "countsAreCrossChecked": "Against MEMBERSHIP[state].length in src/page/tools/compile.js, which tools/validate-contracts.mjs proves equal to erp/contracts/tool-surface.contract.md §1 in both directions. If the contract moves, this file fails loudly rather than asserting a stale 1->5->12->13 that every document still quotes.",
+  "countsAreCrossChecked": "Against MEMBERSHIP[state].length in src/page/tools/compile.js, which tools/validate-contracts.mjs proves equal to erp/contracts/tool-surface.contract.md §1 in both directions. If the contract moves, this file fails loudly rather than asserting a stale 2->6->13->14 that every document still quotes.",
 
   "steps": [
-    { "tool": "get_signin_status",   "args": {}, "state": "S0", "note": "The only tool that exists signed out. Its answer is the page telling an agent there is nothing to call yet." },
+    { "tool": "get_signin_status",   "args": {}, "state": "S0", "note": "The signed-out surface has two tools: get_signin_status and the resident explain_missing_tool. This status answer tells the agent that expense-workflow tools are unavailable until sign-in." },
     { "tool": "get_session_scope",   "args": {}, "state": "S1", "note": "Reads the signed-in scope. The project code used below is DISCOVERED from this answer, never typed — a project the scope marks CLOSED would be a blocking violation (PROJECT_INACTIVE) and would fail a later step for a reason unrelated to the walk." },
     { "tool": "create_expense_report", "args": { "title": "Client visit — Portland" }, "state": "S1", "note": "S1 -> S2. A draft opens and the editing surface appears." },
     { "tool": "add_expense_line",    "args": {}, "state": "S2", "argsFrom": "project discovered from get_session_scope; amount kept under the policy cap in src/policy.js", "note": "S2 -> S3. One clean line, so submit_expense_report joins the surface — the flip this scenario exists to show." },
-    { "tool": "validate_expense_report", "args": {}, "state": "S3", "note": "Read-only confirmation that the report is submittable. The walk STOPS here: H3's accept ends at 13 and submitting would move the surface to S4 (6 tools), which is a different node's assertion." }
+    { "tool": "validate_expense_report", "args": {}, "state": "S3", "note": "Read-only confirmation that the report is submittable. The walk STOPS here: H3's accept ends at 14 and submitting would move the surface to S4 (7 tools), which is a different node's assertion." }
   ],
 
   "stepsAreAGuide": "drive.mjs owns the walk's mechanics — signing in through the page's own affordance, discovering the project code, deriving the line amount from src/policy.js's LIMITS so a moved cap cannot silently stop producing the intended state. `steps` records the intended shape for a reader and for the in-page demo (src/page/fallback-agent.js `selfDrive` takes exactly this `[{tool,args}]` form). It is NOT a second copy of the driver: where the two could drift, `walk[].count` is what drive.mjs actually gates on.",

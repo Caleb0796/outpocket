@@ -4,6 +4,40 @@
 inside the employee's current web session, while the employee keeps the acts
 that carry personal responsibility.
 
+## Try the live demo
+
+[Live app](https://outpocket.onrender.com/) ·
+[Seeded moving demo](https://outpocket.onrender.com/?demo=1&seed=7)
+
+**Demo personas:** `chen` is the employee and `ruiz` is auditor Elena Ruiz; both
+are one click with no password.
+
+### ChatGPT's built-in browser
+
+Open the [live app](https://outpocket.onrender.com/) directly. The ChatGPT
+desktop built-in browser needs no Chrome flag.
+
+### Chrome 149+
+
+Use the launch line for your platform, then open the live app:
+
+```text
+Linux:   google-chrome --enable-features=WebMCP
+macOS:   open -a "Google Chrome" --args --enable-features=WebMCP
+Windows: chrome.exe --enable-features=WebMCP
+```
+
+Alternatively, visit `chrome://flags/#enable-webmcp-testing`, choose
+**Enabled**, and restart Chrome.
+
+### Copy this prompt
+
+Sign in as chen, connect an agent to the page, and paste:
+
+```text
+Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, and set the description (business purpose) to "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
+```
+
 ## 1. Why WebMCP fits this use case
 
 Expense reimbursement begins with an employee spending personal money and ends

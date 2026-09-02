@@ -7,3 +7,4 @@ node_modules/
 # G3 clone a tree with two dangling submodules it cannot resolve.
 .claude/
 .playwright-mcp/
+output/

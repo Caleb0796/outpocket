@@ -4,7 +4,9 @@ No local build is required. Use the
 [live app](https://outpocket.onrender.com/) and one of the two passwordless demo
 personas.
 
-For a 30-second visual preview, open the
+The catalogue contains **17 distinct tools across 6 registration states**.
+
+For a visual preview that completes in a few seconds, open the
 [seed-7 moving demo](https://outpocket.onrender.com/?demo=1&seed=7). It labels
 itself, signs in through the page's chen control, reads the session scope,
 creates a report, adds clean lines, and validates them through the same tool
@@ -60,7 +62,7 @@ is no open report yet, so editing and submission tools are absent.
 Paste this prompt into the connected agent:
 
 ```text
-Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, business purpose "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
+Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, and set the description (business purpose) to "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
 ```
 
 Expected sequence:
@@ -115,10 +117,10 @@ Click **Switch persona**, then **Sign in as ruiz**. The page should identify
 Use list_expense_reports to find the report just submitted, get_report to read it, and get_day_book to summarize the latest entry, current head, and verification result. Do not make changes.
 ```
 
-Expect the submitted report and its committed day-book entry. The day-book
-response contains `entries`, `head`, and `verification`. The auditor menu has
-no report creation, editing, signing, or submission tool; the server also
-refuses an auditor's direct write request.
+Expect the submitted report and its committed day-book entry. The tool's text
+states `Chain verification: verified`, the `Head:` digest, and the numbered
+day-book entries. The auditor menu has no report creation, editing, signing, or
+submission tool; the server also refuses an auditor's direct write request.
 
 ## What the smoke path demonstrates
 
