@@ -24,6 +24,14 @@ funds the setup, and the RUBRIC §3.3 client-credit hazard goes with it) and
 `SB-13` is CUT (its three limits compress to one sentence inside `SB-18`).
 Demo shot durations tightened. Total **171s**.
 
+**Revision 5 (2026-09-02, owner-directed).** Wording only: the companion cue
+sheet's captions and narration now name the WebMCP mechanism displayed in every
+cue, including `document.modelContext` registration, state-driven
+re-registration, `readOnlyHint`, `explain_missing_tool` as a WebMCP tool in its
+own right, and the two-call signature handshake used because a waiting client
+call times out. The shot list, its durations and running order, ON SCREEN
+requirements, selectors, and anchors are unchanged.
+
 The companion cue sheet is `docs/VIDEO-SCRIPT.md`. Every timestamp there is the
 running sum of the `DUR` column here, **in the RUN column's order** (revision 2
 runs `SB-12` before `SB-11`; id order and running order are no longer the same
@@ -214,9 +222,10 @@ may only link an id that already exists. That asymmetry is **page-enforced** —
 no registered tool takes a file-shaped argument — and the shot should make the
 two channels visibly different rather than hide the difference.
 
-Do not say the raw material stays outside the store. It does not: attachments
-are uploaded and stored. The honest narrowing is that the derivation context
-does not enter the store.
+Do not say the raw material stays outside the store. Do not narrate where the
+file bytes live. The shot's only claim is that files enter through a human-only
+control and no registered tool takes a file-shaped argument. The honest
+narrowing is that the derivation context does not enter the store.
 
 The corrected $48 line is what forces this beat: lines at or above $25.00
 require a linked receipt, and the finding's own text says the employee attaches
