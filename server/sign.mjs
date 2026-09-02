@@ -71,6 +71,11 @@ const DEFAULT_TTL_MS = 300_000; // 300s — R-43: now the human's budget, not a 
 export const REQUEST_ID_RE = /^sg_[0-9a-f]{16}$/;
 export const CONFIRM_TOKEN_RE = /^ct_[0-9a-f]{32}$/;
 export const TICKET_RE = /^tk_[0-9a-f]{32}$/;
+const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
+const RESPOND_FIELDS = Object.freeze([
+  "schema", "request_id", "decision", "reason", "method",
+  "acknowledged_digest", "acknowledged_revision", "confirm_token",
+]);
 
 export class SignError extends Error {
   constructor(code, http, message, detail) {
@@ -80,6 +85,59 @@ export class SignError extends Error {
     this.http = http;
     this.detail = detail;
   }
+}
+
+/**
+ * Enforce the frozen sign_respond_request/1 shape at the HTTP boundary. The
+ * state machine cannot do this piecemeal: accepting an omitted method still
+ * produces a plausible server record, so semantic checks alone hide malformed
+ * clients. confirm_token stays with the gate because x-rejectionCodes assigns
+ * it a dedicated 403 and the pre-token negative control disables that one
+ * check; every other shape error has no contract-specific code and is
+ * E_BAD_REQUEST.
+ */
+export function validateRespondBody(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new SignError("E_BAD_REQUEST", 400, "respond body must be a JSON object");
+  }
+  const missing = RESPOND_FIELDS.filter((field) => !Object.hasOwn(body, field));
+  const extra = Object.keys(body).filter((field) => !RESPOND_FIELDS.includes(field));
+  if (extra.length) {
+    throw new SignError("E_BAD_REQUEST", 400, `respond request has unknown field(s): ${extra.join(", ")}`);
+  }
+  if (missing.length) {
+    if (missing.length !== 1 || missing[0] !== "confirm_token") {
+      throw new SignError("E_BAD_REQUEST", 400, `respond request is missing field(s): ${missing.join(", ")}`);
+    }
+  }
+  if (body.schema !== "outpocket.sign_respond_request/1") {
+    throw new SignError("E_BAD_REQUEST", 400, "schema must be outpocket.sign_respond_request/1");
+  }
+  if (typeof body.request_id !== "string" || !REQUEST_ID_RE.test(body.request_id)) {
+    throw new SignError("E_BAD_REQUEST", 400, "request_id must match the sign request id format");
+  }
+  if (body.decision !== "signed" && body.decision !== "declined") {
+    throw new SignError("E_BAD_REQUEST", 400, "decision must be signed or declined");
+  }
+  if (body.reason !== null && (typeof body.reason !== "string" || [...body.reason].length > 300)) {
+    throw new SignError("E_BAD_REQUEST", 400, "reason must be null or a string no longer than 300 characters");
+  }
+  if (body.method !== "click") {
+    throw new SignError("E_BAD_REQUEST", 400, "method must be click");
+  }
+  if (typeof body.acknowledged_digest !== "string" || !DIGEST_RE.test(body.acknowledged_digest)) {
+    throw new SignError("E_BAD_REQUEST", 400, "acknowledged_digest must be a lowercase SHA-256 digest");
+  }
+  if (!Number.isInteger(body.acknowledged_revision) || body.acknowledged_revision < 0) {
+    throw new SignError("E_BAD_REQUEST", 400, "acknowledged_revision must be a non-negative integer");
+  }
+  if (body.confirm_token !== undefined && typeof body.confirm_token !== "string") {
+    throw new SignError("E_BAD_REQUEST", 400, "confirm_token must be a string");
+  }
+  if (typeof body.confirm_token === "string" && !CONFIRM_TOKEN_RE.test(body.confirm_token)) {
+    throw new SignError("E_NO_CONFIRM_TOKEN", 403, "missing or wrong confirm_token");
+  }
+  return body;
 }
 
 function newRequestId() {
@@ -497,6 +555,7 @@ export function createSignGate({
       at: null,
       acknowledged_digest: null,
       acknowledged_revision: null,
+      commit_result: null,
     };
 
     // S12: every value that can fail canonicalisation or construction is
@@ -657,6 +716,10 @@ export function createSignGate({
     assertSameSession(rec, sessionId);
 
     if (rec.state === "expired") throw new SignError("E_SIGN_REQUEST_EXPIRED", 410, "sign request expired");
+    // Both publishers have already succeeded when this cache exists. Returning
+    // it is the only answer that lets a caller recover from a lost HTTP response
+    // without manufacturing a second chain entry or confirmation number.
+    if (rec.state === "committed" && rec.commit_result) return rec.commit_result;
 
     if (rec.state === "answered" && rec.decision === "declined") {
       return {
@@ -789,6 +852,9 @@ export function createSignGate({
     publishReport();
     confirmCounter = nextConfirmCounter;
     rec.state = "committed";
+    // Written only after chain and report publication. A preparation failure
+    // therefore remains retryable through the original answered state.
+    rec.commit_result = result;
     releaseReport(rec.report_id, rec.request_id);
     locks.release(rec.report_id, rec.request_id); // S12: commit frees the report lock
     return result;

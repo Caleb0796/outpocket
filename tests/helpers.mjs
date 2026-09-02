@@ -1,8 +1,11 @@
 // Shared test world: the same erp + toolset + scripts the page uses,
 // with an injectable "auto-human" for attach/sign steps.
+import { createServer } from "node:http";
 import { createErp } from "../src/erp.js";
 import { createToolset } from "../src/tools.js";
 import { makeSampleReceipts, sampleDates } from "../src/samples.js";
+import { createApp } from "../server/index.mjs";
+import { createSignGate } from "../server/sign.mjs";
 
 const PROVENANCE_FIELDS = [
   "amount", "attendees", "category", "currency", "date",
@@ -154,6 +157,17 @@ export function makeWorld({ now = () => new Date(2026, 7, 28, 10, 0, 0), signImp
 
 export function names(toolset) {
   return toolset.surface().map((d) => d.name);
+}
+
+export async function withRealServer(fn, { signGate = createSignGate() } = {}) {
+  const server = createServer(createApp({ signGate }));
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    return await fn({ base, signGate });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 }
 
 // A minimal clean report: small amounts, below every threshold, no receipts needed.

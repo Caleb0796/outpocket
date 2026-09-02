@@ -299,6 +299,78 @@ test("N-15 neg-commit-without-human: a synthesised sign_response POSTed straight
   });
 });
 
+test("a committed request replays the identical result without appending the chain again", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const { cookie, reportId, signRequest: sr, confirmToken } = await openAsChen(base, gate);
+    const answered = await postJson(
+      base,
+      `/api/sign/${sr.request_id}/respond`,
+      cookie,
+      respondBody(sr, { decision: "signed", confirmToken }),
+    );
+    assert.equal(answered.status, 200);
+    const body = { schema: "outpocket.commit_request/1", request_id: sr.request_id, report_id: reportId };
+
+    const committed = await postJson(base, `/api/reports/${reportId}/commit`, cookie, body);
+    assert.equal(committed.status, 200);
+    const chainAfterCommit = clone(gate.chain.list());
+    assert.equal(chainAfterCommit.length, 1);
+
+    const replayed = await postJson(base, `/api/reports/${reportId}/commit`, cookie, body);
+    assert.equal(replayed.status, 200);
+    assert.deepEqual(replayed.body, committed.body);
+    assert.equal(replayed.body.confirmation, committed.body.confirmation);
+    assert.deepEqual(gate.chain.list(), chainAfterCommit, "an idempotent replay must not publish another chain entry");
+
+    const otherSession = await login(base, "chen");
+    const crossSession = await postJson(base, `/api/reports/${reportId}/commit`, otherSession, body);
+    assert.equal(crossSession.status, 404);
+    assert.equal(crossSession.body.error, "E_SIGN_REQUEST_UNKNOWN");
+
+    const differentRequest = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
+      ...body,
+      request_id: "sg_" + "0".repeat(16),
+    });
+    assert.equal(differentRequest.status, 404);
+    assert.equal(differentRequest.body.error, "E_SIGN_REQUEST_UNKNOWN");
+  });
+});
+
+test("POST /respond enforces the frozen eight-field request and still accepts the page body", async () => {
+  const gate = createSignGate();
+  await withApp(gate, async (base) => {
+    const { cookie, signRequest: sr, confirmToken } = await openAsChen(base, gate);
+    const pageBody = respondBody(sr, { decision: "signed", confirmToken });
+    const cases = [
+      ["schema", Object.fromEntries(Object.entries(pageBody).filter(([key]) => key !== "schema"))],
+      ["schema", { ...pageBody, schema: "outpocket.sign_respond_request/0" }],
+      ["request_id", { ...pageBody, request_id: "sg_bad" }],
+      ["method", Object.fromEntries(Object.entries(pageBody).filter(([key]) => key !== "method"))],
+      ["method", { ...pageBody, method: "keyboard" }],
+      ["unknown_field", { ...pageBody, unknown_field: true }],
+      ["decision", { ...pageBody, decision: "approved" }],
+      ["reason", { ...pageBody, reason: { text: "no" } }],
+      ["reason", { ...pageBody, reason: "x".repeat(301) }],
+      ["acknowledged_digest", { ...pageBody, acknowledged_digest: null }],
+      ["acknowledged_revision", { ...pageBody, acknowledged_revision: -1 }],
+      ["confirm_token", { ...pageBody, confirm_token: 42 }],
+    ];
+
+    for (const [field, body] of cases) {
+      const rejected = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, body);
+      assert.equal(rejected.status, 400, `${field}: ${JSON.stringify(rejected.body)}`);
+      assert.equal(rejected.body.error, "E_BAD_REQUEST");
+      assert.match(rejected.body.message, new RegExp(field));
+    }
+
+    const accepted = await postJson(base, `/api/sign/${sr.request_id}/respond`, cookie, pageBody);
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    assert.equal(accepted.body.decision, "signed");
+    assert.equal(accepted.body.method, "click");
+  });
+});
+
 // ── N-16: neg-respond-without-click, both arms honestly ────────────────────
 test("N-16 neg-respond-without-click, KNOWN-OPEN arm: with no confirm_token required, the attack commits — HTTP 200, a chain entry attesting Chen Xiao at a genuine server time", async () => {
   const gate = createSignGate({ requireConfirmToken: false });
@@ -668,6 +740,44 @@ test("the server supplies complete line provenance before signing and commit", a
       agent_fields: 7, human_fields: 0, seed_fields: 0, total_fields: 10,
     });
     assert.equal(gate.chain.list().length, 1);
+  });
+});
+
+test("a legacy report with no provenance map can still be signed and committed", () => {
+  const reportId = freshReportId();
+  const liveReport = { ...clone(SCHEMA.examples[0].snapshot.report), id: reportId, owner: "chen", status: "draft" };
+  for (const line of liveReport.lines) delete line.provenance;
+  let publishes = 0;
+  const gate = createSignGate({
+    getLiveReport: (id) => id === reportId ? liveReport : null,
+    prepareReportCommit: () => () => { publishes += 1; },
+  });
+  const sessionId = "legacy-no-provenance";
+  const { signRequest: sr } = gate.open({
+    sessionId,
+    personaId: "chen",
+    personaName: "Chen Xiao",
+    reportId,
+  });
+  assert.ok(sr.snapshot.report.lines.every((line) =>
+    Object.values(line.provenance).every((source) => source === "unset")));
+  gate.respond({
+    requestId: sr.request_id,
+    sessionId,
+    decision: "signed",
+    reason: null,
+    method: "click",
+    acknowledgedDigest: sr.snapshot_digest,
+    acknowledgedRevision: sr.revision,
+    confirmToken: gate.peekConfirmTokenForDialog(sr.request_id, { sessionId }),
+  });
+
+  const committed = gate.commit({ requestId: sr.request_id, reportId, sessionId });
+  assert.equal(committed.status, "committed");
+  assert.equal(publishes, 1);
+  assert.deepEqual(committed.artifact.provenance_summary, {
+    agent_fields: 0, human_fields: 0, seed_fields: 0,
+    total_fields: liveReport.lines.length * 10,
   });
 });
 

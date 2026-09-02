@@ -23,6 +23,7 @@ import { createSignGate } from "../../server/sign.mjs";
 import { createSignBridge, SIGN_MODE } from "../../src/page/sign-bridge.js";
 import { createApiClient } from "../../src/page/api-client.js";
 import { registry } from "../../src/page/register.js";
+import { withRealServer } from "../helpers.mjs";
 import {
   installSignatureProvider, createSignatureProvider, buildOpenBody,
   resetInstallForTests, REASONS,
@@ -110,6 +111,18 @@ function textOf(result) {
   return result?.content?.[0]?.text ?? "";
 }
 
+function memorySessionStorage() {
+  const values = new Map();
+  return {
+    get length() { return values.size; },
+    key(index) { return Array.from(values.keys())[index] ?? null; },
+    getItem(key) { return values.has(String(key)) ? values.get(String(key)) : null; },
+    setItem(key, value) { values.set(String(key), String(value)); },
+    removeItem(key) { values.delete(String(key)); },
+    entries() { return Array.from(values.entries()); },
+  };
+}
+
 // ── clause 1: installed exactly once ────────────────────────────────────────
 
 test("the provider is installed EXACTLY ONCE — not zero, and not once per registration", () => {
@@ -193,6 +206,129 @@ test("SIGN: the first tool call returns promptly, reuses one ticket, and a later
       resetInstallForTests();
     }
   });
+});
+
+test("reload rebuilds the provider from sessionStorage, remounts the open review, and commits it", async () => {
+  await withRealServer(async ({ base, signGate: gate }) => {
+    const previousApi = { ...registry.api };
+    const storage = memorySessionStorage();
+    let firstInstall = null;
+    let reloadedInstall = null;
+    resetInstallForTests();
+    try {
+      const cookie = await login(base);
+      const sid = cookieToSid(cookie);
+      const report = await cleanDraft(base, cookie);
+      const bridgeOptions = { baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } };
+
+      firstInstall = installSignatureProvider({
+        registry,
+        bridge: createSignBridge(bridgeOptions),
+        dialogPort: stubDialog(),
+        storage,
+      });
+      const firstText = textOf(await registry.executeTool("submit_expense_report", {}, { source: "agent" }));
+      const awaiting = JSON.parse(firstText);
+      const requestId = gate.peekOpenRequestId(report.id, { sessionId: sid });
+      assert.match(requestId, /^sg_[0-9a-f]{16}$/);
+      assert.doesNotMatch(firstText, /request_id|confirm_token|ct_|sg_/i);
+
+      const saved = storage.entries();
+      assert.equal(saved.length, 1);
+      assert.ok(saved[0][0].includes(report.id), "the sessionStorage key must name the report");
+      assert.deepEqual(JSON.parse(saved[0][1]), {
+        reportId: report.id,
+        ticket: awaiting.ticket,
+        request_id: requestId,
+      });
+
+      firstInstall.uninstall?.();
+      firstInstall = null;
+      resetInstallForTests();
+
+      const reloadedDialog = stubDialog();
+      reloadedInstall = installSignatureProvider({
+        registry,
+        bridge: createSignBridge(bridgeOptions),
+        dialogPort: reloadedDialog,
+        storage,
+      });
+      const restored = await reloadedInstall.restoring;
+      assert.equal(restored.restored, true);
+      assert.equal(reloadedDialog.seen.length, 1, "reload did not remount the open review");
+      assert.equal(reloadedDialog.seen[0].opened.requestId, requestId);
+
+      const continuedText = textOf(await registry.executeTool("submit_expense_report", {}, { source: "agent" }));
+      assert.deepEqual(JSON.parse(continuedText), awaiting, "reload opened a second sign request instead of continuing");
+      assert.doesNotMatch(continuedText, /request_id|confirm_token|ct_|sg_/i);
+
+      await respond({ gate, sid, base, cookie, reportId: report.id, decision: "signed" });
+      const completedText = textOf(await registry.executeTool("submit_expense_report", {}, { source: "agent" }));
+      assert.match(completedText, /Signed and submitted/i);
+      assert.doesNotMatch(completedText, /request_id|confirm_token|ct_[0-9a-f]|sg_[0-9a-f]/i);
+      assert.equal(storage.length, 0, "committing must clear the saved continuation");
+      assert.equal(gate.chain.list().length, 1, "reload must publish exactly one commit");
+    } finally {
+      reloadedInstall?.uninstall?.();
+      firstInstall?.uninstall?.();
+      resetInstallForTests();
+      Object.assign(registry.api, previousApi);
+    }
+  });
+});
+
+test("decline, expiry, and a stale saved request clear the report continuation", async () => {
+  const opened = {
+    requestId: "sg_" + "a".repeat(16),
+    ticket: "tk_" + "b".repeat(32),
+    confirmToken: "ct_" + "c".repeat(32),
+    signRequest: { request_id: "sg_" + "a".repeat(16) },
+  };
+  const summary = { reportId: "RP-TERMINAL", personaId: "chen", warnings: 0 };
+  const terminalContinuations = [
+    async () => ({ state: "answered", decision: "declined", reason: "send it back" }),
+    async () => {
+      const error = new Error("expired");
+      error.code = "E_NO_CONFIRM_TOKEN";
+      error.status = 403;
+      throw error;
+    },
+  ];
+
+  for (const continueSign of terminalContinuations) {
+    const storage = memorySessionStorage();
+    const provider = createSignatureProvider({
+      bridge: { openForDialog: async () => opened, continueSign },
+      dialogPort: stubDialog(),
+      storage,
+    });
+    assert.equal((await provider(summary)).status, "awaiting_signature");
+    assert.equal(storage.length, 1);
+    await provider(summary);
+    assert.equal(storage.length, 0);
+  }
+
+  const storage = memorySessionStorage();
+  storage.setItem(`outpocket.sign:${summary.reportId}`, JSON.stringify({
+    reportId: summary.reportId,
+    ticket: opened.ticket,
+    request_id: opened.requestId,
+  }));
+  const staleProvider = createSignatureProvider({
+    bridge: {
+      openForDialog: async () => opened,
+      resumeForDialog: async () => {
+        const error = new Error("not found");
+        error.code = "E_SIGN_REQUEST_UNKNOWN";
+        error.status = 404;
+        throw error;
+      },
+    },
+    dialogPort: stubDialog(),
+    storage,
+  });
+  assert.deepEqual(await staleProvider.restoreSaved(), { restored: false });
+  assert.equal(storage.length, 0);
 });
 
 test("SEND BACK: the second call reads the server decline, does not commit, and restores S3", async () => {

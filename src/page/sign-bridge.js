@@ -46,7 +46,7 @@ export const DEFAULT_SIGN_MODE = SIGN_MODE.HANDSHAKE;
 const POLL_INTERVAL_MS = 300;
 
 /**
- * createSignBridge(opts) -> { beginSign, continueSign, openForDialog }
+ * createSignBridge(opts) -> { beginSign, continueSign, openForDialog, resumeForDialog }
  *
  * opts.fetchImpl: fetch-compatible function (default global fetch). Injected
  *   so tests can run against a plain Node http.Server without a browser.
@@ -179,5 +179,45 @@ export function createSignBridge({
     return { requestId: signRequest.request_id, signRequest, ticket, confirmToken: tokenRes.body.confirm_token };
   }
 
-  return { beginSign, continueSign, openForDialog };
+  /**
+   * Rebuild the page-only dialog inputs after a reload without opening another
+   * server record. GET verifies the saved request in this session, the existing
+   * continuation endpoint decides whether it remains open, and only an open
+   * record causes the DOM-only confirm token to be fetched again.
+   */
+  async function resumeForDialog({ reportId, ticket, request_id: requestId }, signal) {
+    const requestRes = await getJson(`/api/sign/${requestId}`, signal);
+    if (!requestRes.ok) {
+      const err = new Error(requestRes.body?.message || requestRes.body?.error || "sign-bridge: saved request fetch failed");
+      err.code = requestRes.body?.error;
+      err.status = requestRes.status;
+      throw err;
+    }
+    const signRequest = requestRes.body;
+    if (signRequest?.request_id !== requestId || signRequest?.report_id !== reportId) {
+      const err = new Error("sign-bridge: saved request does not match its report");
+      err.code = "E_BAD_RESPONSE";
+      err.status = 502;
+      throw err;
+    }
+
+    const continuation = await continueSign(ticket, reportId, signal);
+    if (continuation?.status !== "awaiting_signature") {
+      return { continuation, opened: null };
+    }
+
+    const tokenRes = await getJson(`/api/sign/${requestId}/confirm-token`, signal);
+    if (!tokenRes.ok) {
+      const err = new Error(tokenRes.body?.message || tokenRes.body?.error || "sign-bridge: confirm-token fetch failed");
+      err.code = tokenRes.body?.error;
+      err.status = tokenRes.status;
+      throw err;
+    }
+    return {
+      continuation,
+      opened: { requestId, signRequest, ticket, confirmToken: tokenRes.body.confirm_token },
+    };
+  }
+
+  return { beginSign, continueSign, openForDialog, resumeForDialog };
 }

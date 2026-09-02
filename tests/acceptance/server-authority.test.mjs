@@ -7,7 +7,7 @@ import { createApp } from "../../server/index.mjs";
 import { createSignGate, GENESIS_DIGEST } from "../../server/sign.mjs";
 import { createErp } from "../../src/erp.js";
 import { createToolset } from "../../src/tools.js";
-import { createApiClient } from "../../src/page/api-client.js";
+import { ApiError, createApiClient } from "../../src/page/api-client.js";
 import { createSignBridge } from "../../src/page/sign-bridge.js";
 import { createSignatureProvider } from "../../src/page/sign-install.js";
 
@@ -138,6 +138,55 @@ function comparableServerReport(report) {
     })),
   };
 }
+
+test("the API client applies a 20 second deadline and maps only that abort to E_TIMEOUT", async () => {
+  const originalTimeout = AbortSignal.timeout;
+  const timeoutController = new AbortController();
+  let requestedTimeout = null;
+  AbortSignal.timeout = (milliseconds) => {
+    requestedTimeout = milliseconds;
+    return timeoutController.signal;
+  };
+  try {
+    const api = createApiClient({
+      fetchImpl: async (_url, { signal }) => {
+        assert.ok(signal, "the request did not receive an internal deadline signal");
+        queueMicrotask(() => timeoutController.abort(new DOMException("deadline", "TimeoutError")));
+        return new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+      },
+    });
+
+    await assert.rejects(
+      api.listReports(),
+      (error) => error instanceof ApiError && error.code === "E_TIMEOUT" && error.status === 0,
+    );
+    assert.equal(requestedTimeout, 20_000);
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+});
+
+test("an explicit API caller abort remains the caller's AbortError", async () => {
+  const originalTimeout = AbortSignal.timeout;
+  const timeoutController = new AbortController();
+  AbortSignal.timeout = () => timeoutController.signal;
+  try {
+    const caller = new AbortController();
+    const reason = new DOMException("caller cancelled", "AbortError");
+    const api = createApiClient({
+      fetchImpl: async (_url, { signal }) => new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      }),
+    });
+    const pending = api.listReports(caller.signal);
+    caller.abort(reason);
+    await assert.rejects(pending, (error) => error === reason);
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+});
 
 test("line routes reject impossible calendar dates without mutating the report", async () => {
   await withEmployeeApp(async ({ base, cookie }) => {

@@ -53,6 +53,74 @@ export const REASONS = Object.freeze({
   NOT_ANSWERED: "the sign request was not answered",
 });
 
+const STORAGE_PREFIX = "outpocket.sign:";
+
+function pageSessionStorage() {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function storageKey(reportId) {
+  return `${STORAGE_PREFIX}${reportId}`;
+}
+
+function saveContinuation(storage, record) {
+  if (!storage?.setItem || !record?.reportId || !record?.ticket || !record?.request_id) return;
+  try {
+    storage.setItem(storageKey(record.reportId), JSON.stringify({
+      reportId: record.reportId,
+      ticket: record.ticket,
+      request_id: record.request_id,
+    }));
+  } catch {
+    // sessionStorage can be unavailable under browser privacy policies. The
+    // live in-memory handshake must still work for the current page lifetime.
+  }
+}
+
+function clearContinuation(storage, reportId) {
+  if (!storage?.removeItem || !reportId) return;
+  try {
+    storage.removeItem(storageKey(reportId));
+  } catch {
+    // See saveContinuation: storage availability must not decide signing.
+  }
+}
+
+function savedContinuations(storage) {
+  if (!storage?.key || !storage?.getItem) return [];
+  try {
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index))
+      .filter((key) => typeof key === "string" && key.startsWith(STORAGE_PREFIX));
+    const saved = [];
+    for (const key of keys) {
+      let value;
+      try {
+        value = JSON.parse(storage.getItem(key));
+      } catch {
+        storage.removeItem?.(key);
+        continue;
+      }
+      const exactKeys = value && typeof value === "object" && !Array.isArray(value)
+        && Object.keys(value).sort().join(",") === "reportId,request_id,ticket";
+      if (!exactKeys || typeof value.reportId !== "string" || !value.reportId
+          || typeof value.ticket !== "string" || !value.ticket
+          || typeof value.request_id !== "string" || !value.request_id
+          || storageKey(value.reportId) !== key) {
+        storage.removeItem?.(key);
+        continue;
+      }
+      saved.push(value);
+    }
+    return saved;
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Build the POST /api/sign body from the report reference plus presentation
  * copy. Report content, provenance, receipt metadata, revision, policy identity
@@ -84,7 +152,7 @@ export function worstCaseFor(summary) {
  * and returns immediately; the provider learns the decision only through the
  * server-side continuation ticket on a later tool call.
  */
-export function createSignatureProvider({ bridge, dialogPort } = {}) {
+export function createSignatureProvider({ bridge, dialogPort, storage = pageSessionStorage() } = {}) {
   if (!bridge) throw new TypeError("createSignatureProvider needs a sign bridge");
   if (!dialogPort?.present) throw new TypeError("createSignatureProvider needs a dialogPort with present()");
 
@@ -104,6 +172,8 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
 
   let pending = null;
   let opening = null;
+  let recovery = null;
+  let recoveryDone = false;
 
   const keyFor = (summary) => `${summary.personaId ?? "session"}:${summary.reportId}`;
   const awaiting = (record) => Object.freeze({
@@ -116,8 +186,9 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
     let answered;
     try {
       answered = await bridge.continueSign(record.ticket, record.reportId);
-    } catch {
+    } catch (error) {
       pending = null;
+      if (terminalContinuationError(error)) clearContinuation(storage, record.reportId);
       return open(record.summary);
     }
     if (answered?.decision === "signed") {
@@ -129,7 +200,112 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
     }
     if (answered?.status === "awaiting_signature") return awaiting(record);
     pending = null;
+    clearContinuation(storage, record.reportId);
     return open(record.summary);
+  }
+
+  function terminalContinuationError(error) {
+    return error?.status === 403 || error?.status === 404 || error?.status === 410
+      || error?.code === "E_NO_CONFIRM_TOKEN"
+      || error?.code === "E_SIGN_REQUEST_UNKNOWN"
+      || error?.code === "E_SIGN_REQUEST_EXPIRED";
+  }
+
+  /**
+   * A reload destroys the provider closure but not the server record or this
+   * tab's sessionStorage. Rebuild only from the three routing fields saved by
+   * this page: the server GET supplies the sign request again, continuation
+   * supplies its state, and the dialog-only route supplies a fresh token for
+   * an open record. None of those values become the provider's tool result.
+   */
+  async function restoreSaved(signal) {
+    if (recovery) return recovery;
+    if (recoveryDone) return { restored: Boolean(pending) };
+
+    const promise = (async () => {
+      const saved = savedContinuations(storage);
+      if (saved.length === 0) {
+        recoveryDone = true;
+        return { restored: false };
+      }
+      if (typeof bridge.resumeForDialog !== "function") {
+        return { restored: false, retryable: true };
+      }
+
+      for (const continuation of saved) {
+        let resumed;
+        try {
+          resumed = await bridge.resumeForDialog(continuation, signal);
+        } catch (error) {
+          if (terminalContinuationError(error)) {
+            clearContinuation(storage, continuation.reportId);
+            continue;
+          }
+          return { restored: false, retryable: true, error };
+        }
+
+        const summary = { reportId: continuation.reportId };
+        const record = {
+          key: keyFor(summary),
+          reportId: continuation.reportId,
+          summary,
+          openBody: buildOpenBody(summary),
+          opened: resumed.opened,
+          ticket: continuation.ticket,
+          request_id: continuation.request_id,
+          commitClaimed: false,
+        };
+        const answered = resumed.continuation;
+        if (answered?.decision === "declined") {
+          clearContinuation(storage, record.reportId);
+          dialogPort.finish?.({
+            kind: "declined",
+            message: `Sent back. Nothing was submitted; the draft remains editable.${answered.reason ? ` Reason: ${answered.reason}` : ""}`,
+          });
+          continue;
+        }
+
+        pending = record;
+        if (answered?.decision === "signed") {
+          recoveryDone = true;
+          return { restored: true, state: "answered" };
+        }
+        if (answered?.status !== "awaiting_signature" || !resumed.opened) {
+          pending = null;
+          return { restored: false, retryable: true };
+        }
+
+        let presented;
+        try {
+          presented = await dialogPort.present({
+            summary,
+            openBody: record.openBody,
+            opened: resumed.opened,
+            signal,
+            onRestart: () => restart(record),
+          });
+        } catch (error) {
+          pending = null;
+          return { restored: false, retryable: true, error };
+        }
+        if (presented?.mounted === false) {
+          pending = null;
+          return { restored: false, retryable: true };
+        }
+        recoveryDone = true;
+        return { restored: true, state: "open" };
+      }
+
+      recoveryDone = true;
+      return { restored: false };
+    })();
+
+    recovery = promise;
+    try {
+      return await promise;
+    } finally {
+      if (recovery === promise) recovery = null;
+    }
   }
 
   async function open(summary, signal) {
@@ -153,6 +329,7 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
         commitClaimed: false,
       };
       pending = record;
+      saveContinuation(storage, record);
       const presented = await dialogPort.present({
         summary,
         openBody,
@@ -162,6 +339,7 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
       });
       if (presented?.mounted === false) {
         pending = null;
+        recoveryDone = false;
         return { unavailable: true, reason: presented.reason || REASONS.NO_DIALOG };
       }
       return record;
@@ -175,9 +353,9 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
     }
   }
 
-  return async function requestSignature(summary, signal) {
-    const key = keyFor(summary);
-    if (pending && pending.key !== key) pending = null;
+  async function requestSignature(summary, signal) {
+    if (!pending && !recoveryDone) await restoreSaved(signal);
+    if (pending && pending.reportId !== summary.reportId) pending = null;
 
     if (!pending) {
       const record = await open(summary, signal);
@@ -192,8 +370,9 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
     try {
       answered = await bridge.continueSign(record.ticket, record.reportId, signal);
     } catch (error) {
-      if (error?.code === "E_NO_CONFIRM_TOKEN" || error?.status === 410) {
+      if (terminalContinuationError(error)) {
         pending = null;
+        clearContinuation(storage, record.reportId);
         dialogPort.finish?.({
           kind: "expired",
           message: "This signature request expired. Call submit_expense_report to open a new review.",
@@ -207,6 +386,7 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
 
     if (answered?.decision === "declined") {
       pending = null;
+      clearContinuation(storage, record.reportId);
       const reason = answered.reason || REASONS.DECLINED;
       dialogPort.finish?.({
         kind: "declined",
@@ -244,6 +424,7 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
         if (pending !== record) return;
         if (status === "committed") {
           pending = null;
+          clearContinuation(storage, record.reportId);
           dialogPort.finish?.({
             kind: "committed",
             confirmation,
@@ -258,7 +439,10 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
         });
       },
     };
-  };
+  }
+
+  requestSignature.restoreSaved = restoreSaved;
+  return requestSignature;
 }
 
 // ── installation, exactly once ───────────────────────────────────────────────
@@ -271,7 +455,7 @@ export function createSignatureProvider({ bridge, dialogPort } = {}) {
 let installed = null;
 
 /** installSignatureProvider(...) -> {installed:boolean, uninstall} */
-export function installSignatureProvider({ registry, bridge, dialogPort, force = false } = {}) {
+export function installSignatureProvider({ registry, bridge, dialogPort, storage = pageSessionStorage(), force = false } = {}) {
   if (installed && !force) return { installed: false, already: true, uninstall: installed };
   if (typeof registry?.setSignatureProvider !== "function") {
     return { installed: false, reason: "registry has no setSignatureProvider" };
@@ -279,10 +463,12 @@ export function installSignatureProvider({ registry, bridge, dialogPort, force =
   const provider = createSignatureProvider({
     bridge,
     dialogPort,
+    storage,
   });
   const uninstall = registry.setSignatureProvider(provider);
+  const restoring = provider.restoreSaved().catch((error) => ({ restored: false, retryable: true, error }));
   installed = () => { uninstall?.(); installed = null; };
-  return { installed: true, uninstall: installed, provider };
+  return { installed: true, uninstall: installed, provider, restoring };
 }
 
 /** Test-only: forget that we installed, so a fresh registry can be wired. */

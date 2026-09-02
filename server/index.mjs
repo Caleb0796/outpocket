@@ -17,7 +17,7 @@ import { policyHandler, SERVED_POLICY } from "./routes/policy.mjs";
 import { seedState } from "./seed.mjs";
 import { createStateDigestHandler } from "./routes/state-digest.mjs";
 import { createVersionHandler } from "./routes/version.mjs";
-import { createSignGate, evaluateServerVerdict, SignError } from "./sign.mjs";
+import { createSignGate, evaluateServerVerdict, SignError, validateRespondBody } from "./sign.mjs";
 import {
   authorizeWrite,
   authorizeReportRead,
@@ -727,8 +727,12 @@ export function createApp({
         } catch (err) {
           return sendAuthzError(res, err);
         }
-        const body = await readJsonBody(req);
-        if (!body || typeof body !== "object") return sendJson(res, 400, { error: "E_BAD_REQUEST" });
+        let body;
+        try {
+          body = validateRespondBody(await readJsonBody(req));
+        } catch (err) {
+          return sendSignError(res, err);
+        }
         if (body.request_id !== respondMatch[1]) return sendJson(res, 400, { error: "E_BAD_REQUEST", message: "request_id in body must match the URL" });
         try {
           const result = signGate.respond({

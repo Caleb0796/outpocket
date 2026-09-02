@@ -2,6 +2,8 @@
 
 import { toCents } from "../policy.js";
 
+const REQUEST_TIMEOUT_MS = 20_000;
+
 export class ApiError extends Error {
   constructor(code, status, message, body = null) {
     super(message || code || `HTTP ${status}`);
@@ -78,17 +80,32 @@ export function createApiClient({ fetchImpl = globalThis.fetch, baseUrl = "", he
   if (typeof fetchImpl !== "function") throw new TypeError("createApiClient needs a fetch implementation");
 
   async function request(path, { method = "GET", body, signal, raw = false } = {}) {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
-      method,
-      headers: body === undefined ? { ...headers } : { "Content-Type": "application/json", ...headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: "include",
-      signal,
-    });
+    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+    let response;
+    try {
+      response = await fetchImpl(`${baseUrl}${path}`, {
+        method,
+        headers: body === undefined ? { ...headers } : { "Content-Type": "application/json", ...headers },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        credentials: "include",
+        signal: requestSignal,
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (timeoutSignal.aborted) {
+        throw new ApiError("E_TIMEOUT", 0, `${method} ${path} timed out after 20 seconds`);
+      }
+      throw error;
+    }
     let json;
     try {
       json = await response.json();
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (timeoutSignal.aborted) {
+        throw new ApiError("E_TIMEOUT", 0, `${method} ${path} timed out after 20 seconds`);
+      }
       throw new ApiError("E_BAD_RESPONSE", response.status, `${method} ${path} returned invalid JSON`);
     }
     if (raw) return { ok: response.ok, status: response.status, body: json };
