@@ -156,8 +156,8 @@ const shim = {
     let result;
     if (r) {
       // ONE DISPATCH PATH. registry.executeTool goes through toolset.call, which
-      // is the same route register.js's toRegistration wrapper takes for a real
-      // browser-delivered call — so it carries the double lock that re-checks
+      // is the same route register.js's registered execute wrapper takes for a
+      // real browser-delivered call — so it carries the double lock that re-checks
       // membership at execution time, the output budget and the error envelope.
       // `source: "agent"` is the honest value: this IS an agent's act. The fact
       // that the agent is simulated is disclosed by the banner, which is where

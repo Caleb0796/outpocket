@@ -94,6 +94,25 @@ Expense reimbursement is personal: the employee is out of pocket and remains
 responsible for the claim. That is why this project does not aim for unattended
 submission.
 
+## How WebMCP is wired
+
+The top-level registrar feature-detects WebMCP; its production registration
+leaf is [`src/page/register.js:249`](src/page/register.js#L249):
+
+```js
+        adopt(document.modelContext.registerTool({
+          name: def.name,
+          description: def.description,
+          inputSchema: def.inputSchema,
+          execute: (args, opts) => toolset.runTool(def, args, opts, "agent"),
+          ...(def.annotations ? { annotations: def.annotations } : {}),
+        }, { signal: controller.signal }), def.name, controller);
+```
+
+Whenever the session, open report, or validation verdict changes the registered
+surface, `sync()` aborts the previous generation and registers the freshly
+compiled tool set; the refreshed list reaches the agent on its next turn.
+
 ## Open the app
 
 ### ChatGPT's built-in browser

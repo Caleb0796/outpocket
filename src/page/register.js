@@ -149,8 +149,8 @@ function modelContext() {
   return mountedInTopLevelDocument ? document.modelContext ?? null : null;
 }
 
-/**
- * What the browser actually receives.
+/*
+ * What the browser actually receives at the literal registerTool call below.
  *
  * NOT the definition object itself. A raw definition hands the browser
  * `def.execute` directly, which walks past three things ./tools/compile.js
@@ -174,16 +174,6 @@ function modelContext() {
  * agent's act, and provenance downstream depends on that being recorded
  * honestly rather than defaulted.
  */
-function toRegistration(def) {
-  const reg = {
-    name: def.name,
-    description: def.description,
-    inputSchema: def.inputSchema,
-    execute: (args, opts) => toolset.runTool(def, args, opts, "agent"),
-  };
-  if (def.annotations) reg.annotations = def.annotations;
-  return reg;
-}
 
 // Registration errors the browser reported that were NOT our own revocation.
 // Kept rather than only logged so a test can assert the difference, and so the
@@ -256,7 +246,13 @@ function sync(reason = "change") {
     const registered = [];
     if (api) {
       for (const def of defs) {
-        adopt(api.registerTool(toRegistration(def), { signal: controller.signal }), def.name, controller);
+        adopt(document.modelContext.registerTool({
+          name: def.name,
+          description: def.description,
+          inputSchema: def.inputSchema,
+          execute: (args, opts) => toolset.runTool(def, args, opts, "agent"),
+          ...(def.annotations ? { annotations: def.annotations } : {}),
+        }, { signal: controller.signal }), def.name, controller);
         registered.push(def.name);
       }
     }
