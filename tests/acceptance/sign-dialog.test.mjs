@@ -108,7 +108,7 @@ const fakeDoc = {
   createElement(tag) { return new FakeNode(tag, this); },
 };
 
-function fakeDocWithSignRegion() {
+function fakeDocWithSignRegion(sessionName = null) {
   const doc = {
     activeElement: null,
     createElement(tag) { return new FakeNode(tag, this); },
@@ -116,8 +116,15 @@ function fakeDocWithSignRegion() {
   };
   const region = new FakeNode("section", doc);
   region.setAttribute("data-region", "sign");
-  doc.querySelector = (selector) => selector === '[data-region="sign"]' ? region : null;
-  return { doc, region };
+  const identity = new FakeNode("strong", doc);
+  identity.setAttribute("data-session-name", "");
+  identity.textContent = sessionName ?? "";
+  doc.querySelector = (selector) => {
+    if (selector === '[data-region="sign"]') return region;
+    if (selector === "[data-session-name]") return identity;
+    return null;
+  };
+  return { doc, region, identity };
 }
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
@@ -225,6 +232,31 @@ test("the native dialog has an accessible name and description", () => {
     consequence.getAttribute("id"), status.getAttribute("id"),
   ]);
   assert.equal(status.getAttribute("aria-live"), "polite");
+});
+
+test("the mounted signature line names the authenticated session and the decision copy stays explicit", async () => {
+  const mountedDoc = fakeDocWithSignRegion("  Chen Xiao  ");
+  const fetchImpl = spyFetch([{ status: 200, payload: { version: "2026.08.1" } }]);
+  const root = mountSignDialog({
+    doc: mountedDoc.doc,
+    signRequest: { ...REPORT_A, persona_name: "stale request name" },
+    confirmToken: TOKEN,
+    fetchImpl,
+  });
+  await root.policyVersionReady;
+
+  assert.equal(root.querySelector("[data-signature-line]").querySelector(".sig-who").textContent,
+    "Chen Xiao · current authenticated session");
+  assert.equal(root.querySelector("[data-sign-decline]").textContent,
+    "Send back — keep draft editable");
+  assert.equal(root.querySelector(".sign-next-step").textContent,
+    "Signing records this session’s decision on the server; the agent must call submit_expense_report again to finish.");
+  assert.equal(root.querySelector("[data-sign-claim]").textContent,
+    `A commit cannot be made without a POST from this authenticated session to /api/sign/${REPORT_A.request_id}/respond.`);
+
+  const fallback = renderSignDialog(fakeDoc, { signRequest: REPORT_A, confirmToken: TOKEN });
+  assert.equal(fallback.querySelector("[data-signature-line]").querySelector(".sig-who").textContent,
+    "Chen Xiao, signing as themselves");
 });
 
 // ── cannot be confirmed while empty: what the page DOES ─────────────────────
@@ -638,7 +670,7 @@ test("mounted dialog opens modally, blocks Escape, then closes and restores focu
   root.dispatchEvent({ type: "cancel", preventDefault: () => { prevented = true; } });
   assert.equal(prevented, true);
   assert.equal(root.open, true, "Escape must not silently close an open sign request");
-  assert.match(statusOf(root), /choose sign this report or send back instead/i);
+  assert.match(statusOf(root), /choose sign this report or send back — keep draft editable/i);
 
   root.querySelector("[data-sign-decline]").click();
   await new Promise((resolve) => setTimeout(resolve, 0));

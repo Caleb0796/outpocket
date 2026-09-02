@@ -156,6 +156,8 @@ test("Chromium 152 — the installed major — additionally renders [data-warn=c
   // MEASURED, evidence/V0.json: the installed binary is Google Chrome 152.0.7977.64.
   const nodes = bannerNodes(readEnv(win({ ua: "Chrome/152.0.0.0", doc: API_PRESENT })));
   assert.equal(findByAttr(nodes, WARN_ATTR, WARN_VALUE).length, 1);
+  assert.equal(findByAttr(nodes, WARN_ATTR, WARN_VALUE)[0].text,
+    "Compatibility note for Chromium 152: if a tool is removed while an agent call is already waiting, that one call may continue. New calls use the updated tool list.");
 });
 
 test("Chromium 151 — the ChatGPT built-in browser — additionally renders [data-warn=chrome-lt-153]", () => {
@@ -269,10 +271,13 @@ test("readEnv records that the major is user-agent derived, not read from the bi
 // ---------------------------------------------------------------------------
 
 test("renderBanner sets the data-warn attribute through real DOM calls", () => {
-  // A ~15-line fake document implementing exactly the four DOM methods renderBanner uses.
+  // A small fake document implementing exactly the DOM methods renderBanner uses.
   // It proves the walker emits the attribute; it is not evidence about any browser.
   const created = [];
   const doc = {
+    createTextNode(text) {
+      return { nodeType: 3, textContent: String(text) };
+    },
     createElement(tag) {
       const el = {
         tagName: tag.toUpperCase(),
@@ -297,6 +302,10 @@ test("renderBanner sets the data-warn attribute through real DOM calls", () => {
   const [banner] = findByAttr(root.children, "data-env-banner", "");
   assert.ok(banner, "no rendered node carried [data-env-banner]");
   assert.match(banner.textContent, BANNER_RE, `rendered text was ${JSON.stringify(banner.textContent)}`);
+  assert.equal(root.children[1].nodeType, 3, "the two spans have no real separator text node");
+  assert.equal(root.children[1].textContent, " · ");
+  assert.equal(root.children.map((node) => node.textContent).join(""),
+    "Chromium 152 · WebMCP present · Compatibility note for Chromium 152: if a tool is removed while an agent call is already waiting, that one call may continue. New calls use the updated tool list.");
 });
 
 // ---------------------------------------------------------------------------

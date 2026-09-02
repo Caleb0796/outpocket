@@ -95,6 +95,23 @@ function el(doc, tag, attrs = {}, text = null) {
   return node;
 }
 
+const STATE_LABELS = Object.freeze({
+  S0: "Signed out",
+  S1: "Employee · no report open",
+  S2: "Employee · draft needs attention",
+  S3: "Employee · draft ready to submit",
+  S4: "Employee · submitted · read-only",
+  S5: "Auditor · read-only",
+});
+
+const AUDITOR_SUMMARY =
+  "Auditor view — read only. You can review reports and receipt metadata, and ask your agent to check the tamper-evident day book and its verification result. No filing, editing, signing, or submission tools are available.";
+
+function firstSentence(description) {
+  const text = typeof description === "string" ? description.trim() : "";
+  return text.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? text;
+}
+
 /**
  * Render the panel.
  *
@@ -107,7 +124,7 @@ export function renderInspector(doc, { tools = [], source = SOURCE.REGISTRY, pol
   const root = el(doc, "div", { "data-surface-inspector": "" });
 
   const head = el(doc, "div", { class: "inspector-head" });
-  head.appendChild(el(doc, "span", { class: "inspector-title" }, "Tools on the surface right now"));
+  head.appendChild(el(doc, "span", { class: "inspector-title" }, "Available to your agent now"));
 
   // The chip. Rendered ONLY when a version was actually fetched: an empty chip
   // is indistinguishable from a correct one when the endpoint is also empty.
@@ -116,8 +133,15 @@ export function renderInspector(doc, { tools = [], source = SOURCE.REGISTRY, pol
   } else {
     head.appendChild(el(doc, "span", { "data-policy-version-missing": "" }, "policy version unavailable"));
   }
-  if (state) head.appendChild(el(doc, "span", { "data-surface-state": state }, state));
+  if (state) {
+    head.appendChild(el(doc, "span", {
+      "data-surface-state": state,
+      title: state,
+    }, STATE_LABELS[state] ?? state));
+  }
   root.appendChild(head);
+
+  if (state === "S5") root.appendChild(el(doc, "p", { class: "auditor-summary" }, AUDITOR_SUMMARY));
 
   const list = el(doc, "ul", { class: "inspector-rows" });
   for (const t of tools) {
@@ -125,13 +149,24 @@ export function renderInspector(doc, { tools = [], source = SOURCE.REGISTRY, pol
     row.appendChild(el(doc, "code", { class: "tool-name" }, t?.name ?? "(unnamed)"));
     // readOnlyHint is what makes the write set COMPUTABLE rather than
     // hard-coded (R-20). Never print a fixed number of write tools anywhere.
-    row.appendChild(el(doc, "span", { class: "tool-kind" },
+    const meta = el(doc, "span", { class: "tool-meta" });
+    meta.appendChild(el(doc, "span", { class: "tool-kind" },
       t?.annotations?.readOnlyHint === true ? "read-only" : "write"));
+    const description = typeof t?.description === "string" ? t.description.trim() : "";
+    meta.appendChild(el(doc, "span", { class: "tool-purpose", title: description }, firstSentence(description)));
+    row.appendChild(meta);
     list.appendChild(row);
   }
   root.appendChild(list);
 
-  root.appendChild(el(doc, "p", { class: "inspector-source", "data-surface-source": source }, `read from ${source}`));
+  root.appendChild(el(doc, "p", { class: "inspector-source", "data-surface-source": source },
+    "Published by this page through WebMCP"));
+  // Keep the exact first-glance source line while still making a fallback or
+  // simulation visible; otherwise a truthful data attribute would hide the
+  // distinction from the person looking at the page.
+  if (source !== SOURCE.BROWSER) {
+    root.appendChild(el(doc, "p", { class: "inspector-provenance" }, `Surface source — ${source}`));
+  }
   return root;
 }
 

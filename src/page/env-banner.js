@@ -102,7 +102,7 @@ export function bannerNodes(env) {
     nodes.push({
       tag: "span",
       attrs: { "data-warn": "chrome-lt-153" },
-      text: `Chromium ${env.chromiumMajor}: this page works normally. Before Chromium 153, revocation does not interrupt an already-suspended execute.`,
+      text: `Compatibility note for Chromium ${env.chromiumMajor}: if a tool is removed while an agent call is already waiting, that one call may continue. New calls use the updated tool list.`,
       children: [],
     });
   }
@@ -121,7 +121,10 @@ export function renderBanner(doc, env) {
   const root = doc.createElement("div");
   root.setAttribute("data-env-banner-root", "");
 
-  for (const node of bannerNodes(env)) {
+  for (const [index, node] of bannerNodes(env).entries()) {
+    // CSS margins do not become DOM text. The separator has to be a real text
+    // node so assistive technology and copied text do not run the spans together.
+    if (index > 0) root.appendChild(doc.createTextNode(" · "));
     const el = doc.createElement(node.tag);
     for (const [key, value] of Object.entries(node.attrs)) el.setAttribute(key, value);
     el.textContent = node.text;

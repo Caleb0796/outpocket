@@ -36,8 +36,11 @@ import assert from "node:assert/strict";
 
 import { createReportStore } from "../../server/store.mjs";
 import { LINE_FIELDS, REPORT_FIELDS } from "../../server/store.mjs";
+import { PERSONAS } from "../../src/erp.js";
+import { toUsdCents, validateReport } from "../../src/policy.js";
 import {
-  renderEditor, fieldCells, previousSource, provenanceText, AUTHORED_SOURCES,
+  renderEditor, mountCachedEditor, fieldCells, previousSource, provenanceText,
+  AUTHORED_SOURCES, EMPTY_EDITOR_TEXT,
 } from "../../src/page/ui/editor.js";
 
 // ── a fake document, same approach as banner.test.mjs and sign-dialog's ─────
@@ -67,6 +70,14 @@ function makeDoc() {
   return { createElement: node };
 }
 
+function makeMountedDoc() {
+  const doc = makeDoc();
+  const region = doc.createElement("section");
+  region.setAttribute("data-region", "editor");
+  doc.querySelector = (sel) => region.matches(sel) ? region : region.querySelector(sel);
+  return { doc, region };
+}
+
 // ── the REAL path: an agent write, then a human override ────────────────────
 
 const AGENT = (tool) => ({ source: "agent", actor: "agent", tool });
@@ -92,6 +103,54 @@ function agentFiledThenHumanCorrected() {
   store.updateLine(report.id, lineId, { amount: 900 }, { ...HUMAN, revision: 2 });
 
   return { store, report: store.getReport(report.id), ledger: store.dayBook(), lineId };
+}
+
+function agentFiledAmounts(rows) {
+  const store = createReportStore();
+  const created = store.createReport(
+    { title: "Portland site visit", project: "HERON" },
+    { ...AGENT("create_expense_report"), revision: 0 });
+  rows.forEach(({ amount, currency = "USD" }, index) => {
+    store.addLine(created.id, {
+      merchant: `Merchant ${index + 1}`, amount, category: "transport",
+      date: "2026-08-20", currency, description: "Site transfer",
+    }, { ...AGENT("add_expense_line"), revision: index + 1 });
+  });
+  return { store, report: store.getReport(created.id), ledger: store.dayBook() };
+}
+
+function policyView(report) {
+  const value = (fields, name) => fields[name]?.value ?? null;
+  return {
+    id: report.id,
+    project: value(report.fields, "project"),
+    lines: report.lines.map((line) => {
+      const amountCents = value(line.fields, "amount");
+      const currency = value(line.fields, "currency");
+      return {
+        id: line.id,
+        date: value(line.fields, "date"),
+        merchant: value(line.fields, "merchant"),
+        category: value(line.fields, "category"),
+        amountCents,
+        currency,
+        usdCents: amountCents === null ? null : toUsdCents(amountCents, currency),
+        attendees: value(line.fields, "attendees") ?? undefined,
+        nights: value(line.fields, "nights") ?? undefined,
+        itemization: value(line.fields, "itemization") ?? undefined,
+        description: value(line.fields, "description"),
+        receiptId: value(line.fields, "receipt_id"),
+      };
+    }),
+  };
+}
+
+function verdictFor(report) {
+  return validateReport(policyView(report), PERSONAS.find((persona) => persona.id === "chen"), {
+    now: new Date("2026-09-01T12:00:00Z"),
+    receiptById: () => null,
+    priorHashUse: () => null,
+  });
 }
 
 // ── clause 1: every cell carries a source, and both values really occur ─────
@@ -186,6 +245,126 @@ test("the visible text and the attributes cannot disagree — they are one funct
   assert.equal(provenanceText({ source: "human", prevSource: "agent" }), "you — was agent");
   assert.equal(provenanceText({ source: "agent", prevSource: null }), "agent");
   assert.equal(provenanceText({ source: "seed", prevSource: null }), "sample data");
+});
+
+// ── F4a: the editor must show money and the server verdict, not raw storage ──
+
+test("integer cents render as two-decimal money using the line currency", () => {
+  const { report, ledger } = agentFiledAmounts([
+    { amount: 15_90 },
+    { amount: 17_40 },
+    { amount: 10_65 },
+    { amount: 180_00 },
+    { amount: 12_34, currency: "EUR" },
+  ]);
+  const root = renderEditor(makeDoc(), { report, ledger });
+  const shown = root.querySelectorAll('[data-field-cell="amount"]')
+    .map((cell) => cell.children
+      .find((child) => child.getAttribute("class") === "field-value").textContent);
+
+  assert.deepEqual(shown, ["$15.90", "$17.40", "$10.65", "$180.00", "EUR 12.34"]);
+});
+
+test("blocking findings render the policy engine's message and fix verbatim", () => {
+  const { report, ledger } = agentFiledAmounts([{ amount: 180_00 }]);
+  const verdict = verdictFor(report);
+  const root = renderEditor(makeDoc(), {
+    report: { ...report, status: "draft" }, ledger, verdict,
+  });
+  const cap = root.querySelector('[data-validation-finding="CAP_TRANSPORT"]');
+
+  assert.ok(cap, "CAP_TRANSPORT did not render in [data-validation-findings]");
+  assert.equal(
+    cap.textContent,
+    "BLOCKING · CAP_TRANSPORT — $180.00 exceeds the $150.00 per-trip transport cap. " +
+      "Fix: A trip above the limit needs a written exception from your approver before it can be filed.",
+  );
+  assert.ok(root.querySelector("[data-validation-findings]"));
+});
+
+test("a clean draft says the submit tool is registered", () => {
+  const { report, ledger } = agentFiledAmounts([{ amount: 15_90 }]);
+  const root = renderEditor(makeDoc(), { report, ledger, verdict: verdictFor(report) });
+
+  assert.equal(
+    root.querySelector("[data-validation-clean]").textContent,
+    "No blocking findings. submit_expense_report is registered for this draft.",
+  );
+});
+
+// The call log changed shape during the freeze: structured status/code is the
+// durable path, while already-built callers still carry only the rendered
+// technical line. Exercise one refusal through each path so deleting either
+// parser makes a user-visible acceptance test fail.
+test("423/422/403/404 write refusals render exact status, and a success clears it", () => {
+  const { doc, region } = makeMountedDoc();
+  let onCall = null;
+  const erp = {
+    openReportOrNull: () => null,
+    onChange: () => () => {},
+  };
+  mountCachedEditor({
+    doc,
+    tools: {
+      erp,
+      onCall(fn) { onCall = fn; return () => { onCall = null; }; },
+    },
+  });
+  const status = () => region.querySelector("[data-operation-status]").textContent;
+
+  onCall({
+    name: "update_expense_line",
+    status: "err",
+    error: { status: 423, code: "E_SIGN_IN_PROGRESS" },
+    text: "report RP-1018 has an open sign request in progress",
+  });
+  assert.equal(status(),
+    "Edit blocked — this report is locked while a signature is being reviewed. Nothing changed. " +
+    "Technical: HTTP 423 · E_SIGN_IN_PROGRESS.");
+
+  onCall({
+    name: "submit_expense_report",
+    status: "err",
+    text: "The server refused submission. Technical: HTTP 422 · E_NOT_CLEAN.",
+  });
+  assert.equal(status(),
+    "Submission blocked — this report still has policy issues. Nothing was submitted. " +
+    "Technical: HTTP 422 · E_NOT_CLEAN.");
+
+  onCall({
+    name: "create_expense_report",
+    status: "err",
+    error: { status: 403, code: "E_ROLE_FORBIDDEN" },
+  });
+  assert.equal(status(),
+    "Action blocked — this auditor session is read-only. Nothing changed. " +
+    "Technical: HTTP 403 · E_ROLE_FORBIDDEN.");
+
+  onCall({
+    name: "open_expense_report",
+    status: "err",
+    text: "The server refused the open. Technical: HTTP 404 · E_REPORT_NOT_FOUND.",
+  });
+  assert.equal(status(),
+    "Report not found — choose one of the reports available to this session. " +
+    "Technical: HTTP 404 · E_REPORT_NOT_FOUND.");
+
+  onCall({ name: "submit_expense_report", status: "ok", text: "Submitted." });
+  assert.equal(status(), "");
+});
+
+test("S1 renders the agent prompt instead of leaving the editor region empty", () => {
+  const { doc, region } = makeMountedDoc();
+  mountCachedEditor({
+    doc,
+    tools: {
+      erp: { openReportOrNull: () => null, onChange: () => () => {} },
+      onCall: () => () => {},
+    },
+  });
+
+  assert.equal(region.querySelector("[data-editor-empty-message]").textContent, EMPTY_EDITOR_TEXT);
+  assert.equal(region.querySelector("[data-operation-status]").getAttribute("role"), "alert");
 });
 
 // ── D-100: the renderer cannot mislabel, because the STORE refuses ──────────

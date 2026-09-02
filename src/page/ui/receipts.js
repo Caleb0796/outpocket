@@ -121,25 +121,25 @@ export function findBinaryChannelViolations(tools) {
 const CHANNEL_COPY = Object.freeze({
   human: {
     label: "Human channel",
-    can: "Attach a file",
+    can: "Choose a file here.",
     detail:
-      "You pick the file. The page computes SHA-256 and sends only its name, size " +
-      "and digest to the server to spot duplicates; the server never receives or independently verifies the bytes.",
+      "The page sends its name, size, and SHA-256 digest—not the file bytes—to the server so duplicates can be detected.",
   },
   agent: {
     label: "Agent channel",
-    can: "Link an id that already exists",
-    detail:
-      "An agent calls link_receipt with a receipt id from list_receipts. No " +
-      "tool on this page declares a schema that could carry file content, so " +
-      "there is nothing for an agent to attach a file to.",
+    can: "An agent can only link an existing receipt ID from list_receipts.",
+    detail: "No registered tool accepts file content.",
   },
 });
 
+const AUDITOR_HUMAN_COPY = Object.freeze({
+  label: "Human channel",
+  can: "Review receipt metadata",
+  detail: "This auditor view cannot attach files.",
+});
+
 const ENFORCEMENT_NOTE =
-  "Page-enforced: this page decides which tools it registers, and registers none " +
-  "whose input schema could carry a file. The complete tool list is checked in " +
-  "every supported workflow state.";
+  "Enforced by this page: every workflow state is checked to ensure no registered tool accepts file content.";
 
 const UPLOAD_HELP_ID = "receipt-upload-help";
 const UPLOAD_ERROR_ID = "receipt-upload-error";
@@ -156,8 +156,8 @@ async function sha256Hex(bytes) {
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-function channelBlock(doc, which) {
-  const copy = CHANNEL_COPY[which];
+function channelBlock(doc, which, { auditor = false } = {}) {
+  const copy = auditor && which === "human" ? AUDITOR_HUMAN_COPY : CHANNEL_COPY[which];
   const box = el(doc, "div", { "data-channel": which });
   box.appendChild(el(doc, "span", { class: "channel-label" }, copy.label));
   box.appendChild(el(doc, "p", { class: "channel-can" }, copy.can));
@@ -185,16 +185,17 @@ export function renderReceiptChannel(doc, {
   receipts = [],
   storeAttached = true,
   canAttach = storeAttached,
+  auditor = false,
   disabledReason = null,
   uploadError = null,
 } = {}) {
   const root = el(doc, "div", { "data-receipt-channel": "" });
 
-  root.appendChild(el(doc, "h2", { class: "channel-heading" }, "Receipts — two channels, not symmetrical"));
+  root.appendChild(el(doc, "h2", { class: "channel-heading" }, "Receipts — you attach; agents only link"));
 
   const channels = el(doc, "div", { class: "channels" });
-  channels.appendChild(channelBlock(doc, "human"));
-  channels.appendChild(channelBlock(doc, "agent"));
+  channels.appendChild(channelBlock(doc, "human", { auditor }));
+  channels.appendChild(channelBlock(doc, "agent", { auditor }));
   root.appendChild(channels);
 
   const control = el(doc, "div", { "data-receipt-upload": "" });
@@ -267,7 +268,7 @@ export function mountReceipts({ doc = globalThis.document, shell, tools } = {}) 
     const storeAttached = Boolean(erp && api);
     const canAttach = storeAttached && session?.role === "employee";
     const disabledReason = session?.role === "auditor"
-      ? "Auditors can review receipt metadata, but cannot attach receipts."
+      ? "This auditor view cannot attach files."
       : session
         ? null
         : "Sign in as an employee to attach receipts.";
@@ -276,6 +277,7 @@ export function mountReceipts({ doc = globalThis.document, shell, tools } = {}) 
       receipts,
       storeAttached,
       canAttach,
+      auditor: session?.role === "auditor",
       disabledReason,
       uploadError,
     }));

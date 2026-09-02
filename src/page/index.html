@@ -61,7 +61,9 @@
   /* Shell-only styling: the shell's own baseline, so every panel is legible and
      screenshot-safe on its own even if the skin fails to load. F6's skin.css
      refines this; it does not replace it. */
-  :root { color-scheme: light; }
+  /* skin.css loads later, so the element qualifier is what lets this contrast
+     correction win without moving that stylesheet or editing F4a's file. */
+  html:root { color-scheme: light; --ink-faint: #6b6f80; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
          background: #f4f4f2; color: #16181d; }
   header, main { max-width: 900px; margin: 0 auto; padding: 0 20px; }
@@ -86,6 +88,7 @@
   [data-persona] p { margin: 6px 0 12px; color: #55596a; font-size: 13px; }
   button { font: inherit; padding: 7px 14px; border-radius: 6px; border: 1px solid #16181d;
          background: #16181d; color: #fff; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 3px solid #005fcc; outline-offset: 3px; }
   button.quiet { background: #fff; color: #16181d; border-color: #d9dae0; }
   [hidden] { display: none !important; }
   [data-signed-in-as] { display: flex; align-items: center; gap: 10px;
@@ -95,7 +98,7 @@
          margin-bottom: 14px; background: #fff; }
   [data-region]:empty { display: none; }
   [data-region] > .slot-label { font-size: 11px; text-transform: uppercase;
-         letter-spacing: 0.08em; color: #8b8fa0; }
+         letter-spacing: 0.08em; color: var(--ink-faint); }
   /* Receipts. The two channels must read as a CONTRAST in a still
      frame, not as two paragraphs that happen to follow each other — a judge may
      score from images alone (docs/STORYBOARD.md SB-09 puts the agent's
@@ -106,7 +109,7 @@
          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-bottom: 16px; }
   [data-channel] { border: 1px solid #d9dae0; border-radius: 8px; padding: 12px; }
   [data-channel="human"] { border-left: 3px solid #16181d; }
-  [data-channel="agent"] { border-left: 3px solid #8b8fa0; background: #fbfbfc; }
+  [data-channel="agent"] { border-left: 3px solid var(--ink-faint); background: #fbfbfc; }
   [data-channel] .channel-label { font-size: 11px; text-transform: uppercase;
          letter-spacing: 0.08em; color: #55596a; }
   [data-channel] .channel-can { font-weight: 600; margin: 4px 0 6px; }
@@ -115,7 +118,7 @@
   [data-receipt-list] li { display: flex; gap: 10px; align-items: baseline;
          padding: 6px 0; border-top: 1px solid #eceef3; }
   [data-receipt-ref] { font-weight: 600; }
-  [data-receipt-link="unlinked"] { color: #8b8fa0; }
+  [data-receipt-link="unlinked"] { color: var(--ink-faint); }
   [data-receipt-enforcement] { font-size: 12px; color: #55596a; margin: 0;
          border-top: 1px solid #eceef3; padding-top: 10px; }
   [data-receipt-store] { font-size: 12px; color: #8a1c1c; margin: 6px 0 0; }
@@ -138,7 +141,7 @@
          font-size: 12px; color: #55596a; background: #f7f8fa; border: 1px solid #eceef3;
          border-radius: 6px; padding: 8px 10px; margin-bottom: 16px; }
   [data-snapshot-digest] .digest-label { text-transform: uppercase; letter-spacing: 0.08em;
-         font-size: 10px; color: #8b8fa0; }
+         font-size: 10px; color: var(--ink-faint); }
   [data-snapshot-digest] code { font-size: 11px; word-break: break-all; }
   [data-worst-case] { font-size: 16px; line-height: 1.5; font-weight: 500; color: #16181d;
          background: #fdf6f6; border-left: 3px solid #8a1c1c; border-radius: 0 6px 6px 0;
@@ -151,6 +154,7 @@
   .sign-controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
   [data-sign-confirm][disabled] { opacity: 0.4; cursor: not-allowed; }
   [data-sign-decline] { background: #fff; color: #16181d; border-color: #d9dae0; }
+  .sign-next-step { font-size: 12px; color: #55596a; margin: 0 0 4px; }
   [data-sign-claim] { font-size: 12px; color: #55596a; margin: 0 0 8px; }
   [data-sign-status] { font-size: 13px; margin: 0; }
   [data-sign-status]:empty { display: none; }
@@ -181,11 +185,18 @@
          align-items: baseline; gap: 12px; padding: 5px 0; font-size: 13px;
          border-top: 1px solid #eceef3; }
   #surface-inspector [data-tool-row]:first-child { border-top: 0; }
-  #surface-inspector .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #surface-inspector .tool-name { flex: 0 0 auto; white-space: nowrap;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  #surface-inspector .tool-meta { display: flex; justify-content: flex-end; align-items: baseline;
+         gap: 10px; min-width: 0; flex: 1 1 auto; white-space: nowrap; }
   #surface-inspector .tool-kind { font-size: 11px; text-transform: uppercase;
-         letter-spacing: 0.06em; color: #8b8fa0; }
+         letter-spacing: 0.06em; color: var(--ink-faint); flex: 0 0 auto; }
+  #surface-inspector .tool-purpose { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+         white-space: nowrap; color: #55596a; }
+  #surface-inspector .auditor-summary { margin: -2px 0 10px; font-size: 12px; color: #55596a; }
   #surface-inspector .inspector-source { margin: 10px 0 0; font-size: 12px; color: #55596a;
          border-top: 1px solid #eceef3; padding-top: 8px; }
+  #surface-inspector .inspector-provenance { margin: 3px 0 0; font-size: 12px; color: #55596a; }
   /* Report editor. THE PROVENANCE MUST READ AT A GLANCE IN A STILL —
      that is F2's acceptance bar and a FAIL condition, not a nicety. So the
      distinction is carried by TEXT plus weight plus a rule, never by colour
@@ -204,7 +215,7 @@
          font-size: 12px; color: #55596a; }
   [data-field-cell] .field-value { font-weight: 600; }
   [data-field-cell] .field-source { font-size: 11px; text-transform: uppercase;
-         letter-spacing: 0.06em; color: #8b8fa0; white-space: nowrap; }
+         letter-spacing: 0.06em; color: var(--ink-faint); white-space: nowrap; }
   /* An agent value and a human value must be distinguishable without colour. */
   [data-source="agent"] { border-left-color: #d9dae0; }
   [data-source="human"] { border-left-color: #16181d; background: #fbfbfc; }
@@ -232,11 +243,8 @@
 <div id="agent-banner" role="status"></div>
 
 <header>
-  <h1>outpocket — expense desk</h1>
-  <p class="lede">
-    Your agent works inside the session you are already signed into. Every write
-    is checked again on the server, per request, against that same session.
-  </p>
+  <h1>outpocket — safer expense reports with your own agent</h1>
+  <p class="lede">Bring your own agent to draft and check expenses inside the session you already use. The server rechecks every change; signing stays in this page and is not exposed as an agent tool. Choose Chen to file a report or Ruiz to review one.</p>
 </header>
 
 <main>
@@ -250,7 +258,7 @@
   </section>
 
   <section data-login-panel>
-    <h2 style="font-size:15px;margin:0 0 10px">Sign in as</h2>
+    <h2 style="font-size:15px;margin:0 0 10px">Choose a demo role</h2>
     <p data-login-error role="alert"></p>
 
     <!-- EXACTLY TWO. Static markup, present in every session state, hidden but

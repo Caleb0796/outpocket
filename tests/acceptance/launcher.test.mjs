@@ -21,6 +21,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { demoBannerText, labelAsDemo } from "../../src/page/demo-mode.js";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // Quoted VERBATIM from erp/graph.json H1.accept. The drift guard at the bottom of this file
@@ -141,4 +143,28 @@ test("the two quoted commands are still verbatim in erp/graph.json", () => {
   for (const cmd of [CMD_CDP, CMD_MANUAL]) {
     assert.ok(spans.includes(cmd), `H1.accept no longer quotes: ${cmd}\nspans: ${JSON.stringify(spans)}`);
   }
+});
+
+// F4a's demo state belongs beside launcher coverage because both assertions are
+// about what a filmed run declares before the first interaction. Pin all three
+// sentences: a static "running" label after S3 is a false progress report even
+// when the underlying demo state is correct.
+test("the seeded demo banner has exact start, working, and complete states", () => {
+  assert.equal(
+    demoBannerText(7, "start"),
+    "Automated demo · seed 7 · Signing in as Chen… Nothing will be submitted.",
+  );
+  assert.equal(
+    demoBannerText(7, "working"),
+    "Automated demo · seed 7 · Building and checking a draft… Nothing will be submitted.",
+  );
+  assert.equal(
+    demoBannerText(7, "complete"),
+    "Demo complete · seed 7 · Clean draft ready to review below. Nothing was submitted; signing still requires you.",
+  );
+
+  const banner = { textContent: "stale running text" };
+  const doc = { getElementById: (id) => id === "agent-banner" ? banner : null };
+  assert.equal(labelAsDemo(doc, 7, "complete"), true);
+  assert.equal(banner.textContent, demoBannerText(7, "complete"));
 });

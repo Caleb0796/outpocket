@@ -193,7 +193,9 @@ export function respondBody({ requestId, decision, reason = null, confirmToken, 
  * still frame should not have to scroll between the consequence and the place
  * they put their name.
  */
-export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = null } = {}) {
+export function renderSignDialog(doc, {
+  signRequest, confirmToken, fetchImpl = null, sessionName = null,
+} = {}) {
   const idPart = String(signRequest?.request_id ?? "request").replace(/[^a-z0-9_-]/gi, "-");
   const headingId = `sign-heading-${idPart}`;
   const consequenceId = `sign-consequence-${idPart}`;
@@ -205,6 +207,7 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
   });
   const sentence = certificationSentence(signRequest);
   const policyVersion = validPolicyVersion(signRequest?.policy_version);
+  const displayName = typeof sessionName === "string" && sessionName.trim() ? sessionName.trim() : null;
 
   root.appendChild(el(doc, "h2", { class: "sign-heading", id: headingId, tabindex: "-1" }, "Sign this report"));
 
@@ -224,7 +227,11 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
   const line = el(doc, "div", { "data-signature-line": "" });
   line.appendChild(el(doc, "span", { class: "sig-rule" }, "—————————————"));
   line.appendChild(el(doc, "span", { class: "sig-who" },
-    signRequest?.persona_name ? `${signRequest.persona_name}, signing as themselves` : "signing as the session holder"));
+    displayName
+      ? `${displayName} · current authenticated session`
+      : signRequest?.persona_name
+        ? `${signRequest.persona_name}, signing as themselves`
+        : "signing as the session holder"));
   root.appendChild(line);
 
   // The one place confirm_token ever exists in this product outside the server.
@@ -239,8 +246,12 @@ export function renderSignDialog(doc, { signRequest, confirmToken, fetchImpl = n
     confirm.setAttribute("data-sign-blocked", sentence ? "no-policy-version" : "no-disclosure");
   }
   controls.appendChild(confirm);
-  controls.appendChild(el(doc, "button", { type: "button", "data-sign-decline": "" }, "Send back instead"));
+  controls.appendChild(el(doc, "button", { type: "button", "data-sign-decline": "" },
+    "Send back — keep draft editable"));
   root.appendChild(controls);
+
+  root.appendChild(el(doc, "p", { class: "sign-next-step" },
+    "Signing records this session’s decision on the server; the agent must call submit_expense_report again to finish."));
 
   root.appendChild(el(doc, "p", { "data-sign-claim": "" },
     "A commit cannot be made without a POST from this authenticated session to " +
@@ -596,7 +607,10 @@ export function mountSignDialog({
   if (!region || !signRequest) return null;
   region.textContent = "";
   region.setAttribute?.("data-sign-active", "");
-  const root = renderSignDialog(doc, { signRequest, confirmToken, fetchImpl });
+  // The name is display-only and comes from the identity the shell already
+  // rendered from /api/me. It is never copied into signRequest or respondBody.
+  const sessionName = doc?.querySelector?.("[data-session-name]")?.textContent?.trim() || null;
+  const root = renderSignDialog(doc, { signRequest, confirmToken, fetchImpl, sessionName });
   root.previousFocus = doc.activeElement ?? null;
   root.onRestart = onRestart;
   root.onDecisionAccepted = ({ decision, message }) => closeAcceptedDialog(root, { doc, decision, message });
@@ -604,7 +618,9 @@ export function mountSignDialog({
 
   root.addEventListener?.("cancel", (event) => {
     event.preventDefault?.();
-    setStatus(root, "Choose Sign this report or Send back instead to finish this review.", { kind: "refused" });
+    setStatus(root,
+      "Choose Sign this report or Send back — keep draft editable to finish this review.",
+      { kind: "refused" });
   });
   keepFocusInDialog(root, doc);
 

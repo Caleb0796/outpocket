@@ -42,6 +42,12 @@ import { LIMITS } from "../policy.js";
 const DEMO_FLAG = "demo";
 const SEED_PARAM = "seed";
 
+const DEMO_BANNER = Object.freeze({
+  start: (seed) => `Automated demo · seed ${seed} · Signing in as Chen… Nothing will be submitted.`,
+  working: (seed) => `Automated demo · seed ${seed} · Building and checking a draft… Nothing will be submitted.`,
+  complete: (seed) => `Demo complete · seed ${seed} · Clean draft ready to review below. Nothing was submitted; signing still requires you.`,
+});
+
 const inBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
 /** mulberry32 — small, exact, and dependency-free. Same seed, same stream, forever. */
@@ -160,42 +166,24 @@ async function waitFor(fn, { timeoutMs = 15000, everyMs = 50 } = {}) {
 }
 
 /**
- * Say so, on the page. Never throws — a missing element must not kill the demo.
+ * The banner is a progress witness, not merely a disclosure label.
  *
- * APPENDS, and does not defer. The first version of this deferred: it wrote the
- * demo label only when #agent-banner was EMPTY, on the reasoning that H3's
- * "simulated agent" text is the more important message and must not be
- * overwritten. That reasoning is right and the conclusion was wrong, because the
- * two are not alternatives.
- *
- * FOUND BY UX, and it is the same family as the banner defect this seat caught on
- * H3: with WebMCP ABSENT and ?demo=1 set, the page is BOTH self-driving AND
- * running a scripted seeded filing. H3's labelAsSimulated writes the banner
- * unconditionally, so deferring meant the demo half was NEVER disclosed in that
- * configuration — in either tag order. This module's own header says an automated
- * run that looks like a human filing is dishonest for the same reason an
- * unlabelled self-driving agent is, and in exactly the case where both were true
- * it said only one of them.
- *
- * So: empty banner gets the full sentence, occupied banner gets the demo clause
- * appended. Nothing is ever overwritten and nothing is ever silently dropped.
+ * The old implementation wrote one "running" sentence and never touched it
+ * again, so a finished S3 draft and a stalled sign-in were visually identical.
+ * These three phases are deliberately complete sentences: a still frame says
+ * what the automation is doing, whether it has finished, and that no submission
+ * occurred. The final write happens before `done`, making the harness's settled
+ * bit and the sentence a single observable state rather than a race.
  */
-export function labelAsDemo(doc, seed) {
-  const full =
-    `Demo mode — this page is running a scripted filing with seed ${seed}. ` +
-    "Every choice below comes from that seed, so the same link replays the same demo. " +
-    "Nothing is submitted: signing is still the human's act.";
-  const clause = `Demo mode, seed ${seed} — a scripted filing; nothing is submitted.`;
+export function demoBannerText(seed, phase = "start") {
+  return (DEMO_BANNER[phase] ?? DEMO_BANNER.start)(seed);
+}
+
+export function labelAsDemo(doc, seed, phase = "start") {
   try {
     const b = doc && doc.getElementById("agent-banner");
     if (!b) return false;
-    const existing = b.textContent.trim();
-    if (existing === "") {
-      b.textContent = full;
-    } else if (!existing.includes(`Demo mode, seed ${seed}`) && !existing.startsWith("Demo mode —")) {
-      // Idempotent: re-labelling must not stack the clause up twice.
-      b.textContent = `${existing} · ${clause}`;
-    }
+    b.textContent = demoBannerText(seed, phase);
     return true;
   } catch { /* a label is not worth failing a demo over */ }
   return false;
@@ -268,6 +256,7 @@ export async function runDemo({ seed, tools, shell, doc }) {
   }
   steps.push({ tool: "(sign-in)", ok: true, ms: Math.round(now() - tSignIn),
     text: "signed in via the page's own [data-persona] affordance" });
+  labelAsDemo(doc, seed, "working");
 
   // 2 — the plan, decided entirely by the seed.
   const erpNow = () => tools.erp.now();
@@ -300,7 +289,9 @@ export async function runDemo({ seed, tools, shell, doc }) {
 }
 
 // ── mount ────────────────────────────────────────────────────────────────────
-export const demoMode = { readDemoParams, planFor, runDemo, makeRng, labelAsDemo, pickProject };
+export const demoMode = {
+  readDemoParams, planFor, runDemo, makeRng, labelAsDemo, demoBannerText, pickProject,
+};
 
 if (inBrowser) {
   globalThis.outpocketDemo = demoMode;
@@ -324,6 +315,7 @@ if (inBrowser) {
         seed: params.seed, tools, shell: globalThis.outpocketShell, doc: document,
       });
       demoMode.result = result;
+      labelAsDemo(document, params.seed, "complete");
       demoMode.done = true;
       return result;
     })();

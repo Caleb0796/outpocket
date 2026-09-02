@@ -11,10 +11,26 @@
 // one.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHttpServer } from "../../server/index.mjs";
+
+const PAGE_HTML = readFileSync(new URL("../../src/page/index.html", import.meta.url), "utf8");
+
+test("the first screen states the agent boundary, demo roles, contrast token, and keyboard focus", () => {
+  assert.ok(PAGE_HTML.includes("<title>outpocket — expense desk</title>"));
+  assert.ok(PAGE_HTML.includes("<h1>outpocket — safer expense reports with your own agent</h1>"));
+  assert.ok(PAGE_HTML.includes(
+    '<p class="lede">Bring your own agent to draft and check expenses inside the session you already use. ' +
+    "The server rechecks every change; signing stays in this page and is not exposed as an agent tool. " +
+    "Choose Chen to file a report or Ruiz to review one.</p>",
+  ));
+  assert.ok(PAGE_HTML.includes(">Choose a demo role</h2>"));
+  assert.match(PAGE_HTML, /--ink-faint:\s*#6b6f80/);
+  assert.match(PAGE_HTML,
+    /button:focus-visible, input:focus-visible \{ outline: 3px solid #005fcc; outline-offset: 3px; \}/);
+});
 
 function makeFixtureRoot() {
   const root = mkdtempSync(join(tmpdir(), "outpocket-static-"));

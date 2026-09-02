@@ -126,6 +126,55 @@ body {
 [data-sign-claim] { color: var(--ink-soft); font-size: 12px; }
 [data-sign-already-answered] { color: var(--alarm); font-weight: 600; }
 
+/* ── SB-12 / SB-14: refusals and policy findings stay in the editor frame ──
+ * These are evidence, not toast notifications: a rejection that fades or
+ * renders outside [data-region="editor"] cannot share a still frame with the
+ * attempted edit. The server's message and fix remain ordinary selectable text.
+ * Blocking findings use the same alarm treatment as the signature consequence;
+ * warnings and clean state remain quieter so severity is legible without colour. */
+[data-operation-status],
+[data-validation-findings] {
+  font-size: 13px;
+  line-height: 1.45;
+}
+[data-operation-status] { margin: 0 0 10px; }
+[data-operation-status]:empty,
+[data-validation-findings]:empty { display: none; }
+[data-operation-status]:not(:empty) {
+  color: var(--alarm);
+  background: var(--alarm-wash);
+  border-left: 3px solid var(--alarm);
+  padding: 9px 11px;
+  font-weight: 600;
+}
+[data-validation-findings] { margin: 0 0 12px; }
+[data-validation-findings] > p {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--rule-faint);
+}
+[data-validation-findings] > p:first-child { border-top: 0; }
+[data-finding-severity="block"] {
+  color: var(--alarm);
+  background: var(--alarm-wash);
+  border-left: 3px solid var(--alarm);
+}
+[data-finding-severity="warn"] {
+  color: var(--ink-soft);
+  background: #fff8e6;
+  border-left: 3px solid #e8d9a8;
+}
+[data-validation-clean] {
+  color: var(--ink-soft);
+  background: #f7f8fa;
+}
+[data-editor-empty-message] {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* ── regions ─────────────────────────────────────────────────────────────── */
 [data-region] {
   background: var(--panel);

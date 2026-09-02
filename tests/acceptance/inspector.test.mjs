@@ -264,6 +264,67 @@ test("the inspector reads the BROWSER's surface, not our own registry", async ()
     `the inspector fell back to ${JSON.stringify(r.source)} — it is not showing what the browser holds`);
 });
 
+test("the served S5 view explains auditor limits and changes the human receipt card", async () => {
+  await page.goto(app.origin + "/");
+  await page.evaluate(`(async () => {
+    document.querySelector('[data-login="ruiz"]').click();
+    await new Promise(r => setTimeout(r, 500));
+  })()`);
+  const view = await page.evaluate(`(() => {
+    const state = document.querySelector('[data-surface-state]');
+    const human = document.querySelector('[data-channel="human"]');
+    const agent = document.querySelector('[data-channel="agent"]');
+    const purposes = [...document.querySelectorAll('#surface-inspector .tool-purpose')];
+    return {
+      state: state?.getAttribute('data-surface-state'),
+      stateTitle: state?.getAttribute('title'),
+      stateText: state?.textContent,
+      summary: document.querySelector('#surface-inspector .auditor-summary')?.textContent,
+      receiptHeading: document.querySelector('[data-receipt-channel] .channel-heading')?.textContent,
+      humanCan: human?.querySelector('.channel-can')?.textContent,
+      humanDetail: human?.querySelector('.channel-detail')?.textContent,
+      agentCan: agent?.querySelector('.channel-can')?.textContent,
+      agentDetail: agent?.querySelector('.channel-detail')?.textContent,
+      enforcement: document.querySelector('[data-receipt-enforcement]')?.textContent,
+      source: document.querySelector('[data-surface-source]')?.textContent,
+      purposes: purposes.map((node) => ({
+        text: node.textContent,
+        whiteSpace: getComputedStyle(node).whiteSpace,
+        overflow: getComputedStyle(node).overflow,
+        textOverflow: getComputedStyle(node).textOverflow,
+      })),
+    };
+  })()`);
+
+  assert.deepEqual([view.state, view.stateTitle, view.stateText], ["S5", "S5", "Auditor · read-only"]);
+  assert.equal(view.summary,
+    "Auditor view — read only. You can review reports and receipt metadata, and ask your agent to check the tamper-evident day book and its verification result. No filing, editing, signing, or submission tools are available.");
+  assert.equal(view.receiptHeading, "Receipts — you attach; agents only link");
+  assert.equal(view.humanCan, "Review receipt metadata");
+  assert.equal(view.humanDetail, "This auditor view cannot attach files.");
+  assert.equal(view.agentCan, "An agent can only link an existing receipt ID from list_receipts.");
+  assert.equal(view.agentDetail, "No registered tool accepts file content.");
+  assert.equal(view.enforcement,
+    "Enforced by this page: every workflow state is checked to ensure no registered tool accepts file content.");
+  assert.equal(view.source, "Published by this page through WebMCP");
+  assert.ok(view.purposes.length > 0);
+  assert.ok(view.purposes.every((purpose) => purpose.text && purpose.whiteSpace === "nowrap" &&
+    purpose.overflow === "hidden" && purpose.textOverflow === "ellipsis"));
+
+  const employee = await page.evaluate(`(async () => {
+    document.querySelector('[data-login="chen"]').click();
+    await new Promise(r => setTimeout(r, 500));
+    const human = document.querySelector('[data-channel="human"]');
+    return {
+      can: human?.querySelector('.channel-can')?.textContent,
+      detail: human?.querySelector('.channel-detail')?.textContent,
+    };
+  })()`);
+  assert.equal(employee.can, "Choose a file here.");
+  assert.equal(employee.detail,
+    "The page sends its name, size, and SHA-256 digest—not the file bytes—to the server so duplicates can be detected.");
+});
+
 // ── the simulated branch ────────────────────────────────────────────────────
 //
 // THE BROWSER TESTS ABOVE CANNOT REACH THIS BRANCH, AND THAT IS WHY IT NEEDS
@@ -278,6 +339,33 @@ test("the inspector reads the BROWSER's surface, not our own registry", async ()
 // convenient is not the environment that ships.
 
 import { readSurface, renderInspector, SOURCE } from "../../src/page/ui/inspector.js";
+
+function fakeInspectorDocument() {
+  return {
+    createElement: (tag) => ({
+      tagName: tag, attributes: new Map(), children: [], _text: "",
+      setAttribute(k, v) { this.attributes.set(k, String(v)); },
+      getAttribute(k) { return this.attributes.get(k) ?? null; },
+      appendChild(c) { this.children.push(c); return c; },
+      set textContent(v) { this._text = String(v); this.children = []; },
+      get textContent() { return this.children.length ? this.children.map((c) => c.textContent).join("") : this._text; },
+    }),
+  };
+}
+
+function findNode(root, predicate) {
+  if (predicate(root)) return root;
+  for (const child of root.children ?? []) {
+    const found = findNode(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+
+function withAttr(name, value = undefined) {
+  return (node) => node.attributes?.has(name) &&
+    (value === undefined || node.attributes.get(name) === value);
+}
 
 test("readSurface reports a SIMULATED surface as simulated, not as the browser's own", async () => {
   const tools = [{ name: "get_session_scope", annotations: { readOnlyHint: true } }];
@@ -302,17 +390,64 @@ test("readSurface reports a SIMULATED surface as simulated, not as the browser's
 });
 
 test("the rendered panel carries the simulated provenance where a judge can read it", () => {
-  const doc = {
-    createElement: (tag) => ({
-      tagName: tag, attributes: new Map(), children: [], _text: "",
-      setAttribute(k, v) { this.attributes.set(k, String(v)); },
-      getAttribute(k) { return this.attributes.get(k) ?? null; },
-      appendChild(c) { this.children.push(c); return c; },
-      set textContent(v) { this._text = String(v); },
-      get textContent() { return this.children.length ? this.children.map((c) => c.textContent).join("") : this._text; },
-    }),
-  };
+  const doc = fakeInspectorDocument();
   const root = renderInspector(doc, { tools: [], source: SOURCE.SIMULATED, policyVersion: "2026-08.1" });
   assert.match(root.textContent, /simulated/i,
     "the provenance line must be visible text, not only an attribute — a judge reads the page, not the DOM");
+});
+
+test("the inspector uses first-glance copy while retaining S0–S5 in attributes and tool names", () => {
+  const labels = {
+    S0: "Signed out",
+    S1: "Employee · no report open",
+    S2: "Employee · draft needs attention",
+    S3: "Employee · draft ready to submit",
+    S4: "Employee · submitted · read-only",
+    S5: "Auditor · read-only",
+  };
+  for (const [state, label] of Object.entries(labels)) {
+    const root = renderInspector(fakeInspectorDocument(), {
+      state,
+      source: SOURCE.BROWSER,
+      policyVersion: "2026-08.1",
+    });
+    const chip = findNode(root, withAttr("data-surface-state", state));
+    assert.equal(chip?.textContent, label);
+    assert.equal(chip?.getAttribute("title"), state);
+    assert.match(root.textContent, /Available to your agent now/);
+    assert.equal(findNode(root, withAttr("data-surface-source", SOURCE.BROWSER))?.textContent,
+      "Published by this page through WebMCP");
+  }
+});
+
+test("each tool row keeps its real name and access label and shows only the description's first sentence", () => {
+  const description = "Create a draft report in the signed-in session. A second sentence must not occupy the row.";
+  const root = renderInspector(fakeInspectorDocument(), {
+    tools: [{
+      name: "create_expense_report",
+      description,
+      annotations: { readOnlyHint: false },
+    }],
+    source: SOURCE.BROWSER,
+    policyVersion: "2026-08.1",
+    state: "S1",
+  });
+  const row = findNode(root, withAttr("data-tool-row", "create_expense_report"));
+  const purpose = findNode(row, (node) => node.getAttribute?.("class") === "tool-purpose");
+  const kind = findNode(row, (node) => node.getAttribute?.("class") === "tool-kind");
+  assert.equal(row?.children[0]?.textContent, "create_expense_report");
+  assert.equal(kind?.textContent, "write");
+  assert.equal(purpose?.textContent, "Create a draft report in the signed-in session.");
+  assert.equal(purpose?.getAttribute("title"), description);
+});
+
+test("S5 places the complete auditor limitation directly below the inspector heading", () => {
+  const root = renderInspector(fakeInspectorDocument(), {
+    state: "S5",
+    source: SOURCE.BROWSER,
+    policyVersion: "2026-08.1",
+  });
+  assert.equal(root.children[1].getAttribute("class"), "auditor-summary");
+  assert.equal(root.children[1].textContent,
+    "Auditor view — read only. You can review reports and receipt metadata, and ask your agent to check the tamper-evident day book and its verification result. No filing, editing, signing, or submission tools are available.");
 });
