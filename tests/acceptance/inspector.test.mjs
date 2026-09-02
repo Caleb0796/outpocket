@@ -35,10 +35,25 @@ import { existsSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { flagsFor, resolveBinary } from "../../tools/chrome.mjs";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const RUN_BROWSER_TESTS = process.env.OUTPOCKET_RUN_BROWSER_TESTS === "1";
-const browserTest = RUN_BROWSER_TESTS ? test : test.skip;
+const BROWSER_TEST_OVERRIDE = process.env.OUTPOCKET_RUN_BROWSER_TESTS;
+let chromeBin, browserSkipReason;
+if (BROWSER_TEST_OVERRIDE === "0") {
+  browserSkipReason = "OUTPOCKET_RUN_BROWSER_TESTS=0";
+} else if (BROWSER_TEST_OVERRIDE !== "1") {
+  try {
+    chromeBin = resolveBinary();
+    if (!existsSync(chromeBin)) browserSkipReason = `Chrome binary not found: ${chromeBin}`;
+  } catch (err) {
+    browserSkipReason = `Chrome binary not found: ${err.message}`;
+  }
+}
+const RUN_BROWSER_TESTS = browserSkipReason === undefined;
+const browserTest = RUN_BROWSER_TESTS
+  ? test
+  : (name, fn) => test(name, { skip: browserSkipReason }, fn);
 
 // ── the served page ─────────────────────────────────────────────────────────
 
@@ -49,20 +64,12 @@ async function serveApp() {
   return { origin: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) };
 }
 
-function chromeBinary() {
-  if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
-  const candidates = process.platform === "darwin"
-    ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
-    : ["/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
-  for (const c of candidates) if (existsSync(c)) return c;
-  throw new Error(`no Chrome found; set CHROME_BIN. Tried: ${candidates.join(", ")}`);
-}
-
 async function launchChrome() {
-  const { flagsFor } = await import(resolve(REPO, "tools", "chrome.mjs"));
   const profile = join(tmpdir(), `outpocket-inspector-${process.pid}-${Date.now()}`);
   const flags = flagsFor("cdp", { headless: true, port: 0, userDataDir: profile });
-  const proc = spawn(chromeBinary(), flags, { stdio: ["ignore", "ignore", "pipe"] });
+  const binary = chromeBin ?? resolveBinary();
+  if (!existsSync(binary)) throw new Error(`Chrome binary not found: ${binary}`);
+  const proc = spawn(binary, flags, { stdio: ["ignore", "ignore", "pipe"] });
 
   const wsUrl = await new Promise((res, rej) => {
     const t = setTimeout(() => rej(new Error("Chrome did not announce a DevTools endpoint")), 20000);

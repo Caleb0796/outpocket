@@ -78,7 +78,7 @@ export function launchLabel(scenario, flags) {
   return `outpocket-chrome scenario=${scenario} flag=${feature ? `--enable-features=${feature}` : "(none)"} flags=${flags.length}`;
 }
 
-function resolveBinary() {
+export function resolveBinary() {
   if (process.env.CHROME_BIN) return process.env.CHROME_BIN;
   const candidates =
     process.platform === "darwin"
