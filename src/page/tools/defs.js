@@ -192,7 +192,7 @@ export function buildDefs(erp, hooks = {}) {
   const get_session_scope = {
     name: "get_session_scope",
     description:
-      "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency. Everything an expense report can charge against comes from this session's scope, not from anything the agent supplies.",
+      "Read the signed-in person's expense scope: name, role, cost center, chargeable projects with active flags, approver, and reimbursement currency.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => {
@@ -209,7 +209,7 @@ export function buildDefs(erp, hooks = {}) {
   const get_expense_policy = {
     name: "get_expense_policy",
     description:
-      "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. This is the same document the page enforces on every write — no policy needs to live in a prompt. Money is integer cents (limits_cents) and FX is integer micro-USD per unit; add_expense_line takes decimal amounts.",
+      "Read the company expense policy as compact JSON: per-category caps, receipt and itemization thresholds, non-reimbursable items, accepted currencies with conversion rates, filing window, and the policy version. Money limits are cents, FX rates are micro-USD, and line amounts are decimal.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => ok(JSON.stringify(policyForAgent())),
@@ -232,12 +232,12 @@ export function buildDefs(erp, hooks = {}) {
   const create_expense_report = {
     name: "create_expense_report",
     description:
-      "Create a new draft expense report and open it in the page. Needs a short title and a project code from the employee's own scope (see get_session_scope); charges to closed or out-of-scope projects are refused by the server.",
+      "Create a new draft expense report and open it in the page. Needs a title and an active project from get_session_scope.",
     inputSchema: {
       type: "object",
       properties: {
-        title: { ...S, description: "Short human-readable title, e.g. 'Boston client workshop'" },
-        project: { ...S, enum: activeProjectCodes, description: "Active project code from get_session_scope, e.g. FALCON" },
+        title: { ...S, description: "Short title, e.g. 'Boston client workshop'" },
+        project: { ...S, enum: activeProjectCodes, description: "Active project from get_session_scope" },
       },
       required: ["title", "project"],
     },
@@ -252,7 +252,7 @@ export function buildDefs(erp, hooks = {}) {
   const open_expense_report = {
     name: "open_expense_report",
     description:
-      "Open an expense report in the page so the employee and the agent are looking at the same thing. Takes the report id from list_expense_reports.",
+      "Open an expense report in the page so the employee and the agent are looking at the same thing.",
     inputSchema: {
       type: "object",
       properties: { report_id: { ...S, description: "from list_expense_reports, e.g. RP-1018" } },
@@ -269,7 +269,7 @@ export function buildDefs(erp, hooks = {}) {
   const get_open_report = {
     name: "get_open_report",
     description:
-      "Read the report currently open in the page: header; lines, truncated at the output budget with a note when a report is large, with amounts, receipt links and provenance (agent-filled vs employee-edited); totals and validation counts.",
+      "Read the report currently open in the page: header, lines, amounts, receipt links, provenance, totals, and validation counts; large reports are truncated with a note.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: () => {
@@ -318,23 +318,23 @@ export function buildDefs(erp, hooks = {}) {
   };
 
   const lineProps = {
-    date: { ...S, format: "date", description: "Receipt date, YYYY-MM-DD" },
-    merchant: { ...S, description: "Merchant name as printed on the receipt" },
-    category: { type: "string", enum: CATEGORIES, description: "Expense category from the receipt; `other` also needs a business-purpose description" },
-    amount: { type: "number", exclusiveMinimum: 0, description: "Receipt total as a decimal in its own currency, e.g. 186.40" },
+    date: { ...S, format: "date", description: "YYYY-MM-DD" },
+    merchant: { ...S, description: "Receipt merchant" },
+    category: { type: "string", enum: CATEGORIES, description: "Category; `other` needs a business purpose" },
+    amount: { type: "number", exclusiveMinimum: 0, description: "Receipt total as a decimal, e.g. 186.40" },
     currency: { type: "string", enum: Object.keys(FX), default: "USD", description: "Defaults to USD" },
-    attendees: { type: "integer", minimum: 1, description: "Meals: number of people on the receipt" },
-    nights: { type: "integer", minimum: 1, description: "Lodging: number of nights on the folio" },
+    attendees: { type: "integer", minimum: 1, description: "Meal attendees" },
+    nights: { type: "integer", minimum: 1, description: "Lodging nights" },
     itemization: {
       type: "array",
-      description: "Line items transcribed from the receipt: [{label, amount}]. Required for meals ≥ $75.",
+      description: "Items [{label, amount}]; required for meals ≥ $75",
       items: {
         type: "object",
         properties: { label: S, amount: { type: "number" } },
         required: ["label", "amount"],
       },
     },
-    description: { ...S, description: "One-line business purpose" },
+    description: { ...S, description: "Business purpose" },
   };
 
   const coerceLine = (args) => {
@@ -348,7 +348,7 @@ export function buildDefs(erp, hooks = {}) {
   const add_expense_line = {
     name: "add_expense_line",
     description:
-      "Add one expense line, transcribed from one receipt, to the open draft report. The server validates it against the live policy immediately and returns any violations with fix hints — expect to iterate until the line is clean.",
+      "Add one expense line, transcribed from one receipt, to the open draft report. Returns live-policy violations and fix hints.",
     inputSchema: {
       type: "object",
       properties: lineProps,
@@ -367,7 +367,7 @@ export function buildDefs(erp, hooks = {}) {
   const update_expense_line = {
     name: "update_expense_line",
     description:
-      "Update fields of one line on the open draft report (partial update; only the fields given change). Returns the line's fresh validation verdict — this is how violations get fixed.",
+      "Update fields of one line on the open draft report (partial update; only the fields given change). Returns fresh validation.",
     inputSchema: {
       type: "object",
       properties: { line_id: { ...S, description: "From get_open_report, e.g. ln_3" }, ...lineProps },
@@ -442,7 +442,7 @@ export function buildDefs(erp, hooks = {}) {
   const validate_expense_report = {
     name: "validate_expense_report",
     description:
-      "Run the full policy validation over the open report and return violations, truncated at the output budget with a note when a report is large: code, severity (block or warn), field, message and fix hint, plus totals. Blocking violations keep the report from being submittable.",
+      "Run full policy validation on the open report and return totals plus violations with code, severity, field, message, and fix hint; large results are truncated with a note. Blocking violations prevent submission.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, untrustedContentHint: true },
     execute: async (args, opts) => {
