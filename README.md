@@ -42,7 +42,7 @@ Sign in as chen, connect an agent to the page, and paste:
 Work only through the tools registered by this page. Read my signed-in scope and the current expense policy. Create a report titled "Judge smoke test" under the first active project in my scope. Add one line dated today for City Cab Co., category transport, USD 20.00, and set the description (business purpose) to "Airport transfer". Follow any returned fix hints until there are no blocking findings, then validate the report. Stop when submit_expense_report becomes available, tell me the report id, and do not submit it.
 ```
 
-That walk starts at S1, creates an open draft at S2, and ends at S3 with
+That walk starts at S1, creates an open draft at S3, and ends at S2 with
 `submit_expense_report` present. The page's surface inspector makes the 6 → 13
 → 14 transition visible while the agent works.
 
@@ -141,6 +141,20 @@ In DevTools, this feature check must return `true`:
 
 The supported entry point is `document.modelContext`.
 
+## Run locally
+
+Use Node.js 22, then run:
+
+```sh
+npm ci
+npm test
+npm start
+```
+
+Open <http://localhost:3000/>. No environment variables are required. Set
+`PORT` only when port 3000 is unavailable. The production start command and
+deployment verification steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Demo personas
 
 Both are one-click personas with no password. Their server-issued session
@@ -155,7 +169,7 @@ cookie determines the role used for every request.
 
 ## The surface is the workflow menu
 
-![Chen Xiao signed in as an employee, with the S3 surface inspector listing 14 tools above report RP-1018.](submission-media/gallery-clean-surface.png)
+![Chen Xiao signed in as an employee, with the S2 surface inspector listing 14 tools above report RP-1018.](submission-media/gallery-clean-surface.png)
 
 | Registration state | Tool count | Visible change |
 | --- | ---: | --- |
@@ -172,7 +186,7 @@ the commit route independently recomputes the verdict. A report with blocking
 findings is refused with HTTP 422 `E_NOT_CLEAN` even if a caller bypasses the
 page.
 
-![Chen Xiao's S2 draft view, with the surface inspector listing 13 tools and report RP-1018 showing an amount of 2000 in the editor.](submission-media/gallery-policy-block.png)
+![Chen Xiao's S3 draft view, with the surface inspector listing 13 tools and report RP-1018 showing an amount of 2000 in the editor.](submission-media/gallery-policy-block.png)
 
 ## What the signature adds—and what it does not
 
@@ -199,13 +213,14 @@ description.
 
 ## Other current limits
 
-- The deployment is one Node.js process with in-memory sessions, reports, sign
-  requests, and day-book state. A page reload survives; a process restart does
-  not. There is no multi-instance coordination or durable database yet.
-- The demo personas are shared, not a multi-tenant account model. Multiple
-  visitors using one persona in the same running process see and can edit one
-  another's drafts. A deployment restart clears those drafts with the rest of
-  the in-memory state.
+- The deployment is one Node.js process with in-memory sessions and isolated
+  browser workspaces containing reports, sign requests, and day-book state. A
+  page reload survives; a process restart does not. There is no multi-instance
+  coordination or durable database yet.
+- A new browser session receives its own demo workspace, so visitors using the
+  same persona do not see one another's drafts. Switching persona in the same
+  browser rotates the session id but keeps that workspace, allowing the
+  employee-to-auditor walkthrough to inspect the report it just submitted.
 - Receipt bytes stay in the browser. The server receives receipt metadata and a
   SHA-256 value computed in the browser; it does not receive or independently
   validate the attachment bytes. The chain therefore covers the recorded

@@ -98,15 +98,13 @@ export const SURFACE_RULES = Object.freeze({
 });
 
 // entity_id for a surface finding, and it must satisfy ^[a-z][a-z0-9_]{2,63}$.
-// Spelled out rather than lowercased from the compiler's id on purpose: "s2" and
-// "s3" carry a digit whose meaning has already been misread once in this project,
-// and the export's S2/S3 mean the opposite draft to the compiler's. A reader of
-// this field should never have to know which namespace produced it.
+// Spelled out rather than lowercased from the compiler's id so the value remains
+// descriptive when it is read outside the surface compiler.
 const STATE_ENTITY_ID = Object.freeze({
   S0: "s0_signed_out",
   S1: "s1_no_report_open",
-  S2: "s2_draft_dirty",
-  S3: "s3_draft_clean",
+  S2: "s2_draft_clean",
+  S3: "s3_draft_dirty",
   S4: "s4_report_submitted",
   S5: "s5_auditor",
 });

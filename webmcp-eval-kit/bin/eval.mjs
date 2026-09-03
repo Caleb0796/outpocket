@@ -1158,8 +1158,8 @@ function validateCapabilitySuite(suite) {
   const internalByCanonical = {
     "S0-anon": "S0",
     "S1-emp-home": "S1",
-    "S2-emp-draft-clean": "S3",
-    "S3-emp-draft-dirty": "S2",
+    "S2-emp-draft-clean": "S2",
+    "S3-emp-draft-dirty": "S3",
     "S4-emp-submitted": "S4",
     "S5-aud": "S5",
   };

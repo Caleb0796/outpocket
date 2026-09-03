@@ -369,7 +369,7 @@ const STATES = [
         }, { source: 'agent' });
         await new Promise(r => setTimeout(r, 400));
         const state = t.state();
-        if (state !== 'S3') return { ok: false, why: 'draft is not clean; state ' + state };
+        if (state !== 'S2') return { ok: false, why: 'draft is not clean; state ' + state };
 
         // FIRED, NOT AWAITED — see above.
         const pending = t.executeTool('submit_expense_report', {}, { source: 'agent' });

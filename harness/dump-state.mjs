@@ -165,7 +165,7 @@ export function dumpState(raw) {
   // Exit 0 twice, identical files, nothing observed.
   //
   // So the dump also refuses a demo that did not finish: every step must have
-  // succeeded, and the filing must have reached S3 — one clean line, the submit
+  // succeeded, and the filing must have reached S2 — one clean line, the submit
   // door open. That end state is the demo's whole point and it is not optional.
   if (demo) {
     const failed = (demo.steps ?? []).filter((s) => s.ok === false);
@@ -175,9 +175,9 @@ export function dumpState(raw) {
         "A half-run demo still produces a stable dump — the pre-seeded archive report is always " +
         "there — so two of them would diff clean while observing nothing. Fix the demo, not the dump.");
     }
-    if (demo.reachedState && demo.reachedState !== "S3") {
+    if (demo.reachedState && demo.reachedState !== "S2") {
       throw new DumpError("E_DEMO_INCOMPLETE",
-        `the demo stopped at ${demo.reachedState}, not S3. S3 is one clean line with the submit door ` +
+        `the demo stopped at ${demo.reachedState}, not S2. S2 is one clean line with the submit door ` +
         "open, which is the state this demo exists to reach; anything earlier means the filing did not happen.");
     }
   }

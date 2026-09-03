@@ -15,18 +15,14 @@
 //
 // ── two traps this file exists to not fall into ────────────────────────────────
 //
-// 1. THE STATE IDS CROSS OVER AT 2/3. The compiler's internal ids and the export's
-//    canonical ids are NOT positionally aligned:
+// 1. STATE IDS MUST AGREE AT 2/3. The compiler and export use the same ids:
 //
-//        export S2-emp-draft-clean (14 tools)  ==  compile.js internal S3
-//        export S3-emp-draft-dirty (13 tools)  ==  compile.js internal S2
+//        export S2-emp-draft-clean (14 tools)  ==  compile.js internal S2
+//        export S3-emp-draft-dirty (13 tools)  ==  compile.js internal S3
 //
-//    Mapping by the digit would label the dirty surface "clean" and the clean one
-//    "dirty" — an export that is wrong quietly, since the state count, the id order
-//    and the digests would all still check out. Every state below therefore names
-//    its `internal` id explicitly, and buildState() ASSERTS that the world it built
-//    actually landed there and compiled exactly MEMBERSHIP[internal]. The surface is
-//    read out of the real compiler, never transcribed.
+//    Every state names its `internal` id explicitly, and buildState() asserts that
+//    the world it built landed there and compiled exactly MEMBERSHIP[internal].
+//    The surface is read out of the real compiler, never transcribed.
 //
 // 2. `app_commit` MUST NOT BE `git rev-parse HEAD`. E5 fails when the committed
 //    export differs from a freshly generated one (RISK.md §5). If app_commit tracked
@@ -82,7 +78,7 @@ const utf8 = (s) => new TextEncoder().encode(s).length;
 const die = (msg) => { throw new Error(msg); };
 
 // ── the six canonical states ───────────────────────────────────────────────────
-// `internal` is the compiler's own id and is NOT derivable from the digit in `id`.
+// `internal` is written explicitly so a future rename cannot silently mislabel a surface.
 const STATES = [
   {
     id: "S0-anon", internal: "S0",
@@ -97,8 +93,8 @@ const STATES = [
     build: (erp) => { erp.signIn("chen", "human"); },
   },
   {
-    // 14 tools. The clean draft, and internal S3 — not S2.
-    id: "S2-emp-draft-clean", internal: "S3",
+    // 14 tools. The clean draft is S2 in both the compiler and export.
+    id: "S2-emp-draft-clean", internal: "S2",
     label: "Employee with a clean draft open; the report can be submitted",
     preconditions: { role: "employee", open_report: "draft", verdict: "clean" },
     build: (erp) => {
@@ -109,9 +105,9 @@ const STATES = [
     },
   },
   {
-    // 13 tools. The dirty draft, and internal S2 — not S3. One blocking violation
+    // 13 tools. The dirty draft is S3 in both the compiler and export. One blocking violation
     // removes submit_expense_report and nothing else.
-    id: "S3-emp-draft-dirty", internal: "S2",
+    id: "S3-emp-draft-dirty", internal: "S3",
     label: "Employee with a draft that carries a blocking violation",
     preconditions: { role: "employee", open_report: "draft", verdict: "dirty" },
     build: (erp) => {

@@ -7,8 +7,8 @@
 //
 //   S0  signed out                     ->  2 tools  get_signin_status
 //   S1  employee, no report open       ->  6 tools
-//   S2  employee, draft open and DIRTY -> 13 tools
-//   S3  employee, draft open and CLEAN -> 14 tools  (submit_expense_report appears)
+//   S2  employee, draft open and CLEAN -> 14 tools  (submit_expense_report appears)
+//   S3  employee, draft open and DIRTY -> 13 tools
 //   S4  employee, report submitted     ->  7 tools  (shrinks; every editing tool gone)
 //   S5  auditor                        ->  7 tools  (read-only by construction)
 //
@@ -70,8 +70,8 @@ const EDITING = [...BASE, "get_open_report", "add_expense_line", "update_expense
 export const MEMBERSHIP = Object.freeze({
   S0: Object.freeze(["get_signin_status", ABSENCE_TOOL_NAME]),
   S1: Object.freeze([...BASE, ABSENCE_TOOL_NAME]),
-  S2: Object.freeze([...EDITING, ABSENCE_TOOL_NAME]),
-  S3: Object.freeze([...EDITING, "submit_expense_report", ABSENCE_TOOL_NAME]),
+  S2: Object.freeze([...EDITING, "submit_expense_report", ABSENCE_TOOL_NAME]),
+  S3: Object.freeze([...EDITING, ABSENCE_TOOL_NAME]),
   S4: Object.freeze([...BASE, "get_open_report", ABSENCE_TOOL_NAME]),
   S5: Object.freeze(["get_session_scope", "get_expense_policy", "list_expense_reports", "get_report", "get_open_report", "get_day_book", ABSENCE_TOOL_NAME]),
 });
@@ -87,7 +87,7 @@ export function surfaceState(erp) {
   if (!open) return "S1";
   if (open.status !== "draft") return "S4";
   const vd = erp.verdict(open.id);
-  return vd.clean && open.lines.length ? "S3" : "S2";
+  return vd.clean && open.lines.length ? "S2" : "S3";
 }
 
 // The tools that exist right now, in the frozen contract's order.

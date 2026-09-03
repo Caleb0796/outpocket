@@ -18,14 +18,8 @@
 // rather than as a bug. Both sides are awaited and the raw values are printed
 // on failure so a zero-vs-undefined mixup is visible rather than inferred.
 //
-// A NOTE ON THE STATE LABELS IN THE PREDICATE. F5.accept names the four
-// employee states "S1-emp-home, S2-emp-draft-clean, S3-emp-draft-dirty,
-// S4-emp-submitted". src/page/register.js and the frozen tool-surface contract
-// have S2 as the DIRTY draft and S3 as the CLEAN one — the two middle labels
-// are transposed relative to the canonical ids. The ids are what
-// surfaceState() returns and what the contract freezes, so this file drives and
-// asserts on S1/S2/S3/S4 as compile.js defines them, and reports the state id
-// it observed. Reported to L1 rather than silently reconciled.
+// The four employee states use the same ids as the frozen export contract:
+// S1 home, S2 clean draft, S3 dirty draft, and S4 submitted.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -132,13 +126,13 @@ const DRIVE = {
     document.querySelector('[data-login="chen"]').click();
     await new Promise(r => setTimeout(r, 500));
   })()`,
-  S2: `(async () => {
+  S3: `(async () => {
     const t = globalThis.outpocketTools;
     await t.executeTool('create_expense_report',
       { title: 'Boston client workshop', project: 'FALCON' }, { source: 'agent' });
     await new Promise(r => setTimeout(r, 350));
   })()`,
-  S3: `(async () => {
+  S2: `(async () => {
     const t = globalThis.outpocketTools;
     await t.executeTool('add_expense_line', {
       date: '2026-08-20', merchant: 'Blue Bottle', category: 'meals',
@@ -201,7 +195,7 @@ browserTest("the signed-out surface is visible with two rows, then tracks all fo
   assert.notEqual(signedOut.regionDisplay, "none", "the signed-out surface region computes to display:none");
 
   const seen = [];
-  for (const id of ["S1", "S2", "S3", "S4"]) {
+  for (const id of ["S1", "S3", "S2", "S4"]) {
     await page.evaluate(DRIVE[id]);
     const r = await page.evaluate(READ_BOTH);
     seen.push({ want: id, ...r });
@@ -411,8 +405,8 @@ test("the inspector uses first-glance copy while retaining S0–S5 in attributes
   const labels = {
     S0: "Signed out",
     S1: "Employee · no report open",
-    S2: "Employee · draft needs attention",
-    S3: "Employee · draft ready to submit",
+    S2: "Employee · draft ready to submit",
+    S3: "Employee · draft needs attention",
     S4: "Employee · submitted · read-only",
     S5: "Auditor · read-only",
   };

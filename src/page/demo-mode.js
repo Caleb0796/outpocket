@@ -26,7 +26,7 @@
 // lock, output budget and error envelope. A demo that reached into the ERP
 // directly would show a filing this system's tools could not actually perform.
 //
-// It stops at S3 — one clean line, submit_expense_report on the surface, door
+// It stops at S2 — one clean line, submit_expense_report on the surface, door
 // open — and does NOT submit. Submitting needs a human signature (S5's gate),
 // and a demo that signed on the human's behalf would be a lie about the one
 // property this project exists to demonstrate.
@@ -80,7 +80,7 @@ const intBetween = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
 // ceiling is one cent below RECEIPT_REQUIRED_AT.
 //
 // MEASURED: the first working version of this demo drew amounts up to $90 and
-// landed on S2 with RECEIPT_REQUIRED blocking two of three lines. It would have
+// landed on S3 with RECEIPT_REQUIRED blocking two of three lines. It would have
 // been a stable dump, and a wrong one.
 //
 // The ceiling is DERIVED from src/policy.js, never typed. A cap that moves must
@@ -189,7 +189,7 @@ async function waitFor(fn, { timeoutMs = 15000, everyMs = 50 } = {}) {
  * The banner is a progress witness, not merely a disclosure label.
  *
  * The old implementation wrote one "running" sentence and never touched it
- * again, so a finished S3 draft and a stalled sign-in were visually identical.
+ * again, so a finished S2 draft and a stalled sign-in were visually identical.
  * These three phases are deliberately complete sentences: a still frame says
  * what the automation is doing, whether it has finished, and that no submission
  * occurred. `aria-live` makes changes polite announcements, while
@@ -231,9 +231,9 @@ export async function runDemo({ seed, tools, shell, doc, stepDelayMs = DEMO_STEP
   const pause = () => stepDelayMs > 0 ? sleep(stepDelayMs) : Promise.resolve();
 
   // MEASURED in live Chrome at 50 ms intervals: without held frames, seed 7
-  // crossed S2 between samples and looked as though six tools became fourteen
+  // crossed S3 between samples and looked as though six tools became fourteen
   // at once. Four pauses are enough because they surround the state-changing
-  // transitions; later clean lines leave the same fourteen-tool S3 surface.
+  // transitions; later clean lines leave the same fourteen-tool S2 surface.
   labelAsDemo(doc, seed, "start", { step: 1, total: totalSteps });
 
   // A CALL THAT RETURNED IS NOT A CALL THAT WORKED, and this is the one place
@@ -335,7 +335,7 @@ export async function runDemo({ seed, tools, shell, doc, stepDelayMs = DEMO_STEP
       total: totalSteps,
       reportId,
       message: `Adding a $${line.amount} ${demoLineKind(line)} line… ` +
-        `(surface: ${tools.names().length} tools, ${tools.state() === "S3" ? "ready to submit" : "draft needs attention"})`,
+        `(surface: ${tools.names().length} tools, ${tools.state() === "S2" ? "ready to submit" : "draft needs attention"})`,
     });
   };
 
@@ -352,7 +352,7 @@ export async function runDemo({ seed, tools, shell, doc, stepDelayMs = DEMO_STEP
         total: totalSteps,
         reportId,
         message: `Validating… (surface: ${tools.names().length} tools, ` +
-          `${tools.state() === "S3" ? "ready to submit" : "draft needs attention"})`,
+          `${tools.state() === "S2" ? "ready to submit" : "draft needs attention"})`,
       });
     }
     if (i === 0) await pause();

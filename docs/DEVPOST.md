@@ -155,10 +155,12 @@ record of an event that never happened, indistinguishable in the day book from
 a real click.
 
 Two more limits matter. The current deployment is a single in-memory Node.js
-process: restart loses state and there is no multi-instance coordination. Also,
-receipt bytes never reach the server. Only metadata and a browser-computed
-SHA-256 value enter the service, so the chain does not show that the server
-received or checked the attachment itself.
+process: restart loses state and there is no multi-instance coordination. Each
+fresh browser session does receive an isolated workspace, while a persona
+switch in the same browser retains that workspace and rotates the session id.
+Also, receipt bytes never reach the server. Only metadata and a
+browser-computed SHA-256 value enter the service, so the chain does not show
+that the server received or checked the attachment itself.
 
 Judges may choose to assess the submitted description and media without running
 the site. For that reason, the repository includes captured browser evidence,

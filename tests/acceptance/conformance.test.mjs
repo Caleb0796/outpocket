@@ -106,16 +106,16 @@ async function sixStates() {
   s1.erp.signIn("chen", "human");
   states.S1 = s1;
 
-  const s3 = makeWorld();
-  s3.erp.signIn("chen", "human");
-  await buildCleanReport(s3);
-  states.S3 = s3;
-
   const s2 = makeWorld();
   s2.erp.signIn("chen", "human");
   await buildCleanReport(s2);
-  s2.erp.addLine({ date: s2.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
   states.S2 = s2;
+
+  const s3 = makeWorld();
+  s3.erp.signIn("chen", "human");
+  await buildCleanReport(s3);
+  s3.erp.addLine({ date: s3.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
+  states.S3 = s3;
 
   const s4 = makeWorld();
   s4.erp.signIn("chen", "human");

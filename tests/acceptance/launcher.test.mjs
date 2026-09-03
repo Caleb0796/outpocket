@@ -185,7 +185,7 @@ test("the seeded demo banner has exact start, working, and complete states", () 
 // sampled frame ever showed S2. This fake keeps the production state counts and
 // tool responses but removes only the waits, then records every DOM progress
 // write. It therefore pins the 6 -> 13 -> 14 story without adding seconds to the
-// suite or mistaking an eventual S3 result for a visible transition.
+// suite or mistaking an eventual S2 result for a visible transition.
 test("the seed 7 demo exposes each progress frame, report id, and S2 surface", async () => {
   const updates = [];
   const attributes = new Map();
@@ -205,9 +205,9 @@ test("the seed 7 demo exposes each progress frame, report id, and S2 surface", a
   const surfaces = {
     S0: ["get_signin_status", "explain_missing_tool"],
     S1: ["get_session_scope", "get_expense_policy", "list_expense_reports", "create_expense_report", "open_expense_report", "explain_missing_tool"],
-    S2: ["get_session_scope", "get_expense_policy", "list_expense_reports", "create_expense_report", "open_expense_report", "get_open_report", "add_expense_line", "update_expense_line", "remove_expense_line", "list_receipts", "link_receipt", "validate_expense_report", "explain_missing_tool"],
+    S3: ["get_session_scope", "get_expense_policy", "list_expense_reports", "create_expense_report", "open_expense_report", "get_open_report", "add_expense_line", "update_expense_line", "remove_expense_line", "list_receipts", "link_receipt", "validate_expense_report", "explain_missing_tool"],
   };
-  surfaces.S3 = [...surfaces.S2.slice(0, -1), "submit_expense_report", "explain_missing_tool"];
+  surfaces.S2 = [...surfaces.S3.slice(0, -1), "submit_expense_report", "explain_missing_tool"];
 
   const calls = [];
   let createdArgs = null;
@@ -222,11 +222,11 @@ test("the seed 7 demo exposes each progress frame, report id, and S2 surface", a
       }
       if (name === "create_expense_report") {
         createdArgs = args;
-        state = "S2";
+        state = "S3";
         return { content: [{ text: "Draft RP-1018 created and opened for project HERON." }] };
       }
       if (name === "add_expense_line") {
-        state = "S3";
+        state = "S2";
         return { content: [{ text: "Line added. Policy check: clean." }] };
       }
       return { content: [{ text: "Validation complete. Policy check: clean." }] };
@@ -241,7 +241,7 @@ test("the seed 7 demo exposes each progress frame, report id, and S2 surface", a
 
   const result = await runDemo({ seed: 7, tools, shell: null, doc, stepDelayMs: 0 });
 
-  assert.equal(result.reachedState, "S3");
+  assert.equal(result.reachedState, "S2");
   assert.equal(result.reportId, "RP-1018");
   assert.equal(result.plan.project, "HERON");
   assert.equal(createdArgs.project, "HERON");

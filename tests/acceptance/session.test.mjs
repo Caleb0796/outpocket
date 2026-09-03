@@ -17,12 +17,27 @@ async function withServer(fn, options) {
   }
 }
 
-function login(base, persona) {
+function login(base, persona, cookie = null) {
   return fetch(`${base}/api/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
     body: JSON.stringify({ persona }),
   });
+}
+
+async function createReport(base, cookie, title) {
+  const res = await fetch(`${base}/api/reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ title, project: "FALCON" }),
+  });
+  assert.equal(res.status, 201, JSON.stringify(await res.json()));
+}
+
+async function reportTitles(base, cookie) {
+  const res = await fetch(`${base}/api/reports`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 200);
+  return (await res.json()).reports.map((report) => report.title);
 }
 
 test("POST /api/login sets a Set-Cookie with HttpOnly and SameSite=Lax", async () => {
@@ -77,6 +92,37 @@ test("GET /api/me with garbage or malformed cookies returns 401 instead of crash
       assert.equal(res.status, 401, cookie);
       assert.deepEqual(await res.json(), { error: "E_NO_SESSION" });
     }
+  });
+});
+
+test("independent browser sessions receive isolated report workspaces", async () => {
+  await withServer(async (base) => {
+    const firstLogin = await login(base, "chen");
+    const firstCookie = firstLogin.headers.get("set-cookie").split(";")[0];
+    const secondLogin = await login(base, "chen");
+    const secondCookie = secondLogin.headers.get("set-cookie").split(";")[0];
+
+    await createReport(base, firstCookie, "First browser only");
+    await createReport(base, secondCookie, "Second browser only");
+
+    assert.deepEqual(await reportTitles(base, firstCookie), ["July site visit — Heron", "First browser only"]);
+    assert.deepEqual(await reportTitles(base, secondCookie), ["July site visit — Heron", "Second browser only"]);
+  });
+});
+
+test("persona switching rotates the SID and retains the current browser workspace", async () => {
+  await withServer(async (base) => {
+    const employeeLogin = await login(base, "chen");
+    const employeeCookie = employeeLogin.headers.get("set-cookie").split(";")[0];
+    await createReport(base, employeeCookie, "Visible after role switch");
+
+    const auditorLogin = await login(base, "ruiz", employeeCookie);
+    const auditorCookie = auditorLogin.headers.get("set-cookie").split(";")[0];
+    assert.notEqual(auditorCookie, employeeCookie);
+
+    const retiredSession = await fetch(`${base}/api/me`, { headers: { Cookie: employeeCookie } });
+    assert.equal(retiredSession.status, 401, "the previous SID must stop authorizing requests");
+    assert.deepEqual(await reportTitles(base, auditorCookie), ["July site visit — Heron", "Visible after role switch"]);
   });
 });
 

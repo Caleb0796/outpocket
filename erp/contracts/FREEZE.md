@@ -56,9 +56,9 @@ a9413096bd65c6c3b699dfa55b262b7bcd5a247d7b03cc4834e215f60c6410ed  erp/contracts/
 4f839c13dd6d07758b1ef74138ad632be0fb4f7fbb4ced552e7ed489103b1485  erp/contracts/probe-verdict.schema.json
 fb729b21555efafa9f38adec1e767063e35ca5038210207eeb85982f59b525da  erp/contracts/provenance.schema.json
 3ddedc9ec3775b6313abdc991377af2182df251a67b880b80f4d70f04f36e2a8  erp/contracts/signature.schema.json
-df4134e7ec98d326b94777e6b1efda58554bc6ec6238252da40d668876d4129b  erp/contracts/tool-export.schema.json
+f31cbb6efd2004d505030bfb4bb398f32fd9999f2cd6983a6b6d3c02ed03cd7f  erp/contracts/tool-export.schema.json
 562d5cec6b6ae82f25c8c7e81a910d2129b4a9aa722374b71ae80e4c725735ce  erp/contracts/violation.schema.json
-20a6984e992f5901a296d02dfbb41f4b192676ee38402f86e3739b41fb051400  erp/contracts/tool-surface.contract.md
+f945a1135dfe53be0983e4de89a640b7f3f99784ee621de4201a5c3ce0905e24  erp/contracts/tool-surface.contract.md
 
 *(`FREEZE.md` cannot hash itself; git does that. `git log -1 --format=%s -- erp/contracts/FREEZE.md` carries this node's own freeze subject, which is the probe `S10.accept` runs — and the reason it does not probe `violation.schema.json` instead is that `L0` commits that path once, under `bootstrap: outpocket sprint A`, and nothing in the graph ever touches it again, so the old probe could never have gone green.)*
 
@@ -77,14 +77,9 @@ A freeze exists to catch ACCIDENTAL surface change; the sanctioned mechanism for
 intentional reviewed one is a bump, adjudicated and recorded. Leaving the numbers frozen would
 have given a deleted compiler veto power over a live design choice.
 
-**THE TWO DOCUMENTS DO NOT AGREE DIGIT FOR DIGIT AND MUST NOT.** §1 of
-`tool-surface.contract.md` is written in the COMPILER'S INTERNAL ids, where `S2` is the DIRTY
-draft and `S3` is the CLEAN one; `x-requiredStates` is written in EXPORT ids, where
-`S2-emp-draft-clean` is the clean one. So §1 reads `… 13, 14 …` and `x-requiredStates` reads
-`… 14, 13 …`, and **both are correct. If they ever agree in row order, one of them is wrong.**
-I first wrote this amendment as "2/6/14/13/7/7 down both" — which would have put 14 on the
-DIRTY row and propagated into `MEMBERSHIP`, the mirror image of the exact bug T5 exists to
-prevent. Caught by I2 before it was applied.
+At that amendment, the compiler's internal S2/S3 ids and the exported canonical ids did not
+agree. That discrepancy was documented rather than hidden, but it left two meanings for the
+same state labels and made runtime inspection disagree with the published artifact.
 
 A SECOND RE-CUT IS EXPECTED. `tool-surface.contract.md` §2 carries `set by T3 / 500` in the
 description-budget cell, because the tool does not exist yet. T3 fills the real byte count and
@@ -93,3 +88,10 @@ this manifest is re-cut again when it lands. Two honest re-cuts beat one that gu
 Also corrected here, under D-78: the note's claim that `S4-emp-submitted` and `S5-aud` "differ
 by exactly one name" — MEASURED, they differ by TWO each way. True when written, stale since
 T6, and the argument it supports (set equality over count equality) is slightly stronger for it.
+
+**2026-09-03 — DEV-018, final-audit state reconciliation, owner-authorized.** The compiler, runtime
+inspector, generated export, eval mapping, harness, and this contract now use one vocabulary:
+`S2` is the clean 14-tool draft and `S3` is the dirty 13-tool draft. The two frozen hashes below
+were re-recorded because the schema now also states the implementable meaning of
+`app_commit`: the last commit touching derived surface sources, not a self-referential final
+artifact commit.

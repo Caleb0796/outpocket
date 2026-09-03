@@ -145,8 +145,8 @@ function respondBody(sr, { decision, reason = null, confirmToken }) {
 }
 
 /** Opens a sign request as `chen`, over raw HTTP. Returns everything a test typically needs. */
-async function openAsChen(base, gate, reportId) {
-  const cookie = await login(base, "chen");
+async function openAsChen(base, gate, reportId, existingCookie = null) {
+  const cookie = existingCookie ?? await login(base, "chen");
   const sid = cookieToSid(cookie);
   if (reportId === undefined) ({ reportId } = await createDraft(base, cookie));
   const { status, body } = await postJson(base, "/api/sign", cookie, openBody(reportId));
@@ -326,7 +326,7 @@ test("a committed request replays the identical result without appending the cha
     const otherSession = await login(base, "chen");
     const crossSession = await postJson(base, `/api/reports/${reportId}/commit`, otherSession, body);
     assert.equal(crossSession.status, 404);
-    assert.equal(crossSession.body.error, "E_SIGN_REQUEST_UNKNOWN");
+    assert.equal(crossSession.body.error, "E_REPORT_NOT_FOUND");
 
     const differentRequest = await postJson(base, `/api/reports/${reportId}/commit`, cookie, {
       ...body,
@@ -445,7 +445,7 @@ test("N-21 neg-decline-to-unlock: a caller holding confirm_token can decline bef
 
     // Recovery: the draft is released, and a NEW sign request can be opened
     // for the same report immediately.
-    const reopened = await openAsChen(base, gate, reportId);
+    const reopened = await openAsChen(base, gate, reportId, cookie);
     assert.match(reopened.signRequest.request_id, REQUEST_ID_RE);
     assert.notEqual(reopened.signRequest.request_id, sr.request_id);
   });

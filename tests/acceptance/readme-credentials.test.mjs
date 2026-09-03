@@ -5,8 +5,8 @@
 // live server, then locks the launch spelling and deterministic demo URL that
 // make the page reachable. The same judge path carries copied tool instructions
 // and the demo-state disclosure, so this test also keeps a natural-language
-// business purpose from becoming a nonexistent schema key and keeps shared
-// persona state from reading like tenant isolation. The flag-page slug contains
+// business purpose from becoming a nonexistent schema key and keeps workspace
+// isolation and same-browser role switching stated accurately. The flag-page slug contains
 // "testing" while the documented CLI feature is WebMCP; checking whole strings
 // keeps those two similar-looking interfaces from drifting back together. Exact
 // positioning checks preserve the qualified runtime and credential claims and
@@ -96,9 +96,9 @@ test("judge-facing copy matches the tool-visible field, result, timing, and demo
   assert.doesNotMatch(guide, /30-second visual preview/);
   assert.match(guide, /visual preview that completes in a few seconds/);
   assert.ok(guide.includes("The tool's text\nstates `Chain verification: verified`, the `Head:` digest, and the numbered\nday-book entries."));
-  assert.ok(readme.includes("The demo personas are shared, not a multi-tenant account model."));
-  assert.ok(readme.includes("visitors using one persona in the same running process see and can edit one\n  another's drafts."));
-  assert.ok(readme.includes("A deployment restart clears those drafts with the rest of\n  the in-memory state."));
+  assert.ok(readme.includes("A new browser session receives its own demo workspace"));
+  assert.ok(readme.includes("visitors using the\n  same persona do not see one another's drafts."));
+  assert.ok(readme.includes("Switching persona in the same\n  browser rotates the session id but keeps that workspace"));
 });
 
 test("judge-facing positioning keeps bounded claims and blind-review provenance", () => {

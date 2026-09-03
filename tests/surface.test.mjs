@@ -496,12 +496,7 @@ test("T5 export: six canonical states in the frozen order", () => {
     ["S0-anon", "S1-emp-home", "S2-emp-draft-clean", "S3-emp-draft-dirty", "S4-emp-submitted", "S5-aud"]);
 });
 
-test("T5 export: the ids cross over at 2/3 — clean is 14 tools, dirty is 13", () => {
-  // compile.js's internal S2 is the DIRTY draft and its S3 is the CLEAN one, while
-  // the export's S2-… is clean and its S3-… is dirty. The digit does not carry over.
-  // Mapping by it would publish submit_expense_report on the surface that holds a
-  // blocking violation, and the state count, the id order and every digest would
-  // still check out — wrong quietly, which is the whole reason this test exists.
+test("T5 export: S2 is clean with 14 tools and S3 is dirty with 13", () => {
   const clean = namesOf("S2-emp-draft-clean");
   const dirty = namesOf("S3-emp-draft-dirty");
   assert.equal(clean.length, 14);
@@ -612,9 +607,9 @@ test("T3: the absence register is resident — present in all six states", async
   };
   check();                                                   // S0
   w.erp.signIn("chen", "human"); check();                    // S1
-  await buildCleanReport(w); check();                        // S3 clean
+  await buildCleanReport(w); check();                        // S2 clean
   w.erp.addLine({ date: w.dates.cab, merchant: "Big Dinner", category: "meals", amount: 300.0, attendees: 1 }, "test");
-  check();                                                   // S2 dirty
+  check();                                                   // S3 dirty
   w.erp.openReport("RP-1017", "test"); check();               // S4 submitted
   w.erp.signOut("human"); w.erp.signIn("ruiz", "human"); check(); // S5 auditor
   assert.deepEqual([...new Set(seen)].sort(), ["S0", "S1", "S2", "S3", "S4", "S5"]);

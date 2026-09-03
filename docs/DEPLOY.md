@@ -25,11 +25,11 @@ Compare that value with the exact commit selected for deployment.
 ## Keep exactly one instance
 
 Configure exactly one instance and disable autoscaling in the Render dashboard.
-Sessions, reports, sign requests, the day book, and the state used for digest
-comparison all live in process memory. With multiple instances, review and
-commit requests could reach different state, invalidating the digest binding
-and the single-process TOCTOU guarantee. A process restart also clears this
-in-memory state.
+Sessions and isolated browser workspaces live in process memory. Each workspace
+contains its own reports, sign requests, day book, and state used for digest
+comparison. With multiple instances, review and commit requests could reach
+different state, invalidating the digest binding and the single-process TOCTOU
+guarantee. A process restart also clears all in-memory workspaces.
 
 ## Verify a deploy
 

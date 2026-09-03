@@ -98,8 +98,8 @@ function el(doc, tag, attrs = {}, text = null) {
 const STATE_LABELS = Object.freeze({
   S0: "Signed out",
   S1: "Employee · no report open",
-  S2: "Employee · draft needs attention",
-  S3: "Employee · draft ready to submit",
+  S2: "Employee · draft ready to submit",
+  S3: "Employee · draft needs attention",
   S4: "Employee · submitted · read-only",
   S5: "Auditor · read-only",
 });

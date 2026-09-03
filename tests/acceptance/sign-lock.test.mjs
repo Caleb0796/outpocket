@@ -266,21 +266,18 @@ test("revision is carried from the server aggregate and advances only after acce
 
 // ── the atomic pairing, under genuine concurrency ────────────────────────
 // S2 (server/authz.mjs) now gates POST /api/sign to `employee` sessions
-// only, so this race is between two INDEPENDENT chen sessions (two logins,
-// two cookies, same persona) rather than chen-vs-ruiz — an auditor session
-// racing this endpoint gets 403 deterministically now, which is S2's own
-// property, not this node's. What S12 owns and this test still proves is
-// unchanged: two sessions that are BOTH authorized never both win the lock.
+// only, so this race sends two requests concurrently through one authorized
+// session. Independent browser sessions intentionally have isolated workspaces
+// and cannot address one another's reports.
 test("two concurrent opens for the SAME report_id never both win, and the loser leaves no residual lock", async () => {
   const gate = createSignGate({ ttlMs: 30_000 });
   await withApp(gate, async (base) => {
     const cookieA = await login(base, "chen");
-    const cookieB = await login(base, "chen");
     const { reportId } = await createDraft(base, cookieA);
 
     const [a, b] = await Promise.all([
       postJson(base, "/api/sign", cookieA, openBody(reportId)),
-      postJson(base, "/api/sign", cookieB, openBody(reportId)),
+      postJson(base, "/api/sign", cookieA, openBody(reportId)),
     ]);
 
     const outcomes = [a, b];
@@ -301,8 +298,8 @@ test("two concurrent opens for the SAME report_id never both win, and the loser 
     assert.equal(guardMutation(gate.locks, reportId).blocked, true);
 
     const winnerRequestId = winners[0].body.sign_request.request_id;
-    const winnerSid = (winners[0] === a ? cookieA : cookieB).split("=")[1];
-    const declined = await postJson(base, `/api/sign/${winnerRequestId}/respond`, winners[0] === a ? cookieA : cookieB, {
+    const winnerSid = cookieA.split("=")[1];
+    const declined = await postJson(base, `/api/sign/${winnerRequestId}/respond`, cookieA, {
       schema: "outpocket.sign_respond_request/1",
       request_id: winnerRequestId,
       decision: "declined",

@@ -19,7 +19,7 @@
     "app_commit": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$",
-      "description": "The git commit the export was generated from. E6 asserts that this equals the commit actually deployed, so that a green eval run cannot describe a build nobody can visit."
+      "description": "The last git commit that touched the source files from which this export is derived. A later artifact-only commit may be the deployed HEAD because a generated file cannot contain the hash of the commit that contains itself. E5 proves provenance by regenerating on a clean checkout and comparing bytes."
     },
     "policy_version": {
       "type": "string",

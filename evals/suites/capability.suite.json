@@ -21,7 +21,7 @@
     },
     {
       "state_id": "S3-emp-draft-dirty",
-      "expected_internal_state": "S2",
+      "expected_internal_state": "S3",
       "setup": [
         {
           "type": "discover_active_project"
@@ -58,7 +58,7 @@
     },
     {
       "state_id": "S2-emp-draft-clean",
-      "expected_internal_state": "S3",
+      "expected_internal_state": "S2",
       "setup": [
         {
           "type": "tool",

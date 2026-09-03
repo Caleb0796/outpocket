@@ -169,7 +169,7 @@ test("SIGN: the first tool call returns promptly, reuses one ticket, and a later
     // output budget and error path — the same dispatch a real agent's calls
     // take. Calling the provider directly would prove the provider works and
     // say nothing about whether register.js ever reaches it.
-    assert.equal(registry.state(), "S3");
+    assert.equal(registry.state(), "S2");
     assert.ok(registry.names().includes("submit_expense_report"));
 
     const bridge = createSignBridge({ baseUrl: base, mode: SIGN_MODE.HANDSHAKE, headers: { Cookie: cookie } });
@@ -337,7 +337,7 @@ test("decline, expiry, and a stale saved request clear the report continuation",
   assert.equal(storage.length, 0);
 });
 
-test("SEND BACK: the second call reads the server decline, does not commit, and restores S3", async () => {
+test("SEND BACK: the second call reads the server decline, does not commit, and restores S2", async () => {
   const gate = createSignGate();
   await withApp(gate, async (base) => {
     resetInstallForTests();
@@ -368,7 +368,7 @@ test("SEND BACK: the second call reads the server decline, does not commit, and 
       assert.doesNotMatch(textOf(declined), /confirm_token|ct_[0-9a-f]/i);
       assert.equal(commitCalls, 0, "a declined continuation must not call commit");
       assert.equal(erp.openReportOrNull()?.status, "draft");
-      assert.equal(registry.state(), "S3");
+      assert.equal(registry.state(), "S2");
       assert.equal(dialog.finished.at(-1)?.kind, "declined");
       assert.match(dialog.finished.at(-1)?.message, /meal total looks wrong/i);
       assert.match(dialog.finished.at(-1)?.message, /The draft remains editable\./);
@@ -433,11 +433,11 @@ test("NEGATIVE CONTROL — with NO provider installed, the same submit reaches r
 
   // ASSERT THE PRECONDITION FIRST. Without this the control passes for the
   // WRONG REASON: my first draft used a string amount, toCents() returned null,
-  // the report stayed dirty at S2, and submit_expense_report was not on the
+  // the report stayed dirty at S3, and submit_expense_report was not on the
   // surface at all — so "the submit did not complete" was true and had nothing
   // to do with the provider. A negative control that can be satisfied by the
   // tool being absent is not a control.
-    assert.equal(registry.state(), "S3", "the fixture must be a CLEAN draft, or this control proves nothing");
+    assert.equal(registry.state(), "S2", "the fixture must be a CLEAN draft, or this control proves nothing");
     assert.ok(registry.names().includes("submit_expense_report"),
       "submit_expense_report must be ON the surface, or its refusal says nothing about the provider");
 

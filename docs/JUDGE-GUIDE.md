@@ -40,7 +40,9 @@ Expected: `true`.
 ## Five-minute smoke path
 
 Start at the [live app](https://outpocket.onrender.com/) in a fresh browser
-session so there is no existing persona cookie.
+session so there is no existing persona cookie. Each fresh browser session gets
+an isolated demo workspace; switching persona later in this same browser keeps
+that workspace while rotating the session id.
 
 ### 0:00 — signed out
 
@@ -121,6 +123,8 @@ Expect the submitted report and its committed day-book entry. The tool's text
 states `Chain verification: verified`, the `Head:` digest, and the numbered
 day-book entries. The auditor menu has no report creation, editing, signing, or
 submission tool; the server also refuses an auditor's direct write request.
+Opening ruiz in a different fresh browser intentionally shows that browser's
+independent seeded workspace instead.
 
 ## What the smoke path demonstrates
 

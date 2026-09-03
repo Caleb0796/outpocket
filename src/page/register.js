@@ -8,8 +8,8 @@
 //
 //   S0  signed out                     ->  2 tools
 //   S1  employee, no report open       ->  6 tools
-//   S2  employee, draft open and DIRTY -> 13 tools
-//   S3  employee, draft open and CLEAN -> 14 tools   submit_expense_report exists
+//   S2  employee, draft open and CLEAN -> 14 tools   submit_expense_report exists
+//   S3  employee, draft open and DIRTY -> 13 tools
 //   S4  employee, report submitted     ->  7 tools   every editing tool is gone
 //   S5  auditor                        ->  7 tools   read-only by construction
 //

@@ -8,7 +8,7 @@
 //   node harness/drive.mjs --url <origin> --list  # one tool name per line on stdout, exit 0
 //   node harness/drive.mjs --url <origin> --exec <name>   # invoke by name over CDP, exit 0
 //   node harness/drive.mjs --smoke-login chen,ruiz        # a real login per persona, exit 0
-//   node harness/drive.mjs --assert-flips 2,6,13,14       # the S0->S1->S2->S3 walk over CDP
+//   node harness/drive.mjs --assert-flips 2,6,13,14       # the S0->S1->S3->S2 walk over CDP
 //   node harness/drive.mjs --fallback --scenario happy    # the same walk, WebMCP disabled
 //   node harness/drive.mjs --url "<origin>/?demo=1&seed=7" --dump-state  # H4: byte-stable state
 //
@@ -979,7 +979,7 @@ async function modeGate({ headless }) {
 //
 // THE NUMERALS ARE CROSS-CHECKED, NOT HARD-CODED. 2,6,13,14 arrive on the command line and
 // each is mapped back onto the state in the FROZEN contract whose membership has that size
-// (S0=2, S1=6, S2=13, S3=14), by importing MEMBERSHIP from src/page/tools/compile.js — the
+// (S0=2, S1=6, S3=13, S2=14), by importing MEMBERSHIP from src/page/tools/compile.js — the
 // same table tools/validate-contracts.mjs proves equal to
 // erp/contracts/tool-surface.contract.md §1 in both directions. A numeral matching no state is
 // announced. That is why this file holds no second copy of the counts.
@@ -1073,8 +1073,8 @@ const EMPLOYEE = 'chen'; // the employee persona; server/personas.json owns the 
 const WALK = [
   { state: 'S0', label: 'signed out, on load' },
   { state: 'S1', label: 'signed in as the employee persona' },
-  { state: 'S2', label: 'draft created and open, no lines yet' },
-  { state: 'S3', label: 'one clean line — the submit door opens' },
+  { state: 'S3', label: 'draft created and open, no lines yet' },
+  { state: 'S2', label: 'one clean line — the submit door opens' },
 ];
 
 // Read the surface THROUGH getTools(), awaited, because that is the channel both predicates
@@ -1334,7 +1334,7 @@ function blockingCount(text) {
 // ---- the --selftest fixture --------------------------------------------------------------
 //
 // The instrument's own arm. It registers the REAL per-state membership out of the frozen
-// contract and flips through the same S0->S1->S2->S3 walk, so the assertion engine, the two
+// contract and flips through the same S0->S1->S3->S2 walk, so the assertion engine, the two
 // channels, the stable-count wait and the disappearance clause are all exercised TODAY —
 // before src/page/register.js (T2) and src/page/fallback-agent.js (H3) exist. It is a stand-in
 // for those two files and it says so on the page; it is not a second implementation of them,
@@ -1364,7 +1364,7 @@ var simulated = false;
 function stateId() {
   if (!st.signedIn) return 'S0';
   if (!st.open) return 'S1';
-  return (st.blocking === 0 && st.lines > 0) ? 'S3' : 'S2';
+  return (st.blocking === 0 && st.lines > 0) ? 'S2' : 'S3';
 }
 
 // With --disable-features=WebMCP there is no document.modelContext, so the page installs its
@@ -1790,7 +1790,7 @@ const USAGE = [
   '  node harness/drive.mjs --smoke-login chen,ruiz       a real login per persona in a real',
   '                                                       browser, one fresh cookie jar each;',
   '                                                       serves the app itself unless --url',
-  '  node harness/drive.mjs --assert-flips 2,6,13,14      walk S0->S1->S2->S3 over CDP with',
+  '  node harness/drive.mjs --assert-flips 2,6,13,14      walk S0->S1->S3->S2 over CDP with',
   '                                                       --enable-features=WebMCP, assert each',
   '                                                       (await getTools()).length in order,',
   '                                                       then assert submit_expense_report',

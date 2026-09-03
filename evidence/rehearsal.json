@@ -1,44 +1,44 @@
 {
   "node": "H6",
   "rehearsal": "outpocket.rehearsal/1",
-  "observedAt": "2026-08-30T01:04:16.638Z",
+  "observedAt": "2026-09-03T19:36:15.792Z",
   "whatFiveRunsProve": "The seeded demo completes end to end, unattended, five times, well inside the 120-second budget, on five DIFFERENT seeds — so five different filings, not the same one five times.",
   "whatFiveRunsDoNotProve": "NOT flake resistance. This is a seeded deterministic demo: the input never varies except by seed, and the state each seed produces is fixed. Varying the seed covers the demo's own input space; it does not simulate a hostile network, a slow machine, a different browser, or a human doing something unexpected. Also NOT rehearsed: the ChatGPT built-in browser (this drives plain Chrome over CDP), the deployed origin (this boots its own server on 127.0.0.1), and the human beats of the video — sign-in is clicked by the rig and signing is never performed at all.",
-  "howARunIsGraded": "On OBSERVED END STATE, never on the absence of a throw. In this repo the error path returns normally by design, so a run that failed every tool call still exits 0 with readable text. A run passes only if: drive.mjs exited 0; the dump parsed; harness/dump-state.mjs accepted it (the same observer H4 is graded on, so E_EMPTY_DUMP and E_DEMO_INCOMPLETE apply here for free); the surface reached S3; and a report OTHER THAN the pre-seeded archive RP-1017 exists with at least one line and zero blocking violations. That last clause matters: RP-1017 is present from boot, so \"a report exists\" is true of a run that did nothing.",
+  "howARunIsGraded": "On OBSERVED END STATE, never on the absence of a throw. In this repo the error path returns normally by design, so a run that failed every tool call still exits 0 with readable text. A run passes only if: drive.mjs exited 0; the dump parsed; harness/dump-state.mjs accepted it (the same observer H4 is graded on, so E_EMPTY_DUMP and E_DEMO_INCOMPLETE apply here for free); the surface reached S2; and a report OTHER THAN the pre-seeded archive RP-1017 exists with at least one line and zero blocking violations. That last clause matters: RP-1017 is present from boot, so \"a report exists\" is true of a run that did nothing.",
   "runs": 5,
   "passes": 5,
   "summary": "5 of 5 passes",
   "budgetMs": 120000,
   "allWithinBudget": true,
-  "slowestRunMs": 635,
-  "medianRunMs": 629,
+  "slowestRunMs": 4264,
+  "medianRunMs": 4257,
   "perStep": [
     {
       "tool": "(sign-in)",
       "samples": 5,
-      "medianMs": 52,
-      "maxMs": 52
+      "medianMs": 53,
+      "maxMs": 53
     },
     {
       "tool": "create_expense_report",
       "samples": 5,
-      "medianMs": 1,
-      "maxMs": 1
+      "medianMs": 7,
+      "maxMs": 8
     },
     {
       "tool": "add_expense_line",
       "samples": 10,
-      "medianMs": 1,
-      "maxMs": 1
-    },
-    {
-      "tool": "get_session_scope",
-      "samples": 5,
-      "medianMs": 0,
-      "maxMs": 0
+      "medianMs": 5,
+      "maxMs": 7
     },
     {
       "tool": "validate_expense_report",
+      "samples": 5,
+      "medianMs": 3,
+      "maxMs": 4
+    },
+    {
+      "tool": "get_session_scope",
       "samples": 5,
       "medianMs": 0,
       "maxMs": 0
@@ -47,17 +47,17 @@
   "slowestStep": {
     "tool": "(sign-in)",
     "samples": 5,
-    "medianMs": 52,
-    "maxMs": 52
+    "medianMs": 53,
+    "maxMs": 53
   },
   "results": [
     {
       "run": 1,
       "seed": 7,
-      "url": "http://127.0.0.1:53530/?demo=1&seed=7",
+      "url": "http://127.0.0.1:63910/?demo=1&seed=7",
       "pass": true,
       "failureCode": null,
-      "wallMs": 629,
+      "wallMs": 4264,
       "withinBudget": true,
       "reportId": "RP-1018",
       "lines": 3,
@@ -66,7 +66,7 @@
         {
           "tool": "(sign-in)",
           "ok": true,
-          "ms": 51
+          "ms": 53
         },
         {
           "tool": "get_session_scope",
@@ -76,37 +76,37 @@
         {
           "tool": "create_expense_report",
           "ok": true,
-          "ms": 1
+          "ms": 7
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 1
+          "ms": 7
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 0
+          "ms": 5
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 0
+          "ms": 4
         },
         {
           "tool": "validate_expense_report",
           "ok": true,
-          "ms": 0
+          "ms": 3
         }
       ]
     },
     {
       "run": 2,
       "seed": 8,
-      "url": "http://127.0.0.1:53530/?demo=1&seed=8",
+      "url": "http://127.0.0.1:63910/?demo=1&seed=8",
       "pass": true,
       "failureCode": null,
-      "wallMs": 614,
+      "wallMs": 4255,
       "withinBudget": true,
       "reportId": "RP-1018",
       "lines": 1,
@@ -115,7 +115,7 @@
         {
           "tool": "(sign-in)",
           "ok": true,
-          "ms": 52
+          "ms": 53
         },
         {
           "tool": "get_session_scope",
@@ -125,27 +125,27 @@
         {
           "tool": "create_expense_report",
           "ok": true,
-          "ms": 1
+          "ms": 7
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 1
+          "ms": 6
         },
         {
           "tool": "validate_expense_report",
           "ok": true,
-          "ms": 0
+          "ms": 4
         }
       ]
     },
     {
       "run": 3,
       "seed": 9,
-      "url": "http://127.0.0.1:53530/?demo=1&seed=9",
+      "url": "http://127.0.0.1:63910/?demo=1&seed=9",
       "pass": true,
       "failureCode": null,
-      "wallMs": 622,
+      "wallMs": 4251,
       "withinBudget": true,
       "reportId": "RP-1018",
       "lines": 1,
@@ -154,7 +154,7 @@
         {
           "tool": "(sign-in)",
           "ok": true,
-          "ms": 52
+          "ms": 53
         },
         {
           "tool": "get_session_scope",
@@ -164,27 +164,27 @@
         {
           "tool": "create_expense_report",
           "ok": true,
-          "ms": 1
+          "ms": 8
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 1
+          "ms": 4
         },
         {
           "tool": "validate_expense_report",
           "ok": true,
-          "ms": 0
+          "ms": 4
         }
       ]
     },
     {
       "run": 4,
       "seed": 10,
-      "url": "http://127.0.0.1:53530/?demo=1&seed=10",
+      "url": "http://127.0.0.1:63910/?demo=1&seed=10",
       "pass": true,
       "failureCode": null,
-      "wallMs": 635,
+      "wallMs": 4264,
       "withinBudget": true,
       "reportId": "RP-1018",
       "lines": 3,
@@ -193,7 +193,7 @@
         {
           "tool": "(sign-in)",
           "ok": true,
-          "ms": 52
+          "ms": 53
         },
         {
           "tool": "get_session_scope",
@@ -203,37 +203,37 @@
         {
           "tool": "create_expense_report",
           "ok": true,
-          "ms": 1
+          "ms": 7
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 1
+          "ms": 5
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 0
+          "ms": 4
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 0
+          "ms": 4
         },
         {
           "tool": "validate_expense_report",
           "ok": true,
-          "ms": 0
+          "ms": 2
         }
       ]
     },
     {
       "run": 5,
       "seed": 11,
-      "url": "http://127.0.0.1:53530/?demo=1&seed=11",
+      "url": "http://127.0.0.1:63910/?demo=1&seed=11",
       "pass": true,
       "failureCode": null,
-      "wallMs": 630,
+      "wallMs": 4257,
       "withinBudget": true,
       "reportId": "RP-1018",
       "lines": 2,
@@ -242,7 +242,7 @@
         {
           "tool": "(sign-in)",
           "ok": true,
-          "ms": 51
+          "ms": 53
         },
         {
           "tool": "get_session_scope",
@@ -252,22 +252,22 @@
         {
           "tool": "create_expense_report",
           "ok": true,
-          "ms": 1
+          "ms": 6
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 1
+          "ms": 6
         },
         {
           "tool": "add_expense_line",
           "ok": true,
-          "ms": 0
+          "ms": 2
         },
         {
           "tool": "validate_expense_report",
           "ok": true,
-          "ms": 0
+          "ms": 2
         }
       ]
     }

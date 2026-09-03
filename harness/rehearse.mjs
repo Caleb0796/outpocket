@@ -37,7 +37,7 @@
 //   3. harness/dump-state.mjs accepted it — the same observer H4 is graded on,
 //      not a second one written here, so its E_EMPTY_DUMP and E_DEMO_INCOMPLETE
 //      guards apply to every rehearsal run for free;
-//   4. the surface reached S3;
+//   4. the surface reached S2;
 //   5. a report exists that is NOT the pre-seeded archive RP-1017, with at least
 //      one line and no blocking policy violation.
 //
@@ -126,8 +126,8 @@ function grade(run, dump) {
   if (!dump) return { pass: false, code: "E_UNPARSEABLE_DUMP", why: "stdout was not JSON" };
 
   const reached = dump.demo?.reachedState ?? null;
-  if (reached !== "S3") {
-    return { pass: false, code: "E_NOT_S3", why: `the surface reached ${reached}, not S3` };
+  if (reached !== "S2") {
+    return { pass: false, code: "E_NOT_S2", why: `the surface reached ${reached}, not S2` };
   }
 
   // NOT "a report exists" — the pre-seeded archive RP-1017 is present from boot,
@@ -159,7 +159,7 @@ const median = (xs) => {
  *
  * --break-run proves the rig notices a broken subprocess, which is the EASY
  * half — it only exercises the exit-code path. The clauses that carry the real
- * weight (E_NO_FILING, E_NOT_S3, E_NOT_CLEAN) sit behind dump-state.mjs's own
+ * weight (E_NO_FILING, E_NOT_S2, E_NOT_CLEAN) sit behind dump-state.mjs's own
  * E_DEMO_INCOMPLETE guard and cannot be reached through a live run at all, so a
  * live run can never show them working. Unexercised branches in a grader are
  * indistinguishable from branches that do not work.
@@ -170,7 +170,7 @@ const median = (xs) => {
  */
 function selftest() {
   const ok = (extra = {}) => ({
-    demo: { reachedState: "S3" },
+    demo: { reachedState: "S2" },
     state: { reports: [{ id: "RP-1017", lines: [{ id: "ln_a1" }] }, { id: "RP-1018", lines: [{ id: "ln_1" }] }] },
     verdict: { blocking: 0 },
     ...extra,
@@ -181,12 +181,12 @@ function selftest() {
     ["subprocess exit != 0 fails",       { code: 1, errOut: "" }, ok(), false, "E_DRIVE_EXIT"],
     ["a named drive error is carried",   { code: 1, errOut: "drive: E_DEMO_INCOMPLETE — x" }, ok(), false, "E_DEMO_INCOMPLETE"],
     ["unparseable stdout fails",         R0, null, false, "E_UNPARSEABLE_DUMP"],
-    ["stopping short of S3 fails",       R0, { ...ok(), demo: { reachedState: "S2" } }, false, "E_NOT_S3"],
+    ["stopping short of S2 fails",       R0, { ...ok(), demo: { reachedState: "S3" } }, false, "E_NOT_S2"],
     ["ONLY the pre-seeded archive fails", R0,
-      { demo: { reachedState: "S3" }, state: { reports: [{ id: "RP-1017", lines: [{ id: "ln_a1" }] }] }, verdict: { blocking: 0 } },
+      { demo: { reachedState: "S2" }, state: { reports: [{ id: "RP-1017", lines: [{ id: "ln_a1" }] }] }, verdict: { blocking: 0 } },
       false, "E_NO_FILING"],
     ["a filing with no lines fails",     R0,
-      { demo: { reachedState: "S3" }, state: { reports: [{ id: "RP-1018", lines: [] }] }, verdict: { blocking: 0 } },
+      { demo: { reachedState: "S2" }, state: { reports: [{ id: "RP-1018", lines: [] }] }, verdict: { blocking: 0 } },
       false, "E_NO_LINES"],
     ["a blocking violation fails",       R0, { ...ok(), verdict: { blocking: 2 } }, false, "E_NOT_CLEAN"],
   ];
@@ -290,7 +290,7 @@ async function main() {
       "normally by design, so a run that failed every tool call still exits 0 with readable text. A run " +
       "passes only if: drive.mjs exited 0; the dump parsed; harness/dump-state.mjs accepted it (the same " +
       "observer H4 is graded on, so E_EMPTY_DUMP and E_DEMO_INCOMPLETE apply here for free); the surface " +
-      "reached S3; and a report OTHER THAN the pre-seeded archive RP-1017 exists with at least one line " +
+      "reached S2; and a report OTHER THAN the pre-seeded archive RP-1017 exists with at least one line " +
       "and zero blocking violations. That last clause matters: RP-1017 is present from boot, so " +
       "\"a report exists\" is true of a run that did nothing.",
 

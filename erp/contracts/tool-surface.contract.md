@@ -29,17 +29,17 @@ must not be called right now is a tool that **does not exist** right now.
 |---|---|---|---|
 | **S0** | signed out | get_signin_status, explain_missing_tool | 2 |
 | **S1** | employee, no report open | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, explain_missing_tool | 6 |
-| **S2** | employee, draft open and DIRTY | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, get_open_report, add_expense_line, update_expense_line, remove_expense_line, list_receipts, link_receipt, validate_expense_report, explain_missing_tool | 13 |
-| **S3** | employee, draft open and CLEAN | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, get_open_report, add_expense_line, update_expense_line, remove_expense_line, list_receipts, link_receipt, validate_expense_report, submit_expense_report, explain_missing_tool | 14 |
+| **S2** | employee, draft open and CLEAN | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, get_open_report, add_expense_line, update_expense_line, remove_expense_line, list_receipts, link_receipt, validate_expense_report, submit_expense_report, explain_missing_tool | 14 |
+| **S3** | employee, draft open and DIRTY | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, get_open_report, add_expense_line, update_expense_line, remove_expense_line, list_receipts, link_receipt, validate_expense_report, explain_missing_tool | 13 |
 | **S4** | employee, report submitted | get_session_scope, get_expense_policy, list_expense_reports, create_expense_report, open_expense_report, get_open_report, explain_missing_tool | 7 |
 | **S5** | auditor | get_session_scope, get_expense_policy, list_expense_reports, get_report, get_open_report, get_day_book, explain_missing_tool | 7 |
 
 `S5` and `S4` are both **seven** and they are NOT the same set — `S4` keeps
 `get_open_report` and loses every editing tool, which is what "submitted reports expose no
 editing tools" means constructively. (This sentence read "`S2` and `S4` are both
-six-and-under" until 2026-08-29. `S2` is the TWELVE-tool dirty draft, so the pair the
+six-and-under" until 2026-08-29. The dirty draft was then a twelve-tool surface, so the pair the
 set-equality argument actually rests on is `S4` and `S5`; the numeral moved to seven with
-the T3 bump. Caught by I2 while reading the table it was about to edit.) `S3` differs from `S2` by exactly one tool,
+the T3 bump. Caught by I2 while reading the table it was about to edit.) `S2` differs from `S3` by exactly one tool,
 `submit_expense_report`, and that door opens only when the verdict is clean and the report has
 lines. That is the demonstrable claim of the whole project and it is one row of this table.
 
@@ -67,7 +67,7 @@ day book, so it is not side-effect-free — and added `get_report`, which is. Th
 | `list_receipts` | yes | S2 S3 | 217 / 500 |
 | `link_receipt` | NO | S2 S3 | 157 / 500 |
 | `validate_expense_report` | yes | S2 S3 | 224 / 500 |
-| `submit_expense_report` | NO | S3 | 306 / 500 |
+| `submit_expense_report` | NO | S2 | 306 / 500 |
 | `get_report` | yes | S5 | 307 / 500 |
 | `get_day_book` | yes | S5 | 211 / 500 |
 | `explain_missing_tool` | yes | S0 S1 S2 S3 S4 S5 | set by T3 / 500 |

@@ -2,12 +2,14 @@
 //
 // Node S1. Contract: erp/contracts/session.contract.md
 // Exactly two personas — chen (employee), ruiz (auditor) — matching the frozen
-// enum in erp/contracts/eval-case.schema.json. Sessions live in an in-memory
-// Map inside this one process; a second instance would not share it, which is
-// why deployment must stay at exactly one instance (see S1's node notes and
-// S6's TOCTOU closure, both of which depend on that same fact).
+// enum in erp/contracts/eval-case.schema.json. Each browser session gets an
+// isolated in-memory workspace. Switching persona rotates the session id while
+// retaining that workspace so the employee-to-auditor demo remains coherent.
+// A second process would not share either sessions or workspaces, which is why
+// deployment must stay at exactly one instance.
 
 import { createServer } from "node:http";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { readFileSync } from "node:fs";
@@ -182,24 +184,57 @@ export function createApp({
   signGate: providedSignGate,
   secureCookies = process.env.RENDER === "true" || process.env.NODE_ENV === "production",
 } = {}) {
-  const sessions = new Map(); // sid -> persona id
+  const sessions = new Map(); // sid -> { personaId, workspaceId }
+  const workspaces = new Map(); // workspaceId -> { reportStore, signGate }
+  const requestWorkspace = new AsyncLocalStorage();
   const sessionCookieName = secureCookies ? "__Host-outpocket_sid" : "sid";
   const sessionCookieAttributes = secureCookies
     ? "Secure; HttpOnly; SameSite=Lax; Path=/"
     : "HttpOnly; SameSite=Lax; Path=/";
-  const reportStore = createReportStore();
-  reportStore.seed(seedState());
+  let unusedProvidedSignGate = providedSignGate ?? null;
+
+  function createWorkspace({ useProvidedSignGate = true } = {}) {
+    const concreteReportStore = createReportStore();
+    concreteReportStore.seed(seedState());
+    const reportAuthority = {
+      getLiveReport: (reportId) => reportProjectionFrom(concreteReportStore, reportId),
+      prepareReportCommit: ({ reportId, expectedRevision, artifact, signedBy, submittedAt }) =>
+        concreteReportStore.prepareSubmission(reportId, { expectedRevision, artifact, signedBy, submittedAt }),
+    };
+    const concreteSignGate = useProvidedSignGate && unusedProvidedSignGate
+      ? unusedProvidedSignGate
+      : createSignGate({ ...reportAuthority, getServedPolicy: () => SERVED_POLICY });
+    if (concreteSignGate === unusedProvidedSignGate) {
+      unusedProvidedSignGate = null;
+      concreteSignGate.setReportAuthority(reportAuthority);
+    }
+    return { reportStore: concreteReportStore, signGate: concreteSignGate };
+  }
+
+  const anonymousWorkspace = createWorkspace({ useProvidedSignGate: false });
+  function routedComponent(name) {
+    return new Proxy({}, {
+      get(_target, property) {
+        const component = requestWorkspace.getStore()?.[name];
+        if (!component) throw new Error(`no request workspace for ${name}`);
+        const value = component[property];
+        return typeof value === "function" ? value.bind(component) : value;
+      },
+    });
+  }
+  const reportStore = routedComponent("reportStore");
+  const signGate = routedComponent("signGate");
   const stateDigestHandler = createStateDigestHandler(() => reportStore.stateProjection());
   const versionHandler = createVersionHandler(); // D1 (I4): GET /version
   const serveStatic = makeStaticHandler(pageRoot);
 
-  function reportProjection(reportId) {
-    const report = reportStore.getReport(reportId);
+  function reportProjectionFrom(store, reportId) {
+    const report = store.getReport(reportId);
     if (!report) return null;
     const lines = report.lines.map((line) => {
       const value = (field) => line.fields[field].value;
       const receiptId = value("receipt_id");
-      const receipt = receiptId ? reportStore.getReceipt(receiptId) : null;
+      const receipt = receiptId ? store.getReceipt(receiptId) : null;
       const amountCents = value("amount");
       const currency = value("currency");
       return {
@@ -235,6 +270,10 @@ export function createApp({
     };
   }
 
+  function reportProjection(reportId) {
+    return reportProjectionFrom(reportStore, reportId);
+  }
+
   function provenanceProjection(reportId) {
     const report = reportStore.getReport(reportId);
     if (!report) return null;
@@ -245,24 +284,14 @@ export function createApp({
     };
   }
 
-  const reportAuthority = {
-    getLiveReport: reportProjection,
-    prepareReportCommit: ({ reportId, expectedRevision, artifact, signedBy, submittedAt }) =>
-      reportStore.prepareSubmission(reportId, { expectedRevision, artifact, signedBy, submittedAt }),
-  };
-  const signGate = providedSignGate ?? createSignGate({
-    ...reportAuthority,
-    getServedPolicy: () => SERVED_POLICY,
-  });
-  if (providedSignGate) {
-    providedSignGate.setReportAuthority(reportAuthority);
-  }
-
   function sessionFromRequest(req) {
     const sid = parseCookies(req.headers.cookie)[sessionCookieName];
     if (!sid) return null;
-    const personaId = sessions.get(sid);
-    return personaId ? { sid, personaId, ...PERSONAS[personaId] } : null;
+    const record = sessions.get(sid);
+    const workspace = record ? workspaces.get(record.workspaceId) : null;
+    return workspace
+      ? { sid, personaId: record.personaId, workspaceId: record.workspaceId, workspace, ...PERSONAS[record.personaId] }
+      : null;
   }
 
   function sendSignError(res, err) {
@@ -450,8 +479,13 @@ export function createApp({
           message: "persona must be one of: chen, ruiz",
         });
       }
+      const previousSid = parseCookies(req.headers.cookie)[sessionCookieName];
+      const previous = previousSid ? sessions.get(previousSid) : null;
+      const workspaceId = previous?.workspaceId ?? randomBytes(24).toString("hex");
+      if (!workspaces.has(workspaceId)) workspaces.set(workspaceId, createWorkspace());
       const sid = randomBytes(24).toString("hex");
-      sessions.set(sid, personaId);
+      sessions.set(sid, { personaId, workspaceId });
+      if (previousSid) sessions.delete(previousSid);
       res.setHeader("Set-Cookie", `${sessionCookieName}=${sid}; ${sessionCookieAttributes}`);
       return sendJson(res, 200, PERSONAS[personaId]);
     }
@@ -1021,7 +1055,8 @@ export function createApp({
       res.setHeader(name, value);
     }
     try {
-      await routeRequest(req, res);
+      const session = sessionFromRequest(req);
+      await requestWorkspace.run(session?.workspace ?? anonymousWorkspace, () => routeRequest(req, res));
     } catch (err) {
       console.error("outpocket: unhandled error in request handler", err);
       if (res.headersSent) {
