@@ -1,7 +1,7 @@
 {
   "schema": "outpocket.expected_surfaces/1",
   "source": {
-    "app_commit": "8c9b92e742d7c634705d32efc6106ebfa30de77a",
+    "app_commit": "c22643f022227136f42494044e95c23dfe5417fb",
     "distinct_tool_count": 17,
     "path": "artifacts/tools.export.json",
     "policy_digest": "sha256:b7ccc1ff9fdadb66399f48b26617a53572dd793ac7c57af55d72929561965b38",
